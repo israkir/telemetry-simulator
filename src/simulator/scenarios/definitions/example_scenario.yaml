@@ -1,0 +1,247 @@
+# Example scenario with all supported configuration attributes
+#
+# This file documents every option the scenario loader accepts. It is excluded
+# from "telemetry-simulator list" and from mixed workload (run) when using the
+# built-in sample definitions; run it explicitly with:
+#   telemetry-simulator scenario --name example_scenario --count 5
+
+# -----------------------------------------------------------------------------
+# Scenario-level (top-level) attributes
+# -----------------------------------------------------------------------------
+
+name: example_scenario
+description: >
+  Reference scenario showing all possible configuration attributes
+  for the telemetry simulator. Not meant for production runs.
+
+# Optional tags (list of strings); used for filtering or documentation
+tags:
+  - example
+  - reference
+  - statistical
+
+# Number of traces to generate per run (can override with --count)
+repeat_count: 10
+
+# Delay between traces in milliseconds
+interval_ms: 500
+
+# Whether to emit metrics and logs alongside traces
+emit_metrics: true
+emit_logs: true
+
+# -----------------------------------------------------------------------------
+# Root span (use "root:" or "spans:" with a single element)
+# -----------------------------------------------------------------------------
+# Each step supports: type, latency, error, count, probability, retry,
+# attributes, children. All of these are optional except the span structure.
+# -----------------------------------------------------------------------------
+
+root:
+  # Span type: use "type:" or "span_type:". Prefix with vendor. (or your
+  # TELEMETRY_SIMULATOR_ATTR_PREFIX). Supported types: a2a.orchestrate,
+  # planner, task.execute, llm.call, mcp.tool.execute, mcp.tool.execute.attempt,
+  # llm.tool.response.bridge, response.compose, rag.retrieve, a2a.call, cp.request
+  type: vendor.a2a.orchestrate
+
+  # --- Latency ---
+  # Option A: single number (mean in ms)
+  # latency: 1500
+
+  # Option B: mean + variance (default if no "distribution")
+  # latency:
+  #   mean_ms: 1500
+  #   variance: 0.3
+  #   spike_rate: 0.05      # optional: probability of latency spike
+  #   spike_multiplier: 3.0  # optional: spike multiplier
+
+  # Option C: distribution (overrides mean/variance for sampling)
+  latency:
+    distribution: log_normal
+    median_ms: 1500
+    sigma: 0.4
+  # Other latency distributions:
+  #   distribution: normal    -> mean, stddev (or mean_ms, variance)
+  #   distribution: exponential -> mean (or mean_ms)
+  #   distribution: uniform   -> low, high (or min, max)
+  #   distribution: mixture   -> components: [{ weight, distribution, ... }, ...]
+
+  # --- Error ---
+  # Option A: single rate (0.0–1.0)
+  # error: 0.02
+
+  # Option B: full error config
+  error:
+    rate: 0.02
+    types:
+      - timeout
+      - validation
+      - upstream_5xx
+      - rate_limit
+      - auth_failure
+      - not_found
+      - internal_error
+    retryable_types:
+      - timeout
+      - upstream_5xx
+      - rate_limit
+    # Optional: weights for error types (same order as types)
+    type_weights:
+      - 0.3
+      - 0.15
+      - 0.25
+      - 0.1
+      - 0.05
+      - 0.05
+      - 0.1
+    # Error propagation: how errors cascade to children and siblings
+    propagation:
+      from_parent: 0.8        # P(child fails | parent failed)
+      cascade_to_siblings: 0.3  # P(sibling fails | another sibling failed)
+
+  # --- Probability (0.0–1.0): include this span in each trace with this probability
+  probability: 1.0
+
+  # --- Count: how many instances of this span as a child (default 1)
+  # Option A: fixed count
+  # count: 2
+  # Option B: range
+  # count:
+  #   min: 1
+  #   max: 3
+  # Option C: distribution (e.g. Poisson for variable tool calls)
+  # count:
+  #   min: 1
+  #   max: 5
+  #   distribution: poisson
+  #   lambda: 2.5
+
+  # --- Retry behavior: multi-attempt with backoff
+  # Omit or set enabled: false to disable
+  # retry:
+  #   enabled: true
+  #   max_attempts: 3
+  #   force_initial_failure: true   # first attempt always fails
+  #   backoff_base_ms: 100
+  #   backoff_multiplier: 2.0
+  #   backoff_jitter: 0.2          # ±20% jitter on backoff
+  #   success_rate_per_attempt: [0.0, 0.75, 0.92]  # per attempt (1-indexed)
+
+  # --- Attributes: static or sampled from distributions
+  attributes:
+    # Static attributes (any key allowed; vendor.* normalized to ATTR_PREFIX)
+    vendor.turn.status.code: SUCCESS
+    vendor.turn.status.result: true
+    vendor.a2a.outcome: success
+
+    # Attribute from distribution (same distribution types as latency/count)
+    # gen_ai.usage.input_tokens:
+    #   distribution: log_normal
+    #   median: 500
+    #   sigma: 0.6
+    # gen_ai.request.model:
+    #   distribution: categorical
+    #   values:
+    #     gpt-4.1-mini: 0.6
+    #     gpt-4.1: 0.25
+    #     claude-3.5-sonnet: 0.15
+
+  # --- Children: list of steps with the same structure (type, latency, error, ...)
+  children:
+    - type: vendor.planner
+      probability: 1.0
+      latency:
+        distribution: log_normal
+        median_ms: 300
+        sigma: 0.3
+      error:
+        rate: 0.01
+      attributes:
+        vendor.step.outcome: success
+
+      children:
+        - type: vendor.llm.call
+          latency:
+            mean_ms: 400
+            variance: 0.2
+          attributes:
+            gen_ai.operation.name: chat
+            gen_ai.request.model: gpt-4.1-mini
+            # Example: distributed attribute
+            gen_ai.usage.input_tokens:
+              distribution: log_normal
+              median: 400
+              sigma: 0.5
+            gen_ai.usage.output_tokens:
+              distribution: log_normal
+              median: 150
+              sigma: 0.5
+
+    - type: vendor.mcp.tool.execute
+      probability: 0.9
+      latency:
+        distribution: log_normal
+        median_ms: 200
+        sigma: 0.5
+      error:
+        rate: 0.05
+        propagation:
+          from_parent: 0.6
+          cascade_to_siblings: 0.2
+      # Example: variable count (1–3 tool calls per turn)
+      count:
+        min: 1
+        max: 3
+        distribution: poisson
+        lambda: 1.5
+      attributes:
+        gen_ai.tool.name: example_tool
+        vendor.tool.system: mcp
+
+    - type: rag.retrieve
+      # Probability < 1: only some traces include RAG
+      probability: 0.3
+      latency:
+        distribution: log_normal
+        median_ms: 120
+        sigma: 0.4
+      error:
+        rate: 0.02
+      attributes: {}
+
+    - type: vendor.llm.call
+      probability: 0.95
+      latency:
+        distribution: log_normal
+        median_ms: 600
+        sigma: 0.4
+      attributes:
+        gen_ai.operation.name: chat
+        gen_ai.request.model: gpt-4.1-mini
+
+    - type: vendor.response.compose
+      probability: 1.0
+      latency:
+        mean_ms: 80
+        variance: 0.1
+      error:
+        rate: 0
+      attributes:
+        vendor.response.format: a2a_json
+        vendor.step.outcome: success
+
+# -----------------------------------------------------------------------------
+# Distribution reference (for latency, count, and attribute values)
+# -----------------------------------------------------------------------------
+#
+#   normal:       mean, stddev (or mean_ms, variance)
+#   log_normal:   median or median_ms, sigma
+#   exponential:  mean or mean_ms
+#   uniform:      low, high (or min, max)
+#   poisson:      lambda
+#   geometric:    p
+#   categorical:  values: { "key": weight, ... } or values: [...], weights: [...]
+#   bernoulli:    p or probability
+#   mixture:      components: [ { weight: 0.7, distribution: normal, mean: 50 }, ... ]
+#
+# -----------------------------------------------------------------------------
