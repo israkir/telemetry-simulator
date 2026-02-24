@@ -1,0 +1,144 @@
+# Tool Retry Scenario
+# Models MCP tool calls that fail initially and succeed on retry
+#
+# This scenario demonstrates statistical telemetry generation with:
+# - Forced initial failure on tool calls
+# - Exponential backoff retries (up to 3 attempts)
+# - Log-normal latency distributions (realistic long-tail)
+# - Correlated error propagation
+# - Retry-specific attributes (attempt number, backoff timing)
+
+name: tool_retry
+description: >
+  MCP tool call that fails on first attempt and succeeds after retry.
+  Demonstrates retry patterns with exponential backoff and realistic
+  error propagation. Useful for testing retry dashboards and alerting.
+
+tags:
+  - retry
+  - failure
+  - recovery
+  - statistical
+
+repeat_count: 50
+interval_ms: 750
+
+emit_metrics: true
+emit_logs: true
+
+root:
+  type: vendor.a2a.orchestrate
+  latency:
+    distribution: log_normal
+    median_ms: 2500
+    sigma: 0.4
+  error:
+    rate: 0.05
+    propagation:
+      from_parent: 0.7
+      cascade_to_siblings: 0.2
+  attributes:
+    vendor.turn.status.result: true
+    vendor.turn.status.code: SUCCESS
+    vendor.redaction.applied: basic
+    vendor.a2a.agent.target.id: agent-tool-retry-001
+    vendor.a2a.outcome: success
+
+  children:
+    # Planning phase - usually succeeds
+    - type: vendor.planner
+      probability: 1.0
+      latency:
+        distribution: log_normal
+        median_ms: 350
+        sigma: 0.3
+      error:
+        rate: 0.01
+      attributes:
+        vendor.planner.output.task.count: 2
+        vendor.planner.output.entity.count: 1
+        vendor.plan.policy.mode: balanced
+        vendor.step.outcome: success
+
+      children:
+        - type: vendor.llm.call
+          latency:
+            distribution: log_normal
+            median_ms: 450
+            sigma: 0.5
+          attributes:
+            gen_ai.operation.name: chat
+            gen_ai.system: openai
+            gen_ai.request.model: gpt-4.1-mini
+            vendor.step.outcome: success
+            gen_ai.usage.input_tokens:
+              distribution: log_normal
+              median: 400
+              sigma: 0.6
+            gen_ai.usage.output_tokens:
+              distribution: log_normal
+              median: 150
+              sigma: 0.5
+
+    # MCP tool call with retry behavior
+    - type: vendor.mcp.tool.execute
+      latency:
+        distribution: log_normal
+        median_ms: 250
+        sigma: 0.6
+      error:
+        rate: 0.8  # High initial failure rate (80%)
+        types:
+          - timeout
+          - upstream_5xx
+          - rate_limit
+        propagation:
+          from_parent: 0.3
+          cascade_to_siblings: 0.1
+      retry:
+        enabled: true
+        max_attempts: 3
+        force_initial_failure: true
+        backoff_base_ms: 150
+        backoff_multiplier: 2.0
+        backoff_jitter: 0.25
+        success_rate_per_attempt:
+          - 0.0   # First attempt: always fails (forced)
+          - 0.75  # Second attempt: 75% success
+          - 0.92  # Third attempt: 92% success
+      attributes:
+        gen_ai.operation.name: execute_tool
+        gen_ai.tool.type: function
+        gen_ai.tool.name: database.query
+        vendor.tool.system: mcp
+        vendor.tool.server.name: data-service
+        vendor.mcp.server.uuid: "11111111-2222-3333-4444-555555555555"
+        vendor.mcp.tool.uuid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        vendor.mcp.tool.call.id: call_retry_001
+        vendor.step.outcome: success
+
+    # Final LLM call - may be affected by tool retry outcomes
+    - type: vendor.llm.call
+      probability: 0.95  # Sometimes skipped if tool completely fails
+      latency:
+        distribution: log_normal
+        median_ms: 650
+        sigma: 0.4
+      error:
+        rate: 0.02
+        propagation:
+          from_parent: 0.5
+          cascade_to_siblings: 0.1
+      attributes:
+        gen_ai.operation.name: chat
+        gen_ai.system: openai
+        gen_ai.request.model: gpt-4.1-mini
+        vendor.step.outcome: success
+        gen_ai.usage.input_tokens:
+          distribution: log_normal
+          median: 800
+          sigma: 0.5
+        gen_ai.usage.output_tokens:
+          distribution: log_normal
+          median: 350
+          sigma: 0.6
