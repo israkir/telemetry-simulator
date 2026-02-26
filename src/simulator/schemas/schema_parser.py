@@ -231,9 +231,12 @@ class TelemetrySchema:
                     if section in self.span_attributes:
                         attrs.update(self.span_attributes[section])
                     break
-        # LLM Calls doc: gen_ai.system and gen_ai.request.model are MUST; include llm_inference_attributes for llm.call.
-        if suffix == "llm.call" and "llm_inference_attributes" in self.span_attributes:
-            attrs.update(self.span_attributes["llm_inference_attributes"])
+        # LLM Calls: include inference and content-capture attributes for llm.call.
+        if suffix == "llm.call":
+            if "llm_inference_attributes" in self.span_attributes:
+                attrs.update(self.span_attributes["llm_inference_attributes"])
+            if "llm_content_capture_attributes" in self.span_attributes:
+                attrs.update(self.span_attributes["llm_content_capture_attributes"])
         return attrs
 
     def get_required_attributes(self, span_name: str) -> list[str]:

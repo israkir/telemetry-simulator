@@ -6,7 +6,7 @@ Schema-driven OpenTelemetry telemetry simulator for LLM observability. Generates
 
 The telemetry simulator produces OTEL-compliant telemetry for testing and validating observability pipelines:
 
-- **Schema-Driven**: Reads your semantic-conventions YAML (path required) to ensure attribute compliance
+- **Schema-Driven**: Reads your semantic-conventions YAML (path required); the schema defines which attributes exist per span type (types, allowed values, defaults). Scenario YAML overrides or supplies distribution-based values.
 - **Full Trace Hierarchies**: Generates canonical span types (e.g. a2a.orchestrate, planner, task.execute, llm.call, mcp.tool.execute, response.compose) with proper parent-child relationships and `{prefix}.span.class` per type
 - **Multi-Signal**: Emits correlated traces, metrics, and logs
 - **Scenario-Based**: YAML-defined scenarios for reproducible testing
@@ -46,7 +46,7 @@ make install
 
 ```bash
 # Run mixed workload (uses simulator defaults for count/interval)
-SEMCONV=/path/to/otel-semantic-conventions.yaml make run
+telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml
 ```
 
 ### Run Specific Scenarios
@@ -64,14 +64,14 @@ telemetry-simulator scenario --name successful_agent_turn
 telemetry-simulator scenario --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/otel-semantic-conventions.yaml
 ```
 
-**Note:** Tenant IDs come from `scenarios_config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`. The default `make run` uses a mixed workload (varied trace patterns); for a single reproducible pattern, use a YAML scenario.
+**Note:** Tenant IDs come from `scenarios_config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`. Use `telemetry-simulator run` for a mixed workload (varied trace patterns); use `telemetry-simulator scenario --name <name>` for a single reproducible pattern.
 
 ### Live trace visualization
 
 To view traces in a browser while running the simulator on the host:
 
 1. Start Jaeger: `make jaeger-up`
-2. Run the simulator: `make run`
+2. Run the simulator: `telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml`
 3. Open **http://localhost:16686** and select service `telemetry-simulator`
 4. Stop Jaeger when done: `make jaeger-down`
 
@@ -189,7 +189,7 @@ telemetry-simulator run --count 5 --show-full-spans
 
 Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read only from `src/simulator/scenarios/scenarios_config.yaml` under the `resource` key. Configure them there; env vars are not used for these.
 
-Scenario YAML attribute overrides should use the same prefix as `VENDOR` (e.g. `vendor.turn.status.code` when prefix is `vendor`). Bundled scenarios use the default `vendor.*` namespace.
+The schema defines which attributes exist and their types; scenario `attributes` override those values or supply distribution-based values. Use the same prefix as `VENDOR` (e.g. `vendor.turn.status.code` when prefix is `vendor`). Bundled scenarios use the default `vendor.*` namespace.
 
 All spans/metrics/logs are emitted with resource attributes per the OTEL resource spec: required `service.name`, `service.version`, `{prefix}.module`, `{prefix}.component`, `{prefix}.tenant.id`, `{prefix}.otel.source`, plus optional `service.instance.id` and `deployment.environment.name`. The resource `schemaUrl` is set for schema-aware ingestion.
 
@@ -293,7 +293,7 @@ The simulator can run **as a container** (with your own Docker setup) or **local
 
 ```bash
 make venv && make install
-make run
+telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml
 ```
 
 ## Troubleshooting

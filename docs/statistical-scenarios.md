@@ -10,7 +10,7 @@ Scenarios are defined in YAML files. The simulator includes **sample definitions
 - **Latency distributions** - How long each span takes
 - **Error behavior** - Error rates and propagation patterns
 - **Probabilistic features** - Variable span inclusion, counts, and retries
-- **Attributes** - Static values or sampled from distributions (use `vendor.*` in YAML; the loader normalizes to the `VENDOR` prefix)
+- **Attributes** - The set of attributes and their types/constraints are defined by the semantic conventions schema (`SEMCONV`). In scenario YAML you provide static values or values sampled from distributions (use `vendor.*`; the loader normalizes to the `VENDOR` prefix).
 
 ```mermaid
 flowchart TB
@@ -389,6 +389,8 @@ Retry scenarios automatically add these span attributes:
 ---
 
 ## Attribute Configuration
+
+Attribute **definitions** (which attributes exist, types, allowed values, defaults) come from the semantic conventions YAML. Scenario YAML is used to **override** those values or to supply **distribution-based** values.
 
 ### Static Attributes
 

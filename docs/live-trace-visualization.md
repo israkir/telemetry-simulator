@@ -5,7 +5,7 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 ## Prerequisites
 
 - Docker or Podman (Makefile prefers Podman if available)
-- Simulator running locally (e.g. `make run`)
+- Simulator running locally (e.g. `telemetry-simulator run --semconv /path/to/conventions.yaml`)
 
 ## Steps
 
@@ -20,7 +20,7 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 2. **Run the simulator**:
 
    ```bash
-   make run
+   telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml
    ```
 
 3. **Open the Jaeger UI**: [http://localhost:16686](http://localhost:16686)

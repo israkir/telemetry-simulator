@@ -4,7 +4,7 @@ This guide describes how to generate realistic OpenTelemetry data with the telem
 
 ## Overview
 
-The simulator produces OTEL-compliant **traces**, **metrics**, and **logs** with configurable semantic conventions (attribute prefix set via `VENDOR`). Data is defined by **YAML scenarios**: each scenario describes a trace hierarchy with realistic latency distributions, error propagation, and probabilistic behavior.
+The simulator produces OTEL-compliant **traces**, **metrics**, and **logs** with configurable semantic conventions (attribute prefix set via `VENDOR`). **Attribute definitions**—which attributes exist, their types, allowed values, and defaults—come from the semantic conventions YAML (see `SEMCONV` / `--semconv`). Data is defined by **YAML scenarios**: each scenario describes a trace hierarchy with realistic latency distributions, error propagation, and probabilistic behavior; scenario `attributes` override or supply distribution-based values on top of the schema.
 
 - **Traces**: A tree of spans using the configured vendor prefix (e.g. `{prefix}.a2a.orchestrate` → `{prefix}.planner`, `{prefix}.mcp.tool.execute`, `{prefix}.llm.call`)
 - **Metrics**: Correlated with spans (e.g. turn duration, tool call counts)
@@ -219,7 +219,7 @@ podman run --rm \
 ### Make Target
 
 ```bash
-SEMCONV=/path/to/otel-semantic-conventions.yaml make run   # Mixed workload
+telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml   # Mixed workload
 ```
 
 ----
@@ -267,7 +267,7 @@ To view traces in a browser, run Jaeger and point the simulator at it (no data-p
 
 ```bash
 make jaeger-up
-make run
+telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml
 # Open http://localhost:16686, select service "telemetry-simulator"
 make jaeger-down   # when done
 ```

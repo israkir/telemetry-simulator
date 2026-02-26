@@ -9,6 +9,7 @@ logic; use scenario YAML overrides for domain-specific data.
 """
 
 import hashlib
+import json
 import random
 import string
 import uuid
@@ -68,6 +69,57 @@ def _attr_matches(name: str, *candidates: str) -> bool:
         if name == c or name.endswith("." + c):
             return True
     return False
+
+
+def _sample_llm_input_messages() -> list[dict[str, Any]]:
+    """Sample conversation input for gen_ai.input.messages (OTEL GenAI input messages shape)."""
+    return [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "What is the status of my claim?"}],
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I can look that up. Do you have your claim ID?",
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Yes, it's CLM-2024-0042."}],
+        },
+    ]
+
+
+def _sample_llm_output_messages() -> list[dict[str, Any]]:
+    """Sample assistant response for gen_ai.output.messages (OTEL GenAI output messages shape)."""
+    return [
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Your claim CLM-2024-0042 is in review. Expected completion within 5 business days.",
+                }
+            ],
+        },
+    ]
+
+
+def _sample_llm_redacted(structure: str) -> list[dict[str, Any]]:
+    """Redacted sample (same structure as input/output messages, text replaced)."""
+    if structure == "input":
+        return [
+            {"role": "user", "content": [{"type": "text", "text": "[REDACTED]"}]},
+            {"role": "assistant", "content": [{"type": "text", "text": "[REDACTED]"}]},
+            {"role": "user", "content": [{"type": "text", "text": "[REDACTED]"}]},
+        ]
+    return [
+        {"role": "assistant", "content": [{"type": "text", "text": "[REDACTED]"}]},
+    ]
 
 
 def _ensure_int_token_counts(attrs: dict[str, Any]) -> None:
@@ -187,12 +239,27 @@ class AttributeGenerator:
         if name == "service.version":
             return "1.0.0"
 
-        # LLM content: when scenario provided conversation.turns, use precomputed
-        # messages for gen_ai.input.messages / gen_ai.output.messages.
-        if name == "gen_ai.input.messages" and context.llm_input_messages is not None:
-            return context.llm_input_messages
-        if name == "gen_ai.output.messages" and context.llm_output_messages is not None:
-            return context.llm_output_messages
+        # LLM content: use scenario conversation when provided, else sample data.
+        # Serialize to JSON string so OTel span attributes accept it and it appears in exports (e.g. traces.json).
+        if name == "gen_ai.input.messages":
+            val = (
+                context.llm_input_messages
+                if context.llm_input_messages is not None
+                else _sample_llm_input_messages()
+            )
+            return json.dumps(val) if isinstance(val, list) else val
+        if name == "gen_ai.output.messages":
+            val = (
+                context.llm_output_messages
+                if context.llm_output_messages is not None
+                else _sample_llm_output_messages()
+            )
+            return json.dumps(val) if isinstance(val, list) else val
+        # Redacted variants (same structure as input/output messages).
+        if "input.redacted" in name or name.endswith("gen_ai.input.redacted"):
+            return json.dumps(_sample_llm_redacted("input"))
+        if "output.redacted" in name or name.endswith("gen_ai.output.redacted"):
+            return json.dumps(_sample_llm_redacted("output"))
 
         if "hash" in name:
             return f"sha256:{hashlib.sha256(uuid.uuid4().bytes).hexdigest()[:32]}"

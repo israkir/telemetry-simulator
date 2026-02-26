@@ -1,5 +1,5 @@
 .PHONY: help venv venv-force check-venv install install-dev clean clean-venv format lint typecheck check test
-.PHONY: run run-validate list-scenarios
+.PHONY: run-validate list-scenarios
 .PHONY: jaeger-up jaeger-down
 
 # Python and venv paths
@@ -42,8 +42,9 @@ help:
 	@echo "  make install               - Install the package in development mode"
 	@echo "  make install-dev           - Install with development dependencies"
 	@echo ""
-	@echo "Running the simulator:"
-	@echo "  make run                   - Run mixed workload (requires SEMCONV)"
+	@echo "Running the simulator (use CLI; SEMCONV or --semconv required):"
+	@echo "  telemetry-simulator run --semconv /path/to/conventions.yaml"
+	@echo "  telemetry-simulator scenario --name successful_agent_turn --semconv /path/to/conventions.yaml"
 	@echo "  make run-validate          - Validate schema and show summary"
 	@echo "  make list-scenarios        - List available scenarios"
 	@echo ""
@@ -59,20 +60,20 @@ help:
 	@echo "  make clean-venv            - Remove virtual environment"
 	@echo ""
 	@echo "Environment variables:"
-	@echo "  SEMCONV                            - Path to semantic-conventions YAML (required)"
-	@echo "  OTLP_ENDPOINT                      - OTLP collector endpoint (default: http://localhost:4318)"
-	@echo "  VENDOR                             - Attribute prefix for spans/metrics (default: vendor)"
-	@echo "  SCENARIOS_DIR                      - Folder with scenario YAML files (default: built-in sample definitions)"
+	@echo "  SEMCONV                    - Path to semantic-conventions YAML (required)"
+	@echo "  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)"
+	@echo "  VENDOR                     - Attribute prefix for spans/metrics (default: vendor)"
+	@echo "  SCENARIOS_DIR              - Folder with scenario YAML files (default: built-in sample definitions)"
 	@echo ""
 	@echo "Live trace visualization (Docker or Podman):"
 	@echo "  make jaeger-up             - Start Jaeger (OTLP + UI) for live traces"
 	@echo "  make jaeger-down           - Stop and remove Jaeger container"
-	@echo "  (then: make run and open http://localhost:16686)"
+	@echo "  (then run simulator with CLI and open http://localhost:16686)"
 	@echo ""
 	@echo "Example workflows:"
-	@echo "  make venv && make install && make run"
-	@echo "  SEMCONV=/path/to/otel-semantic-conventions.yaml make run"
-	@echo "  make jaeger-up && make run"
+	@echo "  make venv && make install"
+	@echo "  telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml"
+	@echo "  make jaeger-up && telemetry-simulator run --semconv /path/to/conventions.yaml"
 
 # Virtual environment
 venv:
@@ -106,7 +107,7 @@ install: check-venv
 	$(VENV_PIP) install -e .
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "You can now run: make run"
+	@echo "Run with CLI: telemetry-simulator run --semconv /path/to/conventions.yaml"
 
 # Install with development dependencies
 install-dev: check-venv
@@ -114,29 +115,11 @@ install-dev: check-venv
 	$(VENV_PIP) install -e ".[dev]"
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "You can now run: make run"
+	@echo "Run with CLI: telemetry-simulator run --semconv /path/to/conventions.yaml"
 
 # =============================================================================
 # SIMULATOR COMMANDS
 # =============================================================================
-
-# Run mixed workload (SCENARIOS_DIR for custom definitions folder). Requires SEMCONV.
-run: check-venv
-	@if [ -z "$(SEMCONV)" ]; then \
-		echo "✗ SEMCONV is required for make run."; \
-		echo "  Example:"; \
-		echo "    SEMCONV=/path/to/otel-semantic-conventions.yaml make run"; \
-		exit 1; \
-	fi
-	@echo "🚀 Starting telemetry simulator..."
-	@echo "   Endpoint: $(OTLP_ENDPOINT)"
-	@echo "   Schema:   $(SEMCONV)"
-	@echo ""
-	@echo "💡 Press Ctrl+C to stop"
-	@echo ""
-	$(VENV_PYTHON) -m simulator.cli --endpoint $(OTLP_ENDPOINT) run \
-		--semconv $(SEMCONV) \
-		$(if $(SCENARIOS_DIR),--scenarios-dir $(SCENARIOS_DIR),)
 
 # Validate schema
 run-validate: check-venv
@@ -188,7 +171,7 @@ jaeger-up:
 			$(JAEGER_IMAGE) 2>&1) || true; \
 		if $(CONTAINER_CMD) ps -q -f name=^/$(JAEGER_NAME)$$ 2>/dev/null | grep -q .; then \
 			echo "✓ Jaeger started. UI: http://localhost:16686  OTLP: http://localhost:4318"; \
-			echo "  Run: make run then open the UI."; \
+			echo "  Run: telemetry-simulator run --semconv /path/to/conventions.yaml then open the UI."; \
 		else \
 			echo "✗ Failed to start Jaeger."; \
 			if [ -n "$$_run_out" ]; then echo "  $$_run_out"; fi; \
