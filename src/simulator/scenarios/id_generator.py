@@ -1,7 +1,7 @@
 """
 Generate correlation IDs from shared scenario config format definitions.
 
-Formats are defined in scenarios_config.yaml with placeholders:
+Formats are defined in config/config.yaml with placeholders:
   {hex:N}   - N random hex chars
   {uuid}    - full UUID with dashes
   {tenant_id} - from context when provided
@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from ..config import SCENARIOS_CONFIG_PATH, load_yaml
+from ..config import CONFIG_PATH, load_yaml
 
 _HEX_PLACEHOLDER = re.compile(r"\{hex:(\d+)\}")
 _UUID_PLACEHOLDER = re.compile(r"\{uuid\}")
@@ -41,8 +41,8 @@ def _expand_template(template: str, tenant_id: str | None = None) -> str:
 
 
 def load_id_formats(config_path: Path | None = None) -> dict[str, str]:
-    """Load id_formats from scenarios_config.yaml. Returns format key -> template."""
-    path = config_path or SCENARIOS_CONFIG_PATH
+    """Load id_formats from config/config.yaml. Returns format key -> template."""
+    path = config_path or CONFIG_PATH
     data = load_yaml(path)
     raw = data.get("id_formats")
     if not isinstance(raw, dict):
@@ -65,7 +65,7 @@ class ScenarioIdGenerator:
     Generate IDs from shared format definitions.
 
     Use for session_id, request_id, conversation_id, mcp_tool_call_id
-    so all scenarios share the same ID shape from scenarios_config.yaml.
+    so all scenarios share the same ID shape from config/config.yaml.
     """
 
     def __init__(self, config_path: Path | None = None):

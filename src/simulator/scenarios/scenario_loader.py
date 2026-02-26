@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-from ..config import ATTR_PREFIX, SCENARIOS_CONFIG_PATH, load_yaml
+from ..config import ATTR_PREFIX, CONFIG_PATH, load_yaml
 from ..config import attr as config_attr
 from ..config import span_name as config_span_name
 from ..defaults import get_tenant_distribution
@@ -30,6 +30,7 @@ from ..generators.trace_generator import (
 from ..statistics.correlations import ErrorPropagation, RetryConfig, RetrySequence
 from ..statistics.distributions import Distribution, DistributionFactory
 from .id_generator import ScenarioIdGenerator
+from .realistic_modifier import apply_realistic_scenario
 
 
 @dataclass
@@ -149,6 +150,8 @@ class ScenarioContext:
     Scenario generator context: tenant, agents, MCP servers, tools, correct_flow, error patterns.
     Only the first agent and its first MCP server are used when applying context to
     hierarchies (tenant, mcp.server.uuid, mcp.tool.uuid, gen_ai.tool.name, mcp.tool.call.id).
+    When actual_steps is set (e.g. for partial_workflow), hierarchy is built from it
+    instead of correct_flow.steps to simulate missing or wrong-order steps.
     """
 
     tenant_uuid: str
@@ -158,6 +161,8 @@ class ScenarioContext:
     error_pattern: str = "happy_path"
     error_config: ErrorPatternConfig | None = None
     redaction_applied: str = "none"
+    # When set, hierarchy is built from actual_steps instead of correct_flow.steps (partial_workflow).
+    actual_steps: list[str] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> "ScenarioContext | None":
@@ -452,17 +457,22 @@ class Scenario:
     simulation_goal: str | None = None
     # MCP server context (e.g. phone, electronics, appliances); identifies which mcp_servers entry.
     mcp_server: str | None = None
-    # Optional multi-turn conversation for this scenario (reference only; used to
-    # drive gen_ai.input.messages / gen_ai.output.messages when provided).
+    # Optional multi-turn conversation: raw role/text or user_input/llm_response (reference).
     conversation_turns: list[dict[str, str]] | None = None
+    # Per-turn (input_messages, output_messages) for one span per interaction; same session_id for all.
+    # Built from conversation.turns in loader. When set, runner emits one trace per turn with same session_id.
+    conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = None
     # Redaction level for {prefix}.redaction.applied (none, basic, strict). From scenario YAML or context; default none.
     redaction_applied: str = "none"
+    # Overrides for realistic scenario modifier (step_index_for_4xx, wrong_division_target, skip_steps, actual_steps).
+    realistic_overrides: dict[str, Any] | None = None
 
     def get_trace_hierarchy(self) -> TraceHierarchy:
         """Get the trace hierarchy for this scenario."""
         if self.context and self.context.correct_flow and self.context.correct_flow.steps:
             hierarchy = _hierarchy_from_context(self.context)
             _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
+            _apply_realistic_scenario_if_needed(self, hierarchy)
             return hierarchy
         hierarchy = self.root_step.to_hierarchy()
         if self.context:
@@ -480,6 +490,7 @@ class Scenario:
         if self.context and self.context.correct_flow and self.context.correct_flow.steps:
             hierarchy = _hierarchy_from_context(self.context)
             _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
+            _apply_realistic_scenario_if_needed(self, hierarchy)
             return [hierarchy]
         if self.root_step.retry and self.root_step.retry.enabled:
             hierarchies = self.root_step.to_retry_hierarchies()
@@ -493,9 +504,9 @@ class Scenario:
 
 def _load_happy_path_latencies() -> dict[SpanType, float]:
     """
-    Load default latencies for happy-path context flows from scenarios_config.yaml.
+    Load default latencies for happy-path context flows from config/config.yaml.
 
-    Config shape in scenarios_config.yaml:
+    Config shape in config/config.yaml:
 
     happy_path_latencies_ms:
       a2a_orchestrate: 1500.0
@@ -513,7 +524,7 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         SpanType.RESPONSE_COMPOSE: 60.0,
     }
 
-    data = load_yaml(SCENARIOS_CONFIG_PATH)
+    data = load_yaml(CONFIG_PATH)
     raw_latencies = data.get("happy_path_latencies_ms")
     if not isinstance(raw_latencies, dict):
         return defaults
@@ -577,13 +588,33 @@ def _ensure_task_execute_parent(
     return TraceHierarchy(root_config=task_config, children=[child_hier])
 
 
+def _apply_realistic_scenario_if_needed(scenario: "Scenario", hierarchy: TraceHierarchy) -> None:
+    """Apply realistic scenario modifier when simulation_goal is set and not happy_path."""
+    goal = getattr(scenario, "simulation_goal", None)
+    if not goal or (goal or "").lower() in ("happy_path", "none", ""):
+        return
+    overrides = getattr(scenario, "realistic_overrides", None) or {}
+    apply_realistic_scenario(
+        hierarchy,
+        simulation_goal=goal,
+        realistic_overrides=overrides,
+        context=scenario.context,
+        mcp_server_key=getattr(scenario, "mcp_server", None),
+    )
+
+
 def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
     """
-    Build trace hierarchy from context.correct_flow.steps (happy path expressed in context).
+    Build trace hierarchy from context.correct_flow.steps (or context.actual_steps for partial_workflow).
     The generator knows the correct path from context; no YAML structure required.
     """
-    if not context.correct_flow or not context.correct_flow.steps:
-        raise ValueError("context.correct_flow.steps required to build hierarchy from context")
+    steps = None
+    if getattr(context, "actual_steps", None):
+        steps = context.actual_steps
+    if not steps and context.correct_flow and context.correct_flow.steps:
+        steps = context.correct_flow.steps
+    if not steps:
+        raise ValueError("context.correct_flow.steps or context.actual_steps required to build hierarchy from context")
 
     root_config = SpanConfig(
         span_type=SpanType.A2A_ORCHESTRATE,
@@ -593,7 +624,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
         attribute_overrides={config_attr("a2a.outcome"): "success"},
     )
     children: list[TraceHierarchy] = []
-    steps = list(context.correct_flow.steps)
+    steps = list(steps)
     i = 0
     while i < len(steps):
         step = steps[i]
@@ -798,7 +829,7 @@ def _apply_context_to_hierarchy(
     Merge scenario context into hierarchy in place: tenant, agent id on root;
     MCP server uuid and tool name/uuid on each MCP span in order; flow validation;
     error pattern applied to root and MCP attempt spans.
-    IDs (e.g. mcp.tool.call.id) are generated from shared scenarios_config if id_generator is set.
+    IDs (e.g. mcp.tool.call.id) are generated from shared config if id_generator is set.
     """
     if not context.agents:
         overrides = dict(hierarchy.root_config.attribute_overrides or {})
@@ -907,9 +938,9 @@ class ScenarioLoader:
         self._id_generator: ScenarioIdGenerator | None = None
 
     def get_id_generator(self) -> ScenarioIdGenerator:
-        """Return shared ID generator (loads scenarios_config.yaml once)."""
+        """Return shared ID generator (loads config/config.yaml once)."""
         if self._id_generator is None:
-            self._id_generator = ScenarioIdGenerator(config_path=SCENARIOS_CONFIG_PATH)
+            self._id_generator = ScenarioIdGenerator(config_path=CONFIG_PATH)
         return self._id_generator
 
     def _get_span_type(self, type_str: str) -> SpanType:
@@ -996,23 +1027,86 @@ class ScenarioLoader:
         if not isinstance(redaction_applied, str):
             redaction_applied = "none"
 
-        # Optional multi-turn conversation: top-level conversation.turns:
-        # [{ role: user|assistant|tool, text: "..." }, ...]
+        # Optional multi-turn conversation: one span per interaction (user input → LLM response).
+        # Format A: [{ user_input: "...", llm_response: "..." }, ...]
+        # Format B: [{ role: user|assistant, text: "..." }, ...] (consecutive user/assistant pairs).
         conversation_turns: list[dict[str, str]] | None = None
+        conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = None
         conv_raw = data.get("conversation")
         if isinstance(conv_raw, dict):
             turns_raw = conv_raw.get("turns")
             if isinstance(turns_raw, list):
-                cleaned: list[dict[str, str]] = []
+                turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = []
                 for t in turns_raw:
                     if not isinstance(t, dict):
                         continue
-                    role = t.get("role")
-                    text = t.get("text")
-                    if isinstance(role, str) and isinstance(text, str):
-                        cleaned.append({"role": role, "text": text})
-                if cleaned:
-                    conversation_turns = cleaned
+                    user_input = t.get("user_input")
+                    llm_response = t.get("llm_response")
+                    if isinstance(user_input, str) and isinstance(llm_response, str):
+                        input_msgs = [
+                            {"role": "user", "content": [{"type": "text", "text": user_input}]},
+                        ]
+                        output_msgs = [
+                            {"role": "assistant", "content": [{"type": "text", "text": llm_response}]},
+                        ]
+                        turn_pairs.append((input_msgs, output_msgs))
+                if turn_pairs:
+                    conversation_turns = [
+                        {"role": "user", "text": inp[0]["content"][0]["text"]}
+                        for inp, _ in turn_pairs
+                    ] + [
+                        {"role": "assistant", "text": out[0]["content"][0]["text"]}
+                        for _, out in turn_pairs
+                    ]
+                else:
+                    cleaned: list[dict[str, str]] = []
+                    for t in turns_raw:
+                        if not isinstance(t, dict):
+                            continue
+                        role = t.get("role")
+                        text = t.get("text")
+                        if isinstance(role, str) and isinstance(text, str):
+                            cleaned.append({"role": role, "text": text})
+                    if cleaned:
+                        conversation_turns = cleaned
+                        i = 0
+                        while i + 1 < len(cleaned):
+                            u, a = cleaned[i], cleaned[i + 1]
+                            if u.get("role") == "user" and a.get("role") == "assistant":
+                                input_msgs = [
+                                    {"role": "user", "content": [{"type": "text", "text": u["text"]}]},
+                                ]
+                                output_msgs = [
+                                    {"role": "assistant", "content": [{"type": "text", "text": a["text"]}]},
+                                ]
+                                turn_pairs.append((input_msgs, output_msgs))
+                                i += 2
+                            else:
+                                i += 1
+                if turn_pairs:
+                    conversation_turn_pairs = turn_pairs
+
+        realistic_overrides_raw = data.get("realistic_overrides")
+        realistic_overrides: dict[str, Any] = {}
+        if isinstance(realistic_overrides_raw, dict):
+            realistic_overrides = dict(realistic_overrides_raw)
+
+        # For partial_workflow, set context.actual_steps from overrides so hierarchy is built with fewer/wrong-order steps.
+        if (
+            scenario_context
+            and (simulation_goal or "").lower() == "partial_workflow"
+            and realistic_overrides
+        ):
+            actual_steps_list = realistic_overrides.get("actual_steps")
+            skip_steps = realistic_overrides.get("skip_steps")
+            if isinstance(actual_steps_list, list) and actual_steps_list:
+                scenario_context.actual_steps = [str(s) for s in actual_steps_list]
+            elif isinstance(skip_steps, list) and scenario_context.correct_flow and scenario_context.correct_flow.steps:
+                steps_copy = list(scenario_context.correct_flow.steps)
+                for idx in sorted((int(i) for i in skip_steps if isinstance(i, (int, float))), reverse=True):
+                    if 0 <= idx < len(steps_copy):
+                        steps_copy.pop(idx)
+                scenario_context.actual_steps = steps_copy
 
         return Scenario(
             name=data.get("name", "unnamed"),
@@ -1031,7 +1125,9 @@ class ScenarioLoader:
             simulation_goal=simulation_goal,
             mcp_server=mcp_server,
             conversation_turns=conversation_turns,
+            conversation_turn_pairs=conversation_turn_pairs,
             redaction_applied=redaction_applied or "none",
+            realistic_overrides=realistic_overrides or None,
         )
 
     def _detect_statistical(self, data: dict) -> bool:

@@ -44,6 +44,6 @@ Thumbs.db
 # Output files
 *.log
 
-# Root folder (generated / local convention overrides)
+# Generated files
 /traces.json
-/otel-semantic-conventions.yaml
+/traces.jsonl

@@ -7,6 +7,7 @@ Schema-driven OpenTelemetry telemetry simulator for LLM observability. Generates
 The telemetry simulator produces OTEL-compliant telemetry for testing and validating observability pipelines:
 
 - **Schema-Driven**: Reads your semantic-conventions YAML (path required); the schema defines which attributes exist per span type (types, allowed values, defaults). Scenario YAML overrides or supplies distribution-based values.
+- **Realism + Randomness + SemConv**: Combines realistic scenario content (conversation samples, failure modes like 4xx or wrong division) with controlled randomness (latency distributions, which scenario/sample runs). All enum-like values (e.g. `error.type`, `step.outcome`) are chosen only from semantic-convention allowed values so traces stay valid and queryable. See [Generating Telemetry](docs/generating-telemetry.md#realism-randomness-and-semantic-conventions).
 - **Full Trace Hierarchies**: Generates canonical span types (e.g. a2a.orchestrate, planner, task.execute, llm.call, mcp.tool.execute, response.compose) with proper parent-child relationships and `{prefix}.span.class` per type
 - **Multi-Signal**: Emits correlated traces, metrics, and logs
 - **Scenario-Based**: YAML-defined scenarios for reproducible testing
@@ -32,7 +33,7 @@ src/simulator/
 - Python 3.11+
 - **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand, e.g. `telemetry-simulator scenario --name foo --semconv /path/to/conventions.yaml`).
 - OpenTelemetry Collector running (port 4318) or use `--output-file` to export to file
-- **Tenant ID** is read from `src/simulator/scenarios/scenarios_config.yaml` (`tenant.id`); no env vars required for tenants.
+- **Tenant ID** is read from `src/simulator/scenarios/config/config.yaml` (`tenant.id`); no env vars required for tenants.
 
 ### Setup
 
@@ -46,7 +47,7 @@ make install
 
 ```bash
 # Run mixed workload (uses simulator defaults for count/interval)
-telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml
+telemetry-simulator run --semconv /path/to/semconv.yaml
 ```
 
 ### Run Specific Scenarios
@@ -61,17 +62,17 @@ make list-scenarios
 telemetry-simulator scenario --name successful_agent_turn
 
 # Use a custom folder of scenario YAML files
-telemetry-simulator scenario --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/otel-semantic-conventions.yaml
+telemetry-simulator scenario --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
 ```
 
-**Note:** Tenant IDs come from `scenarios_config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`. Use `telemetry-simulator run` for a mixed workload (varied trace patterns); use `telemetry-simulator scenario --name <name>` for a single reproducible pattern.
+**Note:** Tenant IDs come from `config/config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`. Use `telemetry-simulator run` for a mixed workload (varied trace patterns); use `telemetry-simulator scenario --name <name>` for a single reproducible pattern.
 
 ### Live trace visualization
 
 To view traces in a browser while running the simulator on the host:
 
 1. Start Jaeger: `make jaeger-up`
-2. Run the simulator: `telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml`
+2. Run the simulator: `telemetry-simulator run --semconv /path/to/semconv.yaml`
 3. Open **http://localhost:16686** and select service `telemetry-simulator`
 4. Stop Jaeger when done: `make jaeger-down`
 
@@ -118,7 +119,7 @@ Set `VENDOR` to your vendor name (e.g. `acme`) so span names and vendor attribut
 name: my_scenario
 description: Custom test scenario
 
-# Tenant: use tenant.id from scenarios_config.yaml, or set context.tenant_uuid in scenario YAML.
+# Tenant: use tenant.id from config/config.yaml, or set context.tenant_uuid in scenario YAML.
 
 repeat_count: 100
 interval_ms: 500
@@ -185,9 +186,9 @@ telemetry-simulator run --count 5 --show-full-spans
 |----------|---------|-------------|
 | `VENDOR` | `vendor` | Vendor prefix for span names and attributes (e.g. `vendor` → `vendor.a2a.orchestrate`, `vendor.session.id`). Set to your vendor name (e.g. `acme`) so no specific vendor is hardcoded. |
 | `TELEMETRY_SIMULATOR_VENDOR_NAME` | *(capitalized prefix)* | Display name used in validation messages. |
-| `SEMCONV` | *(required)* | Full path to your semantic-conventions YAML file. Must be set by the client (or pass `--semconv`). |
+| `SEMCONV` | *(optional)* | Full path to your semantic-conventions YAML. Default: `scenarios/conventions/semconv.yaml` (or pass `--semconv`). |
 
-Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read only from `src/simulator/scenarios/scenarios_config.yaml` under the `resource` key. Configure them there; env vars are not used for these.
+Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read only from `src/simulator/scenarios/config/config.yaml` under the `resource` key. Configure them there; env vars are not used for these.
 
 The schema defines which attributes exist and their types; scenario `attributes` override those values or supply distribution-based values. Use the same prefix as `VENDOR` (e.g. `vendor.turn.status.code` when prefix is `vendor`). Bundled scenarios use the default `vendor.*` namespace.
 
@@ -198,7 +199,7 @@ All spans/metrics/logs are emitted with resource attributes per the OTEL resourc
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--endpoint` | `http://localhost:4318` | OTLP HTTP endpoint |
-| `--semconv` | *(required)* | Path to your semantic-conventions YAML (or set `SEMCONV`) |
+| `--semconv` | *(optional)* | Path to your semantic-conventions YAML (default: scenarios/conventions/semconv.yaml; or set `SEMCONV`) |
 | `--count` | `100` | Number of traces |
 | `--interval` | `500` | Interval in ms |
 | `--output-file` | None | Export to file instead of OTLP |
@@ -211,7 +212,7 @@ All spans/metrics/logs are emitted with resource attributes per the OTEL resourc
 
 ## Schema Validation
 
-The simulator validates all telemetry against the schema file you provide (via `SEMCONV` or `--semconv`):
+The simulator validates all telemetry against the schema file you provide (via `SEMCONV`, `--semconv`, or the default `scenarios/conventions/semconv.yaml`):
 
 ```bash
 # Show schema summary
@@ -287,13 +288,13 @@ make check
 
 ## Pipeline Integration
 
-The simulator can run **as a container** (with your own Docker setup) or **locally** (with venv). Tenant IDs are taken from `scenarios_config.yaml`; use `--show-full-spans` to log full span content.
+The simulator can run **as a container** (with your own Docker setup) or **locally** (with venv). Tenant IDs are taken from `config/config.yaml`; use `--show-full-spans` to log full span content.
 
 ### Local run (venv)
 
 ```bash
 make venv && make install
-telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml
+telemetry-simulator run --semconv /path/to/semconv.yaml
 ```
 
 ## Troubleshooting
@@ -310,7 +311,7 @@ Container log drivers often limit line length (e.g. 16KB). The simulator keeps p
 
 Set the schema path via environment or `--semconv` (before or after the subcommand):
 ```bash
-export SEMCONV=/path/to/your-semantic-conventions.yaml
+export SEMCONV=/path/to/your-semconv.yaml
 telemetry-simulator run
 
 # Or pass per run (any of these work):
@@ -328,7 +329,7 @@ make install
 
 ## See Also
 
-- [Generating Telemetry](docs/generating-telemetry.md) – Guide and happy path example
+- [Generating Telemetry](docs/generating-telemetry.md) – Guide, realism/randomness/SemConv, and scenario examples
 - [TROUBLESHOOTING](TROUBLESHOOTING.md)
 
-When using this simulator inside another repo, provide your schema YAML path (`SEMCONV` or `--semconv`) and set `VENDOR` to your project’s attribute namespace.
+When using this simulator inside another repo, provide your schema YAML path (`SEMCONV`, `--semconv`, or default `scenarios/conventions/semconv.yaml`) and set `VENDOR` to your project’s attribute namespace.

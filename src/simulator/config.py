@@ -5,8 +5,8 @@ Allows projects to use the simulator with their own attribute namespace by setti
 VENDOR (e.g. "acme" for acme.session.id, acme.turn.status, etc.).
 Default prefix is "vendor"; override with VENDOR for your project.
 
-Resource attributes and resource.schemaUrl are loaded only from scenarios_config.yaml
-(resource.attributes, resource.schema_url); env vars are not used for these.
+Resource attributes and resource.schemaUrl are loaded only from config/config.yaml
+(scenarios/config/config.yaml; resource.attributes, resource.schema_url); env vars are not used for these.
 """
 
 import os
@@ -54,8 +54,23 @@ def schema_version_attr() -> str:
     return attr("schema.version")
 
 
-_SCENARIOS_CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "scenarios_config.yaml"
-SCENARIOS_CONFIG_PATH = _SCENARIOS_CONFIG_PATH
+# Semantic conventions: canonical allowed values from conventions/semconv.yaml.
+# Use these for error paths and happy-path flows so emitted data is semantically correct.
+SEMCONV_ERROR_TYPE_VALUES = (
+    "timeout",
+    "unavailable",
+    "invalid_arguments",
+    "tool_error",
+    "protocol_error",
+)
+SEMCONV_STEP_OUTCOME_VALUES = ("success", "fail", "skipped")
+SEMCONV_RESPONSE_FORMAT_VALUES = ("a2a_json", "a2a_stream")
+
+
+_CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "config" / "config.yaml"
+CONFIG_PATH = _CONFIG_PATH
+# Default semantic-conventions path when SEMCONV / --semconv not set.
+DEFAULT_SEMCONV_PATH = Path(__file__).resolve().parent / "scenarios" / "conventions" / "semconv.yaml"
 
 # Keys in resource.attributes that are prefix-relative (expanded with attr() when loading from YAML).
 _PREFIX_RELATIVE_KEYS = frozenset({"module", "component", "otel.source"})
@@ -76,10 +91,10 @@ def load_yaml(path: Path, default: Any = None) -> Any:
 
 
 def _load_resource_config() -> tuple[str, dict[str, str]]:
-    """Load resource.schema_url and resource.attributes from scenarios_config.yaml. Returns (schema_url, attributes)."""
+    """Load resource.schema_url and resource.attributes from config/config.yaml. Returns (schema_url, attributes)."""
     default_url = "https://example.com/otel/schema/1.0.0"
     default_attrs: dict[str, str] = {}
-    data = load_yaml(_SCENARIOS_CONFIG_PATH)
+    data = load_yaml(_CONFIG_PATH)
     if not data:
         return default_url, default_attrs
     resource = data.get("resource")
@@ -102,7 +117,7 @@ def _load_resource_config() -> tuple[str, dict[str, str]]:
 
 
 def resource_schema_url() -> str:
-    """Schema URL for the OTEL resource (resource.schemaUrl). From scenarios_config.yaml only."""
+    """Schema URL for the OTEL resource (resource.schemaUrl). From config/config.yaml only."""
     yaml_url, _ = _load_resource_config()
     return yaml_url
 
@@ -111,7 +126,7 @@ def resource_attributes(tenant_id: str) -> dict[str, str]:
     """
     Build resource attributes per OTEL resource spec.
 
-    Values are loaded only from scenarios_config.yaml (resource.attributes).
+    Values are loaded only from config/config.yaml (resource.attributes).
     prefix.tenant.id is set from the given tenant_id (scenario context).
     """
     _, yaml_attrs = _load_resource_config()

@@ -9,6 +9,9 @@
 #   ├── task.execute (tool_execution) → mcp.tool.execute → mcp.tool.execute.attempt
 #   └── response.compose
 #
+# Realistic scenarios: set simulation_goal and optional realistic_overrides (see config/config.yaml
+# realistic_scenarios). Goals: happy_path | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response.
+#
 # Run: telemetry-simulator scenario --name phone_new_claim_happy --count 5
 #      telemetry-simulator run  (uses this when selected in mixed workload)
 
@@ -28,6 +31,16 @@ emit_metrics: false
 emit_logs: false
 
 redaction_applied: none
+
+# Optional: multi-turn conversation. When set, one trace per turn with same session_id
+# (per convention: one span per LLM call = one interaction). Omit to use a random
+# single-turn sample from config conversation_samples for workflow "new_claim".
+# conversation:
+#   turns:
+#     - user_input: "I want to start a claim for my phone."
+#       llm_response: "I've started a claim (PH-8842). Describe what happened and I'll get you an appointment."
+#     - user_input: "The screen is cracked after a drop."
+#       llm_response: "Noted. Next repair slots: Wednesday 9am or Friday 2pm. Which do you prefer?"
 
 # Flow is expressed in context; hierarchy is built from correct_flow.steps.
 context:

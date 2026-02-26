@@ -42,9 +42,9 @@ help:
 	@echo "  make install               - Install the package in development mode"
 	@echo "  make install-dev           - Install with development dependencies"
 	@echo ""
-	@echo "Running the simulator (use CLI; SEMCONV or --semconv required):"
-	@echo "  telemetry-simulator run --semconv /path/to/conventions.yaml"
-	@echo "  telemetry-simulator scenario --name successful_agent_turn --semconv /path/to/conventions.yaml"
+	@echo "Running the simulator (use CLI; default schema: scenarios/conventions/semconv.yaml):"
+	@echo "  telemetry-simulator run --semconv /path/to/semconv.yaml"
+	@echo "  telemetry-simulator scenario --name successful_agent_turn --semconv /path/to/semconv.yaml"
 	@echo "  make run-validate          - Validate schema and show summary"
 	@echo "  make list-scenarios        - List available scenarios"
 	@echo ""
@@ -60,7 +60,7 @@ help:
 	@echo "  make clean-venv            - Remove virtual environment"
 	@echo ""
 	@echo "Environment variables:"
-	@echo "  SEMCONV                    - Path to semantic-conventions YAML (required)"
+	@echo "  SEMCONV                    - Path to semantic-conventions YAML (default: scenarios/conventions/semconv.yaml)"
 	@echo "  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)"
 	@echo "  VENDOR                     - Attribute prefix for spans/metrics (default: vendor)"
 	@echo "  SCENARIOS_DIR              - Folder with scenario YAML files (default: built-in sample definitions)"
@@ -72,8 +72,8 @@ help:
 	@echo ""
 	@echo "Example workflows:"
 	@echo "  make venv && make install"
-	@echo "  telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml"
-	@echo "  make jaeger-up && telemetry-simulator run --semconv /path/to/conventions.yaml"
+	@echo "  telemetry-simulator run --semconv /path/to/semconv.yaml"
+	@echo "  make jaeger-up && telemetry-simulator run --semconv /path/to/semconv.yaml"
 
 # Virtual environment
 venv:
@@ -107,7 +107,7 @@ install: check-venv
 	$(VENV_PIP) install -e .
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "Run with CLI: telemetry-simulator run --semconv /path/to/conventions.yaml"
+	@echo "Run with CLI: telemetry-simulator run --semconv /path/to/semconv.yaml"
 
 # Install with development dependencies
 install-dev: check-venv
@@ -115,7 +115,7 @@ install-dev: check-venv
 	$(VENV_PIP) install -e ".[dev]"
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "Run with CLI: telemetry-simulator run --semconv /path/to/conventions.yaml"
+	@echo "Run with CLI: telemetry-simulator run --semconv /path/to/semconv.yaml"
 
 # =============================================================================
 # SIMULATOR COMMANDS
@@ -171,7 +171,7 @@ jaeger-up:
 			$(JAEGER_IMAGE) 2>&1) || true; \
 		if $(CONTAINER_CMD) ps -q -f name=^/$(JAEGER_NAME)$$ 2>/dev/null | grep -q .; then \
 			echo "✓ Jaeger started. UI: http://localhost:16686  OTLP: http://localhost:4318"; \
-			echo "  Run: telemetry-simulator run --semconv /path/to/conventions.yaml then open the UI."; \
+			echo "  Run: telemetry-simulator run --semconv /path/to/semconv.yaml then open the UI."; \
 		else \
 			echo "✗ Failed to start Jaeger."; \
 			if [ -n "$$_run_out" ]; then echo "  $$_run_out"; fi; \

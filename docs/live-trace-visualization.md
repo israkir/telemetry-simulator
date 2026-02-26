@@ -20,7 +20,7 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 2. **Run the simulator**:
 
    ```bash
-   telemetry-simulator run --semconv /path/to/otel-semantic-conventions.yaml
+   telemetry-simulator run --semconv /path/to/semconv.yaml
    ```
 
 3. **Open the Jaeger UI**: [http://localhost:16686](http://localhost:16686)
@@ -37,7 +37,7 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 ## Environment
 
 - **OTLP endpoint**: The simulator uses `http://localhost:4318` by default (set `OTLP_ENDPOINT` or `--endpoint` to change).
-- **Schema and tenant**: Set `SEMCONV` as in the [README](../README.md). Tenant ID comes from `scenarios_config.yaml`.
+- **Schema and tenant**: Set `SEMCONV` as in the [README](../README.md). Tenant ID comes from `config/config.yaml`.
 
 ## See Also
 

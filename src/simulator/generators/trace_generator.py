@@ -25,6 +25,7 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.trace import SpanKind, Status, StatusCode, Tracer
 
+from ..config import SEMCONV_ERROR_TYPE_VALUES
 from ..config import attr as config_attr
 from ..config import resource_attributes as config_resource_attributes
 from ..config import resource_schema_url
@@ -83,13 +84,15 @@ def _record_span_error(
 
     When a span is in error, instrumentation SHOULD set error.type and record an exception
     event with exception.type, exception.message, exception.stacktrace (OpenTelemetry).
+    error.type must be one of SEMCONV_ERROR_TYPE_VALUES from conventions/semconv.yaml.
     """
-    error_type = (
+    raw = (
         error_type_override
         or overrides.get("error.type")
         or overrides.get(config_attr("error.type"))
-        or _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "simulated_error")
+        or _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "unavailable")
     )
+    error_type = raw if raw in SEMCONV_ERROR_TYPE_VALUES else _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "unavailable")
     span.set_attribute("error.type", error_type)
     span.set_status(Status(StatusCode.ERROR, message))
     exc = RuntimeError(message)
@@ -112,20 +115,21 @@ SPAN_KIND_MAP = {
     SpanType.CP_REQUEST: SpanKind.SERVER,
 }
 
-# Low-cardinality error.type per span type when status.code=ERROR (SemConv-aligned).
+# Low-cardinality error.type per span type when status.code=ERROR.
+# Values are from conventions/semconv.yaml (timeout, unavailable, invalid_arguments, tool_error, protocol_error).
 _ERROR_TYPE_BY_SPAN_TYPE = {
-    SpanType.A2A_ORCHESTRATE: "orchestration_error",
-    SpanType.PLANNER: "planner_failed",
-    SpanType.TASK_EXECUTE: "task_failed",
-    SpanType.LLM_CALL: "model_error",
-    SpanType.TOOLS_RECOMMEND: "capability_resolution_error",
-    SpanType.MCP_TOOL_EXECUTE: "tool_execution_failed",
-    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: "tool_attempt_failed",
-    SpanType.LLM_TOOL_RESPONSE_BRIDGE: "bridge_error",
-    SpanType.RESPONSE_COMPOSE: "serialization_error",
-    SpanType.RAG_RETRIEVE: "retrieval_error",
-    SpanType.A2A_CALL: "a2a_call_failed",
-    SpanType.CP_REQUEST: "validation_error",
+    SpanType.A2A_ORCHESTRATE: "unavailable",
+    SpanType.PLANNER: "unavailable",
+    SpanType.TASK_EXECUTE: "tool_error",
+    SpanType.LLM_CALL: "unavailable",
+    SpanType.TOOLS_RECOMMEND: "protocol_error",
+    SpanType.MCP_TOOL_EXECUTE: "tool_error",
+    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: "tool_error",
+    SpanType.LLM_TOOL_RESPONSE_BRIDGE: "protocol_error",
+    SpanType.RESPONSE_COMPOSE: "protocol_error",
+    SpanType.RAG_RETRIEVE: "unavailable",
+    SpanType.A2A_CALL: "unavailable",
+    SpanType.CP_REQUEST: "invalid_arguments",
 }
 
 # Convention-required attributes per vendor span type.
@@ -358,7 +362,7 @@ class TraceGenerator:
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
                     span, config.span_type, overrides,
-                    error_type_override="serialization_error",
+                    error_type_override="protocol_error",
                 )
             elif config.span_type == SpanType.TASK_EXECUTE and (is_error or tool_result is False):
                 span.set_attribute(config_attr("step.outcome"), "fail")

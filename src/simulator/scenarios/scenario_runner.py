@@ -17,13 +17,55 @@ from opentelemetry.sdk._logs.export import LogExporter
 from opentelemetry.sdk.metrics.export import MetricExporter
 from opentelemetry.sdk.trace.export import SpanExporter
 
-from ..config import attr as config_attr
+from ..config import CONFIG_PATH, attr as config_attr, load_yaml
 from ..generators.log_generator import LogGenerator
 from ..generators.metric_generator import MetricGenerator
 from ..generators.trace_generator import TraceGenerator, TraceHierarchy
 from ..schemas.attribute_generator import GenerationContext
 from .id_generator import ScenarioIdGenerator
 from .scenario_loader import Scenario, ScenarioLoader
+
+
+def _conversation_samples_from_config() -> dict[str, Any]:
+    """Load conversation_samples from config/config.yaml (workflow -> list of {user_input, llm_response})."""
+    data = load_yaml(CONFIG_PATH)
+    return data.get("conversation_samples") or {}
+
+
+def _sample_to_otel_messages(user_input: str, llm_response: str) -> tuple[list[dict], list[dict]]:
+    """Convert one conversation sample (user_input, llm_response) to OTEL GenAI message shape."""
+    input_msgs = [
+        {"role": "user", "content": [{"type": "text", "text": user_input}]},
+    ]
+    output_msgs = [
+        {"role": "assistant", "content": [{"type": "text", "text": llm_response}]},
+    ]
+    return input_msgs, output_msgs
+
+
+def _get_conversation_from_config(workflow: str | None) -> tuple[list[dict] | None, list[dict] | None]:
+    """
+    If workflow matches conversation_samples in config, return (input_messages, output_messages).
+    Falls back to "default" when workflow has no samples. Otherwise return (None, None).
+    """
+    if not workflow or not isinstance(workflow, str):
+        return None, None
+    samples_by_workflow = _conversation_samples_from_config()
+    for key in (workflow, "default"):
+        workflow_samples = samples_by_workflow.get(key)
+        if not isinstance(workflow_samples, dict):
+            continue
+        samples_list = workflow_samples.get("samples")
+        if not isinstance(samples_list, list) or not samples_list:
+            continue
+        sample = random.choice(samples_list)
+        if not isinstance(sample, dict):
+            continue
+        user_input = sample.get("user_input")
+        llm_response = sample.get("llm_response")
+        if isinstance(user_input, str) and isinstance(llm_response, str):
+            return _sample_to_otel_messages(user_input, llm_response)
+    return None, None
 
 
 def _context_kwargs_for_scenario(scenario: Scenario, tenant_id: str) -> dict:
@@ -37,46 +79,18 @@ def _context_kwargs_for_scenario(scenario: Scenario, tenant_id: str) -> dict:
     if isinstance(id_gen, ScenarioIdGenerator):
         kwargs["session_id"] = id_gen.session_id(tenant_id=tenant_id)
         kwargs["request_id"] = id_gen.request_id(tenant_id=tenant_id)
-    # If scenario defines a multi-turn conversation, derive stable LLM input and
-    # output messages for gen_ai.input.messages / gen_ai.output.messages.
-    turns = getattr(scenario, "conversation_turns", None)
-    if turns:
-        # OTEL GenAI messages shape (simplified): list of {role, content:[{type,text}]}
-        input_msgs = []
-        assistant_turns = []
-        for t in turns:
-            role = t.get("role")
-            text = t.get("text")
-            if not isinstance(role, str) or not isinstance(text, str):
-                continue
-            if role == "assistant":
-                assistant_turns.append(text)
-            input_msgs.append(
-                {
-                    "role": role,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": text,
-                        }
-                    ],
-                }
-            )
-        output_msgs = []
-        if assistant_turns:
-            output_msgs.append(
-                {
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": assistant_turns[-1],
-                        }
-                    ],
-                }
-            )
-        kwargs["llm_input_messages"] = input_msgs or None
-        kwargs["llm_output_messages"] = output_msgs or None
+    # Per convention: one span per LLM call = one interaction (user input → LLM response).
+    # When scenario has conversation_turn_pairs, the runner sets llm_* per turn (one trace per turn, same session_id).
+    # Otherwise use a single-turn sample from conversation_samples (workflow) so gen_ai.input/output are realistic.
+    if getattr(scenario, "conversation_turn_pairs", None):
+        pass  # runner sets llm_input_messages / llm_output_messages per turn
+    else:
+        context = getattr(scenario, "context", None)
+        workflow = context.workflow if context else None
+        input_msgs, output_msgs = _get_conversation_from_config(workflow)
+        if input_msgs is not None and output_msgs is not None:
+            kwargs["llm_input_messages"] = input_msgs
+            kwargs["llm_output_messages"] = output_msgs
     return kwargs
 
 
@@ -142,37 +156,65 @@ class ScenarioRunner:
         tenants = list(scenario.tenant_distribution.keys())
         weights = list(scenario.tenant_distribution.values())
 
+        turn_pairs = getattr(scenario, "conversation_turn_pairs", None) or []
+        use_multi_turn = len(turn_pairs) > 0
+
         for i in range(scenario.repeat_count):
             tenant_id = random.choices(tenants, weights=weights)[0]
             ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
-            ctx_kwargs["turn_index"] = i % 10
-            context = GenerationContext.create(**ctx_kwargs)
+            # One session_id per logical session (iteration); all turns in this iteration share it.
+            session_id = ctx_kwargs.get("session_id") or GenerationContext.create(**ctx_kwargs).session_id
+            id_gen = getattr(scenario, "id_generator", None)
 
-            hierarchies = scenario.get_trace_hierarchies()
-            iteration_trace_ids = []
-
-            for hierarchy in hierarchies:
-                trace_id = self.trace_generator.generate_trace(hierarchy, context)
-                iteration_trace_ids.append(trace_id)
-                trace_ids.append(trace_id)
-
-                if scenario.emit_metrics and self.metric_generator:
-                    self._emit_metrics_for_hierarchy(hierarchy, context)
-
-                if scenario.emit_logs and self.log_generator:
-                    self._emit_logs_for_hierarchy(hierarchy, context)
+            if use_multi_turn:
+                # One trace per interaction (turn); same session_id for all turns in this session.
+                hierarchies = scenario.get_trace_hierarchies()
+                hierarchy = hierarchies[0] if hierarchies else scenario.get_trace_hierarchy()
+                iteration_trace_ids = []
+                for turn_index, (input_msgs, output_msgs) in enumerate(turn_pairs):
+                    ctx_kwargs["session_id"] = session_id
+                    ctx_kwargs["turn_index"] = turn_index
+                    ctx_kwargs["llm_input_messages"] = input_msgs
+                    ctx_kwargs["llm_output_messages"] = output_msgs
+                    if isinstance(id_gen, ScenarioIdGenerator):
+                        ctx_kwargs["request_id"] = id_gen.request_id(tenant_id=tenant_id)
+                    context = GenerationContext.create(**ctx_kwargs)
+                    trace_id = self.trace_generator.generate_trace(hierarchy, context)
+                    iteration_trace_ids.append(trace_id)
+                    trace_ids.append(trace_id)
+                    if scenario.emit_metrics and self.metric_generator:
+                        self._emit_metrics_for_hierarchy(hierarchy, context)
+                    if scenario.emit_logs and self.log_generator:
+                        self._emit_logs_for_hierarchy(hierarchy, context)
+            else:
+                ctx_kwargs["turn_index"] = i % 10
+                context = GenerationContext.create(**ctx_kwargs)
+                hierarchies = scenario.get_trace_hierarchies()
+                iteration_trace_ids = []
+                for hierarchy in hierarchies:
+                    trace_id = self.trace_generator.generate_trace(hierarchy, context)
+                    iteration_trace_ids.append(trace_id)
+                    trace_ids.append(trace_id)
+                    if scenario.emit_metrics and self.metric_generator:
+                        self._emit_metrics_for_hierarchy(hierarchy, context)
+                    if scenario.emit_logs and self.log_generator:
+                        self._emit_logs_for_hierarchy(hierarchy, context)
 
             if progress_callback:
                 primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
-                all_span_names = []
-                for h in hierarchies:
-                    all_span_names.extend(h.span_names())
+                if use_multi_turn:
+                    h = scenario.get_trace_hierarchy()
+                    all_span_names = h.span_names()
+                else:
+                    all_span_names = []
+                    for h in scenario.get_trace_hierarchies():
+                        all_span_names.extend(h.span_names())
                 progress_callback(
                     i + 1,
                     scenario.repeat_count,
                     primary_trace_id,
                     context.tenant_id,
-                    all_span_names,
+                    all_span_names[:50],
                 )
 
             if scenario.interval_ms > 0 and i < scenario.repeat_count - 1:

@@ -1,8 +1,8 @@
 """
 Parse OTEL semantic conventions YAML schema.
 
-Reads a semantic-conventions YAML file (path must be provided by the client via
-`SEMCONV` or `--semconv`) and provides structured access to:
+Reads a semantic-conventions YAML file (path from `SEMCONV` / `--semconv`, or default
+scenarios/conventions/semconv.yaml) and provides structured access to:
 - Span definitions (names, kinds, parent relationships)
 - Attribute schemas (types, requirements, allowed values)
 - Metrics definitions
@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from ..config import DEFAULT_SEMCONV_PATH
 
 
 class AttributeRequirement(Enum):
@@ -253,16 +255,21 @@ class SchemaParser:
     """Parse OTEL semantic conventions from YAML."""
 
     def __init__(self, schema_path: Path | str | None = None):
-        """Initialize parser with schema path. Path must be provided by the client (env or argument)."""
+        """Initialize parser with schema path (argument, SEMCONV env, or default scenarios/conventions/semconv.yaml)."""
         if schema_path is not None:
             self.schema_path = Path(schema_path)
             return
         env_path = os.environ.get("SEMCONV")
-        if not env_path or not Path(env_path).exists():
-            raise FileNotFoundError(
-                "Schema path is required. Set SEMCONV or pass --semconv with the full path to your semantic-conventions YAML file."
-            )
-        self.schema_path = Path(env_path)
+        if env_path and Path(env_path).exists():
+            self.schema_path = Path(env_path)
+            return
+        if DEFAULT_SEMCONV_PATH.exists():
+            self.schema_path = DEFAULT_SEMCONV_PATH
+            return
+        raise FileNotFoundError(
+            "Schema path is required. Set SEMCONV or pass --semconv with the path to your semantic-conventions YAML, "
+            "or place it at scenarios/conventions/semconv.yaml."
+        )
 
     def parse(self) -> TelemetrySchema:
         """Parse the schema file and return structured schema."""
