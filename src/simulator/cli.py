@@ -95,7 +95,7 @@ Examples:
         default=None,
         help=(
             "Attribute prefix for vendor-specific attributes "
-            "(e.g. gentoro → gentoro.session.id, gentoro.tenant.id). "
+            "(e.g. vendor → vendor.session.id, vendor.tenant.id). "
             "Overrides TELEMETRY_SIMULATOR_ATTR_PREFIX."
         ),
     )
@@ -496,7 +496,7 @@ def main():
         sys.exit(0)
 
     # Optional vendor override: CLI flag wins over env. This controls the
-    # attribute prefix used by config.attr/span_name (e.g. gentoro.*).
+    # attribute prefix used by config.attr/span_name (e.g. vendor.*).
     vendor = getattr(args, "vendor", None)
     if vendor:
         v = vendor.strip().lower()

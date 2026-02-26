@@ -1,18 +1,15 @@
 """
 Tenant defaults for the simulator.
 
-Tenant identity is now driven by the shared `scenarios_config.yaml` file:
+Tenant identity is driven by the shared `scenarios_config.yaml` file:
 
-- Primary source: `tenant.id` in `src/simulator/scenarios/scenarios_config.yaml`
+- Primary source: `tenant.id` in scenarios_config.yaml
 - Fallback when config or id is missing: `"test-tenant-001"`
 
 All telemetry is generated for a **single** tenant id by default.
 """
 
-from pathlib import Path
-from typing import Any
-
-import yaml
+from .config import SCENARIOS_CONFIG_PATH, load_yaml
 
 _DEFAULT_TENANT_ID = "test-tenant-001"
 
@@ -27,19 +24,7 @@ def _load_tenant_id_from_config() -> str:
       id: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
       display_name: "Toro Insurance"
     """
-    config_path = Path(__file__).parent / "scenarios" / "scenarios_config.yaml"
-    if not config_path.exists():
-        return _DEFAULT_TENANT_ID
-
-    try:
-        with config_path.open(encoding="utf-8") as f:
-            data: Any = yaml.safe_load(f)
-    except Exception:
-        return _DEFAULT_TENANT_ID
-
-    if not isinstance(data, dict):
-        return _DEFAULT_TENANT_ID
-
+    data = load_yaml(SCENARIOS_CONFIG_PATH)
     tenant_data = data.get("tenant")
     if isinstance(tenant_data, dict):
         tenant_id = tenant_data.get("id")

@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-from ..config import ATTR_PREFIX
+from ..config import ATTR_PREFIX, SCENARIOS_CONFIG_PATH, load_yaml
 from ..config import attr as config_attr
 from ..config import span_name as config_span_name
 from ..defaults import get_tenant_distribution
@@ -513,19 +513,7 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         SpanType.RESPONSE_COMPOSE: 60.0,
     }
 
-    config_path = Path(__file__).parent / "scenarios_config.yaml"
-    if not config_path.exists():
-        return defaults
-
-    try:
-        with config_path.open(encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-    except Exception:
-        return defaults
-
-    if not isinstance(data, dict):
-        return defaults
-
+    data = load_yaml(SCENARIOS_CONFIG_PATH)
     raw_latencies = data.get("happy_path_latencies_ms")
     if not isinstance(raw_latencies, dict):
         return defaults
@@ -553,7 +541,7 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
 _DEFAULT_LATENCY_MS = _load_happy_path_latencies()
 
 # Task types per semantic conventions: llm_call, tool_recommendation, tool_execution.
-# These span types MUST have a task.execute parent with the matching gentoro.task.type.
+# These span types MUST have a task.execute parent with the matching {prefix}.task.type.
 _TASK_TYPE_BY_SPAN_TYPE: dict[SpanType, str] = {
     SpanType.LLM_CALL: "llm_call",
     SpanType.TOOLS_RECOMMEND: "tool_recommendation",
@@ -568,8 +556,8 @@ def _ensure_task_execute_parent(
     """
     Wrap hierarchy in task.execute when required by conventions.
 
-    Per Gentoro: llm_call, tool_recommendation, tool_execution MUST have task.execute as
-    parent with gentoro.task.type = llm_call | tool_recommendation | tool_execution.
+    llm_call, tool_recommendation, tool_execution MUST have task.execute as parent
+    with {prefix}.task.type = llm_call | tool_recommendation | tool_execution.
     MCP tool execution is never a child of llm.call; it is always under task (tool_execution).
     """
     st = child_hier.root_config.span_type
@@ -610,7 +598,6 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
     while i < len(steps):
         step = steps[i]
         step_lower = (step or "").strip().lower()
-        next_step = (steps[i + 1] or "").strip().lower() if i + 1 < len(steps) else ""
 
         if step_lower in ("planner", "planning"):
             children.append(
@@ -644,7 +631,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             )
             i += 1
         elif step_lower in ("task", "task_execute", "task.execute"):
-            # LLM Calls doc: gentoro.llm.call parent MUST be gentoro.task.execute (task.type=llm_call).
+            # llm.call parent MUST be task.execute (task.type=llm_call).
             # MCP tool execution has its own task (task.type=tool_execution); never nest under llm.call.
             task_overrides = {
                 config_attr("step.outcome"): "success",
@@ -674,7 +661,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             )
             i += 1
         elif step_lower in ("tools_recommend", "tools.recommend"):
-            # Tool Recommendation doc: gentoro.tools.recommend parent MUST be gentoro.task.execute (task.type=tool_recommendation).
+            # tools.recommend parent MUST be task.execute (task.type=tool_recommendation).
             tools_recommend_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.TOOLS_RECOMMEND,
@@ -922,8 +909,7 @@ class ScenarioLoader:
     def get_id_generator(self) -> ScenarioIdGenerator:
         """Return shared ID generator (loads scenarios_config.yaml once)."""
         if self._id_generator is None:
-            config_path = Path(__file__).parent / "scenarios_config.yaml"
-            self._id_generator = ScenarioIdGenerator(config_path=config_path)
+            self._id_generator = ScenarioIdGenerator(config_path=SCENARIOS_CONFIG_PATH)
         return self._id_generator
 
     def _get_span_type(self, type_str: str) -> SpanType:
@@ -981,7 +967,7 @@ class ScenarioLoader:
     def _parse_scenario(self, data: dict) -> Scenario:
         """Parse scenario from YAML data."""
         data = data if isinstance(data, dict) else {}
-        root_raw = data.get("root") or data.get("spans")
+        root_raw = data.get("root")
         if isinstance(root_raw, list) and root_raw:
             root_raw = root_raw[0]
         root_step = self._parse_step(root_raw if isinstance(root_raw, dict) else {})
@@ -1080,7 +1066,7 @@ class ScenarioLoader:
         if isinstance(data, list) and data:
             data = data[0]
         data = data if isinstance(data, dict) else {}
-        span_type_str = data.get("type", data.get("span_type", config_span_name("a2a.orchestrate")))
+        span_type_str = data.get("type", config_span_name("a2a.orchestrate"))
         span_type = self._get_span_type(span_type_str)
 
         latency_data = data.get("latency") or {}

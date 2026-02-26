@@ -9,10 +9,10 @@ Resource attributes and resource.schemaUrl are loaded only from scenarios_config
 (resource.attributes, resource.schema_url); env vars are not used for these.
 """
 
+import os
 from pathlib import Path
 from typing import Any
 
-import os
 import yaml
 
 
@@ -55,23 +55,32 @@ def schema_version_attr() -> str:
 
 
 _SCENARIOS_CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "scenarios_config.yaml"
+SCENARIOS_CONFIG_PATH = _SCENARIOS_CONFIG_PATH
 
 # Keys in resource.attributes that are prefix-relative (expanded with attr() when loading from YAML).
 _PREFIX_RELATIVE_KEYS = frozenset({"module", "component", "otel.source"})
 
 
-def _load_resource_config() -> tuple[str, dict[str, str]]:
-    """Load resource.schema_url and resource.attributes from scenarios_config.yaml. Returns (schema_url, attributes)."""
-    default_url = "https://gentoro.ai/otel/schema/enterprise/1.0.0"
-    default_attrs: dict[str, str] = {}
-    if not _SCENARIOS_CONFIG_PATH.exists():
-        return default_url, default_attrs
+def load_yaml(path: Path, default: Any = None) -> Any:
+    """Load YAML file; return default on missing file or parse error."""
+    if default is None:
+        default = {}
+    if not path.exists():
+        return default
     try:
-        with _SCENARIOS_CONFIG_PATH.open(encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data: Any = yaml.safe_load(f)
     except Exception:
-        return default_url, default_attrs
-    if not isinstance(data, dict):
+        return default
+    return data if isinstance(data, dict) else default
+
+
+def _load_resource_config() -> tuple[str, dict[str, str]]:
+    """Load resource.schema_url and resource.attributes from scenarios_config.yaml. Returns (schema_url, attributes)."""
+    default_url = "https://example.com/otel/schema/1.0.0"
+    default_attrs: dict[str, str] = {}
+    data = load_yaml(_SCENARIOS_CONFIG_PATH)
+    if not data:
         return default_url, default_attrs
     resource = data.get("resource")
     if not isinstance(resource, dict):

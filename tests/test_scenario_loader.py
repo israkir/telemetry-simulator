@@ -41,9 +41,9 @@ def test_loader_can_load_example_scenario_explicitly() -> None:
 
 
 def test_loader_can_load_phone_new_claim_happy() -> None:
-    """Scenario phone_new_claim_happy loads and has expected structure (context.correct_flow, mcp_server)."""
+    """Scenario phone_new_claim (file) loads and has expected structure (context.correct_flow, mcp_server)."""
     loader = ScenarioLoader()
-    scenario = loader.load("phone_new_claim_happy")
+    scenario = loader.load("phone_new_claim")
     assert scenario.name == "phone_new_claim_happy"
     assert scenario.repeat_count >= 1
     assert scenario.context is not None

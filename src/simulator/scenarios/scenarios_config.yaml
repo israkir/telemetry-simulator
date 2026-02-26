@@ -51,7 +51,7 @@ happy_path_latencies_ms:
 # -----------------------------------------------------------------------------
 # Resource attributes (OTEL resource; used for all spans/metrics/logs)
 # -----------------------------------------------------------------------------
-# Aligns with Gentoro enterprise convention. tenant.id is always injected from tenant.id below at runtime.
+# tenant.id is always injected from tenant.id below at runtime.
 # Prefix-relative keys (module, component, otel.source) are expanded with VENDOR prefix.
 
 resource:

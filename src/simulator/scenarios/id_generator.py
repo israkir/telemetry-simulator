@@ -12,10 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-# Default config next to this module; overridable for tests.
-DEFAULT_CONFIG_PATH = Path(__file__).parent / "scenarios_config.yaml"
+from ..config import SCENARIOS_CONFIG_PATH, load_yaml
 
 _HEX_PLACEHOLDER = re.compile(r"\{hex:(\d+)\}")
 _UUID_PLACEHOLDER = re.compile(r"\{uuid\}")
@@ -45,13 +42,8 @@ def _expand_template(template: str, tenant_id: str | None = None) -> str:
 
 def load_id_formats(config_path: Path | None = None) -> dict[str, str]:
     """Load id_formats from scenarios_config.yaml. Returns format key -> template."""
-    path = config_path or DEFAULT_CONFIG_PATH
-    if not path.exists():
-        return _default_id_formats()
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    if not isinstance(data, dict):
-        return _default_id_formats()
+    path = config_path or SCENARIOS_CONFIG_PATH
+    data = load_yaml(path)
     raw = data.get("id_formats")
     if not isinstance(raw, dict):
         return _default_id_formats()

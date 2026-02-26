@@ -1,12 +1,12 @@
 # Phone MCP context, happy path: LLM call → tool recommendation (from LLM result) → tool execution.
 # Toro Insurance: customer (Phone only) starts a claim; agent uses Phone backend (mcp_server).
 #
-# Trace structure (Gentoro-compliant): each task type has its own task.execute parent.
+# Trace structure: each task type has its own task.execute parent.
 #   a2a.orchestrate
 #   ├── planner
-#   ├── task.execute (llm_call) → gentoro.llm.call
-#   ├── task.execute (tool_recommendation) → gentoro.tools.recommend
-#   ├── task.execute (tool_execution) → gentoro.mcp.tool.execute → mcp.tool.execute.attempt
+#   ├── task.execute (llm_call) → llm.call
+#   ├── task.execute (tool_recommendation) → tools.recommend
+#   ├── task.execute (tool_execution) → mcp.tool.execute → mcp.tool.execute.attempt
 #   └── response.compose
 #
 # Run: telemetry-simulator scenario --name phone_new_claim_happy --count 5
@@ -20,11 +20,6 @@ description: >
 
 simulation_goal: happy_path
 mcp_server: phone
-
-tags:
-  - phone
-  - happy_path
-  - toro
 
 repeat_count: 5
 interval_ms: 100
@@ -41,9 +36,9 @@ context:
   correct_flow:
     steps:
       - planner
-      - task              # → task.execute (llm_call) → gentoro.llm.call
-      - tools_recommend   # → task.execute (tool_recommendation) → gentoro.tools.recommend (after LLM result)
-      - new_claim         # → task.execute (tool_execution) → gentoro.mcp.tool.execute
+      - task              # → task.execute (llm_call) → llm.call
+      - tools_recommend   # → task.execute (tool_recommendation) → tools.recommend (after LLM result)
+      - new_claim         # → task.execute (tool_execution) → mcp.tool.execute
       - response_compose
   error_pattern: happy_path
   agents:

@@ -129,7 +129,7 @@ _ERROR_TYPE_BY_SPAN_TYPE = {
 }
 
 # Convention-required attributes per vendor span type.
-# Compose span (gentoro.response.compose): MUST have span.class, response.format, step.outcome per spec.
+# Compose span (response.compose): MUST have span.class, response.format, step.outcome per spec.
 CONVENTION_ATTRIBUTES = {
     SpanType.A2A_ORCHESTRATE: {config_attr("span.class"): "a2a.orchestrate"},
     SpanType.PLANNER: {config_attr("span.class"): "planner"},
@@ -348,7 +348,7 @@ class TraceGenerator:
 
             is_error = self.span_builder.should_error(config)
             tool_result = overrides.get(config_attr("tool.status.result"))
-            # gentoro.a2a.orchestrate root: status.code UNSET on success/partial, ERROR on error
+            # a2a.orchestrate root: status.code UNSET on success/partial, ERROR on error
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 outcome = (overrides.get(config_attr("a2a.outcome")) or "success").lower()
                 if outcome == "error":
