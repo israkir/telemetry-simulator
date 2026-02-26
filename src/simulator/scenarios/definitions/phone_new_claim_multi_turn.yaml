@@ -9,6 +9,7 @@
 #   ├── task.execute (tool_execution) → mcp.tool.execute → mcp.tool.execute.attempt
 #   └── response.compose
 #
+# Correlate: all 3 traces share the same {prefix}.session.id and gen_ai.conversation.id; filter by either to get the full conversation.
 # Run: telemetry-simulator scenario --name phone_new_claim_multi_turn --count 1 --show-spans
 
 name: phone_new_claim_multi_turn
