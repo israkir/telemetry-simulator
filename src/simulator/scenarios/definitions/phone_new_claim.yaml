@@ -5,7 +5,7 @@
 
 name: phone_new_claim_happy
 description: >
-  Happy path for Phone mcp_server context: planner → new_claim → response_compose.
+  Happy path for Phone mcp_server context: planner → task → new_claim → response_compose.
   Single tool call; simulation goal and mcp_server are defined in this file.
 
 simulation_goal: happy_path
@@ -33,6 +33,7 @@ context:
   correct_flow:
     steps:
       - planner
+      - task
       - new_claim
       - response_compose
   error_pattern: happy_path

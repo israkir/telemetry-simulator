@@ -503,6 +503,7 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
     defaults: dict[SpanType, float] = {
         SpanType.A2A_ORCHESTRATE: 1500.0,
         SpanType.PLANNER: 250.0,
+        SpanType.TASK_EXECUTE: 80.0,
         SpanType.MCP_TOOL_EXECUTE: 150.0,
         SpanType.RESPONSE_COMPOSE: 60.0,
     }
@@ -527,6 +528,7 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
     key_map: dict[str, SpanType] = {
         "a2a_orchestrate": SpanType.A2A_ORCHESTRATE,
         "planner": SpanType.PLANNER,
+        "task_execute": SpanType.TASK_EXECUTE,
         "mcp_tool_execute": SpanType.MCP_TOOL_EXECUTE,
         "response_compose": SpanType.RESPONSE_COMPOSE,
     }
@@ -588,6 +590,19 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                             config_attr("response.format"): "a2a_json",
                             config_attr("step.outcome"): "success",
                         },
+                    ),
+                    children=[],
+                )
+            )
+        elif step_lower in ("task", "task_execute", "task.execute"):
+            children.append(
+                TraceHierarchy(
+                    root_config=SpanConfig(
+                        span_type=SpanType.TASK_EXECUTE,
+                        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
+                        latency_variance=0.2,
+                        error_rate=0.0,
+                        attribute_overrides={config_attr("step.outcome"): "success"},
                     ),
                     children=[],
                 )

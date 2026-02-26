@@ -129,7 +129,10 @@ _ERROR_TYPE_BY_SPAN_TYPE = {
 CONVENTION_ATTRIBUTES = {
     SpanType.A2A_ORCHESTRATE: {config_attr("span.class"): "a2a.orchestrate"},
     SpanType.PLANNER: {config_attr("span.class"): "planner"},
-    SpanType.TASK_EXECUTE: {config_attr("span.class"): "task.execute"},
+    SpanType.TASK_EXECUTE: {
+        config_attr("span.class"): "task.execute",
+        config_attr("step.outcome"): "success",
+    },
     SpanType.LLM_CALL: {config_attr("span.class"): "llm.call"},
     SpanType.MCP_TOOL_EXECUTE: {config_attr("span.class"): "mcp.tool.execute"},
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT: {config_attr("span.class"): "mcp.tool.execute.attempt"},
@@ -346,6 +349,9 @@ class TraceGenerator:
                     span, config.span_type, overrides,
                     error_type_override="serialization_error",
                 )
+            elif config.span_type == SpanType.TASK_EXECUTE and (is_error or tool_result is False):
+                span.set_attribute(config_attr("step.outcome"), "fail")
+                _record_span_error(span, config.span_type, overrides)
             elif is_error or tool_result is False:
                 _record_span_error(span, config.span_type, overrides)
             else:
