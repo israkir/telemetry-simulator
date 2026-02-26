@@ -1,57 +1,65 @@
 """
-Tenant from environment only (aligned with data-plane collector).
+Tenant defaults for the simulator.
 
-Simulator prefers TELEMETRY_TENANT_UUIDS / TELEMETRY_TENANT_WEIGHTS when set (e.g. in container);
-otherwise TENANT_UUID (single or comma-separated) and optional TENANT_WEIGHTS.
+Tenant identity is now driven by the shared `scenarios_config.yaml` file:
+
+- Primary source: `tenant.id` in `src/simulator/scenarios/scenarios_config.yaml`
+- Fallback when config or id is missing: `"test-tenant-001"`
+
+All telemetry is generated for a **single** tenant id by default.
 """
 
-import os
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+_DEFAULT_TENANT_ID = "test-tenant-001"
+
+
+def _load_tenant_id_from_config() -> str:
+    """
+    Load the default tenant id from scenarios_config.yaml.
+
+    Config shape:
+
+    tenant:
+      id: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
+      display_name: "Toro Insurance"
+    """
+    config_path = Path(__file__).parent / "scenarios" / "scenarios_config.yaml"
+    if not config_path.exists():
+        return _DEFAULT_TENANT_ID
+
+    try:
+        with config_path.open(encoding="utf-8") as f:
+            data: Any = yaml.safe_load(f)
+    except Exception:
+        return _DEFAULT_TENANT_ID
+
+    if not isinstance(data, dict):
+        return _DEFAULT_TENANT_ID
+
+    tenant_data = data.get("tenant")
+    if isinstance(tenant_data, dict):
+        tenant_id = tenant_data.get("id")
+        if isinstance(tenant_id, str) and tenant_id.strip():
+            return tenant_id.strip()
+
+    return _DEFAULT_TENANT_ID
 
 
 def get_default_tenant_ids() -> list[str]:
-    """Tenant IDs for generation: from TELEMETRY_TENANT_UUIDS or TENANT_UUID env (required)."""
-    raw = (
-        os.environ.get("TELEMETRY_TENANT_UUIDS", "").strip()
-        or os.environ.get("TENANT_UUID", "").strip()
-    )
-    if not raw:
-        raise SystemExit(
-            "TENANT_UUID or TELEMETRY_TENANT_UUIDS must be set (aligns with data-plane collector)."
-        )
-    return [t.strip() for t in raw.split(",") if t.strip()]
-
-
-def _default_tenant_weights(n: int) -> list[float]:
-    """Realistic skewed distribution: first tenant gets most traffic, then decay."""
-    if n <= 0:
-        return []
-    if n == 1:
-        return [1.0]
-    # Skew: ~50%, ~28%, ~15%, ~7% for 4; generalizes via 2^(-i) then normalize
-    weights = [0.5 ** (i + 1) for i in range(n)]
-    total = sum(weights)
-    return [w / total for w in weights]
+    """Return the single default tenant id from scenarios_config.yaml (or fallback)."""
+    return [_load_tenant_id_from_config()]
 
 
 def get_tenant_distribution() -> dict[str, float]:
-    """Tenant IDs and weights from env. Uses TELEMETRY_TENANT_WEIGHTS or TENANT_WEIGHTS if set, else realistic default."""
-    ids = get_default_tenant_ids()
-    raw_weights = (
-        os.environ.get("TELEMETRY_TENANT_WEIGHTS", "").strip()
-        or os.environ.get("TENANT_WEIGHTS", "").strip()
-    )
-    if raw_weights:
-        parts = [p.strip() for p in raw_weights.split(",") if p.strip()]
-        if len(parts) != len(ids):
-            raise SystemExit(
-                f"TENANT_WEIGHTS must have {len(ids)} comma-separated values (one per tenant)."
-            )
-        try:
-            weights = [float(x) for x in parts]
-        except ValueError:
-            raise SystemExit("TENANT_WEIGHTS must be comma-separated numbers.") from None
-        if any(w < 0 for w in weights) or sum(weights) <= 0:
-            raise SystemExit("TENANT_WEIGHTS must be non-negative and sum to a positive number.")
-        total = sum(weights)
-        return dict(zip(ids, (w / total for w in weights), strict=True))
-    return dict(zip(ids, _default_tenant_weights(len(ids)), strict=True))
+    """
+    Return tenant distribution for generation.
+
+    Currently a single tenant with weight 1.0, using the id from scenarios_config.yaml
+    or the `"test-tenant-001"` fallback when not configured.
+    """
+    tenant_id = _load_tenant_id_from_config()
+    return {tenant_id: 1.0}

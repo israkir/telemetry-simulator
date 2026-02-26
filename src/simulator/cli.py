@@ -8,8 +8,10 @@ Provides commands for:
 """
 
 import argparse
+import os
 import sys
 
+from . import config as sim_config
 from .defaults import get_default_tenant_ids
 from .exporters.file_exporter import FileLogExporter, FileMetricExporter, FileSpanExporter
 from .exporters.otlp_exporter import (
@@ -62,7 +64,7 @@ Examples:
   telemetry-simulator run --count 100 --interval 200
 
   # Run specific scenario
-  telemetry-simulator scenario --name successful_agent_turn --count 50
+  telemetry-simulator scenario --name successful_agent_turn
 
   # Validate schema and show summary
   telemetry-simulator validate --show-schema
@@ -80,10 +82,22 @@ Examples:
     )
 
     parser.add_argument(
-        "--schema-path",
+        "--semconv",
+        dest="semconv",
         type=str,
         default=None,
-        help="Path to semantic-conventions YAML (required unless TELEMETRY_SIMULATOR_SCHEMA_PATH is set)",
+        help="Path to semantic-conventions YAML (required unless SEMCONV is set)",
+    )
+
+    parser.add_argument(
+        "--vendor",
+        type=str,
+        default=None,
+        help=(
+            "Attribute prefix for vendor-specific attributes "
+            "(e.g. gentoro → gentoro.session.id, gentoro.tenant.id). "
+            "Overrides TELEMETRY_SIMULATOR_ATTR_PREFIX."
+        ),
     )
 
     parser.add_argument(
@@ -97,8 +111,9 @@ Examples:
 
     run_parser = subparsers.add_parser("run", help="Run mixed workload generation")
     run_parser.add_argument("--endpoint", type=str, help=argparse.SUPPRESS)
-    run_parser.add_argument("--schema-path", type=str, help=argparse.SUPPRESS)
+    run_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     run_parser.add_argument("--service-name", type=str, help=argparse.SUPPRESS)
+    run_parser.add_argument("--vendor", type=str, help=argparse.SUPPRESS)
     run_parser.add_argument(
         "--count",
         type=int,
@@ -110,13 +125,6 @@ Examples:
         type=float,
         default=500,
         help="Interval between traces in ms (default: 500)",
-    )
-    run_parser.add_argument(
-        "--tenants",
-        type=str,
-        nargs="+",
-        default=get_default_tenant_ids(),
-        help="Tenant IDs from TENANT_UUID env (required)",
     )
     run_parser.add_argument(
         "--output-file",
@@ -158,8 +166,9 @@ Examples:
 
     scenario_parser = subparsers.add_parser("scenario", help="Run YAML-defined scenario")
     scenario_parser.add_argument("--endpoint", type=str, help=argparse.SUPPRESS)
-    scenario_parser.add_argument("--schema-path", type=str, help=argparse.SUPPRESS)
+    scenario_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     scenario_parser.add_argument("--service-name", type=str, help=argparse.SUPPRESS)
+    scenario_parser.add_argument("--vendor", type=str, help=argparse.SUPPRESS)
     scenario_parser.add_argument(
         "--name",
         type=str,
@@ -213,7 +222,7 @@ Examples:
     )
 
     validate_parser = subparsers.add_parser("validate", help="Validate schema and configuration")
-    validate_parser.add_argument("--schema-path", type=str, help=argparse.SUPPRESS)
+    validate_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     validate_parser.add_argument(
         "--show-schema",
         action="store_true",
@@ -239,7 +248,7 @@ def cmd_run(args: argparse.Namespace):
     print(f"   Endpoint: {args.endpoint}")
     print(f"   Count: {args.count}")
     print(f"   Interval: {args.interval}ms")
-    print(f"   Tenants: {', '.join(args.tenants)}")
+    print(f"   Tenants: {', '.join(get_default_tenant_ids())}")
     print()
 
     if args.output_file:
@@ -282,7 +291,7 @@ def cmd_run(args: argparse.Namespace):
             trace_exporter=trace_exporter,
             metric_exporter=metric_exporter,
             log_exporter=log_exporter,
-            schema_path=args.schema_path,
+            schema_path=args.semconv,
             service_name=args.service_name,
             show_full_spans=getattr(args, "show_full_spans", False),
             scenarios_dir=getattr(args, "scenarios_dir", None),
@@ -334,7 +343,10 @@ def cmd_scenario(args: argparse.Namespace):
 
     print(f"   Description: {scenario.description}")
     print(f"   Repeat count: {scenario.repeat_count}")
-    print(f"   Interval: {scenario.interval_ms}ms")
+    interval_str = f"{scenario.interval_ms}ms"
+    if scenario.interval_deviation_ms > 0:
+        interval_str += f" ±{scenario.interval_deviation_ms}ms"
+    print(f"   Interval: {interval_str}")
     print(f"   Tags: {', '.join(scenario.tags)}")
     print()
 
@@ -367,7 +379,7 @@ def cmd_scenario(args: argparse.Namespace):
             trace_exporter=trace_exporter,
             metric_exporter=metric_exporter,
             log_exporter=log_exporter,
-            schema_path=args.schema_path,
+            schema_path=args.semconv,
             service_name=args.service_name,
             show_full_spans=getattr(args, "show_full_spans", False),
         )
@@ -415,16 +427,19 @@ def cmd_list(args: argparse.Namespace):
             else f"     {scenario.description}"
         )
         print(f"     Tags: {tags}")
-        print(f"     Repeat: {scenario.repeat_count}, Interval: {scenario.interval_ms}ms")
+        interval_str = f"{scenario.interval_ms}ms"
+        if scenario.interval_deviation_ms > 0:
+            interval_str += f" ±{scenario.interval_deviation_ms}ms"
+        print(f"     Repeat: {scenario.repeat_count}, Interval: {interval_str}")
         print()
 
 
 def cmd_validate(args: argparse.Namespace):
     """Validate schema and show information."""
     try:
-        parser = SchemaParser(args.schema_path)
+        parser = SchemaParser(args.semconv)
         schema = parser.parse()
-        validator = OtelValidator(args.schema_path)
+        validator = OtelValidator(args.semconv)
 
         print("Schema loaded successfully")
         print(f"   Version: {schema.schema_version}")
@@ -479,6 +494,19 @@ def main():
     if args.command is None:
         parser.print_help()
         sys.exit(0)
+
+    # Optional vendor override: CLI flag wins over env. This controls the
+    # attribute prefix used by config.attr/span_name (e.g. gentoro.*).
+    vendor = getattr(args, "vendor", None)
+    if vendor:
+        v = vendor.strip().lower()
+        if v:
+            os.environ["TELEMETRY_SIMULATOR_ATTR_PREFIX"] = v
+            # Update module-level config so existing imports see the new prefix.
+            sim_config.ATTR_PREFIX = v
+            # VENDOR_NAME: use explicit env override when set; otherwise capitalize prefix.
+            custom_name = os.environ.get("TELEMETRY_SIMULATOR_VENDOR_NAME", "").strip()
+            sim_config.VENDOR_NAME = custom_name or v.capitalize()
 
     # Subparsers that accept global options can leave endpoint/service_name unset when
     # options are given only after the subcommand; normalize so commands always get defaults.

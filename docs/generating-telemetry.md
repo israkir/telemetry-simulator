@@ -4,13 +4,13 @@ This guide describes how to generate realistic OpenTelemetry data with the telem
 
 ## Overview
 
-The simulator produces OTEL-compliant **traces**, **metrics**, and **logs** with configurable semantic conventions (attribute prefix set via `TELEMETRY_SIMULATOR_ATTR_PREFIX`). Data is defined by **YAML scenarios**: each scenario describes a trace hierarchy with realistic latency distributions, error propagation, and probabilistic behavior.
+The simulator produces OTEL-compliant **traces**, **metrics**, and **logs** with configurable semantic conventions (attribute prefix set via `VENDOR`). Data is defined by **YAML scenarios**: each scenario describes a trace hierarchy with realistic latency distributions, error propagation, and probabilistic behavior.
 
 - **Traces**: A tree of spans using the configured vendor prefix (e.g. `{prefix}.a2a.orchestrate` → `{prefix}.planner`, `{prefix}.mcp.tool.execute`, `{prefix}.llm.call`)
 - **Metrics**: Correlated with spans (e.g. turn duration, tool call counts)
 - **Logs**: Emitted for span events where configured
 
-Tenant IDs and weights come from environment variables (`TENANT_UUID` or `TELEMETRY_TENANT_UUIDS` / `TELEMETRY_TENANT_WEIGHTS`). No hardcoded tenant IDs.
+Tenant IDs come from `scenarios_config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`.
 
 ---
 
@@ -19,9 +19,9 @@ Tenant IDs and weights come from environment variables (`TENANT_UUID` or `TELEME
 ### Prerequisites
 
 - Python 3.11+
-- **Schema path**: Set `TELEMETRY_SIMULATOR_SCHEMA_PATH` or pass `--schema-path` (before or after the subcommand)
+- **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand)
 - OTLP endpoint (e.g. data-plane collector on port 4318)
-- `TENANT_UUID` set (or `TELEMETRY_TENANT_UUIDS` in container)
+- Tenant ID is read from `scenarios_config.yaml` (`tenant.id`); no env required.
 
 ### Run a Scenario
 
@@ -31,17 +31,12 @@ By default the simulator uses **sample scenario definitions** bundled in `src/si
 # From the telemetry-simulator project directory
 make venv && make install
 
-export TENANT_UUID=dev-tenant-1
-
-# Run sample scenarios (built-in definitions)
-telemetry-simulator scenario --name successful_agent_turn --count 100
-telemetry-simulator scenario --name tool_retry --count 50
-
-# With schema path (option can appear before or after the subcommand)
-telemetry-simulator scenario --name successful_agent_turn --count 5 --schema-path /path/to/otel-semantic-conventions.yaml
+# Run sample scenarios (built-in definitions; tenant from scenarios_config.yaml)
+telemetry-simulator scenario --name successful_agent_turn
+telemetry-simulator scenario --name tool_retry
 
 # Use your own scenario folder
-telemetry-simulator scenario --name my_scenario --scenarios-dir /path/to/my/definitions --count 100
+telemetry-simulator scenario --name my_scenario --scenarios-dir /path/to/my/definitions
 
 # Show full span output
 telemetry-simulator scenario --name tool_retry --count 10 --show-full-spans
@@ -73,7 +68,7 @@ Models a successful agent turn: user asks something, agent plans, calls a tool, 
 | 6    | `{prefix}.response.compose` | Response composition (direct child of root) |
 
 ```bash
-telemetry-simulator scenario --name successful_agent_turn --count 100
+telemetry-simulator scenario --name successful_agent_turn
 ```
 
 ### Tool Retry
@@ -170,7 +165,7 @@ root:
 
 ### Supported Span Types
 
-Use `type` in scenario YAML with the same prefix as `TELEMETRY_SIMULATOR_ATTR_PREFIX` (default `vendor`):
+Use `type` in scenario YAML with the same prefix as `VENDOR` (default `vendor`):
 
 | Span type | Description |
 |-----------|-------------|
@@ -184,7 +179,7 @@ Use `type` in scenario YAML with the same prefix as `TELEMETRY_SIMULATOR_ATTR_PR
 | `a2a.call` | Agent-to-agent call |
 | `cp.request` | Control plane request |
 
-Sample scenario YAML uses the default `vendor.*` namespace; the loader normalizes these to `TELEMETRY_SIMULATOR_ATTR_PREFIX` (e.g. `gentoro`) at runtime.
+Sample scenario YAML uses the default `vendor.*` namespace; the loader normalizes these to the `VENDOR` prefix at runtime.
 
 ---
 
@@ -192,14 +187,11 @@ Sample scenario YAML uses the default `vendor.*` namespace; the loader normalize
 
 ### CLI Commands
 
-Global options (`--schema-path`, `--endpoint`, `--service-name`) can appear before or after the subcommand.
+Global options (`--semconv`, `--endpoint`, `--service-name`) can appear before or after the subcommand.
 
 ```bash
 # Run specific scenario
-telemetry-simulator scenario --name successful_agent_turn --count 100
-
-# With schema path (required unless TELEMETRY_SIMULATOR_SCHEMA_PATH is set)
-telemetry-simulator scenario --name successful_agent_turn --count 50 --schema-path /path/to/semantic-conventions.yaml
+telemetry-simulator scenario --name successful_agent_turn
 
 # Show spans as they're generated
 telemetry-simulator scenario --name tool_retry --count 10 --show-spans
@@ -218,21 +210,19 @@ telemetry-simulator run --count 500 --scenarios-dir /path/to/definitions
 # From repo root
 ./tools/dev/dev deps-up
 
-# Run in container
+# Run in container (tenant from scenarios_config.yaml in image)
 podman run --rm \
-  -e TELEMETRY_TENANT_UUIDS=dev-tenant-1 \
   -e OTLP_HTTP_ENDPOINT=http://data-plane:4318 \
   your-image telemetry-simulator scenario --name successful_agent_turn --count 200
 ```
 
-### Make Targets
+### Make Target
 
 ```bash
-make run-scenario SCENARIO=successful_agent_turn
-make run              # Mixed workload
+SEMCONV=/path/to/otel-semantic-conventions.yaml make run   # Mixed workload
 ```
 
----
+----
 
 ## Adding New Scenarios
 
@@ -253,8 +243,8 @@ make run              # Mixed workload
 
 3. Run it (use `--scenarios-dir` if your file is not in the sample definitions folder):
    ```bash
-   telemetry-simulator scenario --name with_rag --count 50
-   telemetry-simulator scenario --name with_rag --scenarios-dir /path/to/definitions --count 50
+   telemetry-simulator scenario --name with_rag
+   telemetry-simulator scenario --name with_rag --scenarios-dir /path/to/definitions
    ```
 
 4. It will automatically be included in mixed workloads when you use the same folder (default or `--scenarios-dir`).

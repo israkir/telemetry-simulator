@@ -11,6 +11,7 @@ Supports both deterministic scenarios (fixed structure) and statistical
 scenarios (probabilistic branching, distributions, retries).
 """
 
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,7 @@ from ..generators.trace_generator import (
 )
 from ..statistics.correlations import ErrorPropagation, RetryConfig, RetrySequence
 from ..statistics.distributions import Distribution, DistributionFactory
+from .id_generator import ScenarioIdGenerator
 
 
 @dataclass
@@ -98,6 +100,156 @@ class RetryBehavior:
                     "success_rate_per_attempt", [0.0, 0.7, 0.85, 0.95]
                 ),
             ),
+        )
+
+
+@dataclass
+class MCPToolRef:
+    """One tool registered on an MCP server (name + uuid)."""
+
+    name: str
+    uuid: str
+
+
+@dataclass
+class FlowConfig:
+    """Ordered path/flow: step identifiers (e.g. planner, tool names, response_compose)."""
+
+    steps: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ErrorPatternConfig:
+    """Error pattern and optional config (rate, which step)."""
+
+    pattern: str = "happy_path"
+    rate: float = 0.1
+    step_index: int | str = "random"  # int = that MCP step index, "random" = pick one
+
+
+@dataclass
+class MCPServerRef:
+    """MCP server reference with ordered list of tools."""
+
+    server_uuid: str
+    tools: list[MCPToolRef]
+
+
+@dataclass
+class AgentRef:
+    """Agent reference with optional MCP servers it can use."""
+
+    uuid: str
+    mcp: list[MCPServerRef] = field(default_factory=list)
+
+
+@dataclass
+class ScenarioContext:
+    """
+    Scenario generator context: tenant, agents, MCP servers, tools, correct_flow, error patterns.
+    Only the first agent and its first MCP server are used when applying context to
+    hierarchies (tenant, mcp.server.uuid, mcp.tool.uuid, gen_ai.tool.name, mcp.tool.call.id).
+    """
+
+    tenant_uuid: str
+    agents: list[AgentRef] = field(default_factory=list)
+    workflow: str | None = None
+    correct_flow: FlowConfig | None = None
+    error_pattern: str = "happy_path"
+    error_config: ErrorPatternConfig | None = None
+    redaction_applied: str = "none"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "ScenarioContext | None":
+        """Parse context from YAML/JSON (tenant_uuid, agents, workflow, correct_flow, error_pattern)."""
+        if not data or not isinstance(data, dict):
+            return None
+        tenant_uuid = data.get("tenant_uuid") or data.get("tenant_id")
+        if not tenant_uuid or not isinstance(tenant_uuid, str):
+            return None
+        agents_raw = data.get("agents")
+        if not isinstance(agents_raw, list):
+            agents_raw = []
+
+        workflow = data.get("workflow")
+        if workflow is not None and not isinstance(workflow, str):
+            workflow = None
+
+        correct_flow_cfg: FlowConfig | None = None
+        correct_flow_raw = data.get("correct_flow")
+        if isinstance(correct_flow_raw, dict) and isinstance(correct_flow_raw.get("steps"), list):
+            correct_flow_cfg = FlowConfig(steps=[str(s) for s in correct_flow_raw["steps"]])
+        elif isinstance(correct_flow_raw, list):
+            correct_flow_cfg = FlowConfig(steps=[str(s) for s in correct_flow_raw])
+
+        error_pattern = data.get("error_pattern", "happy_path")
+        if not isinstance(error_pattern, str):
+            error_pattern = "happy_path"
+        redaction_applied = data.get("redaction_applied", "none")
+        if not isinstance(redaction_applied, str):
+            redaction_applied = "none"
+        err_cfg_raw = data.get("error_config")
+        err_cfg: ErrorPatternConfig | None = None
+        if isinstance(err_cfg_raw, dict):
+            step_idx = err_cfg_raw.get("step_index", "random")
+            if not isinstance(step_idx, int):
+                step_idx = "random"
+            err_cfg = ErrorPatternConfig(
+                pattern=error_pattern,
+                rate=float(err_cfg_raw.get("rate", 0.1)),
+                step_index=step_idx,
+            )
+        elif error_pattern not in ("happy_path", "none"):
+            err_cfg = ErrorPatternConfig(pattern=error_pattern)
+
+        agents: list[AgentRef] = []
+        for a in agents_raw:
+            if not isinstance(a, dict):
+                continue
+            agent_uuid = a.get("uuid")
+            if not agent_uuid or not isinstance(agent_uuid, str):
+                continue
+            mcp_list_raw = a.get("mcp")
+            mcp_list: list[MCPServerRef] = []
+            if isinstance(mcp_list_raw, list):
+                for m in mcp_list_raw:
+                    if not isinstance(m, dict):
+                        continue
+                    server_uuid = m.get("server_uuid")
+                    if not server_uuid or not isinstance(server_uuid, str):
+                        continue
+                    tools: list[MCPToolRef] = []
+                    # Support tools: [{name, uuid}, ...] or tool_uuids + tool_names
+                    tools_raw = m.get("tools")
+                    tool_uuids_raw = m.get("tool_uuids")
+                    tool_names_raw = m.get("tool_names")
+                    if isinstance(tools_raw, list):
+                        for t in tools_raw:
+                            if isinstance(t, dict):
+                                n, u = t.get("name"), t.get("uuid")
+                                if isinstance(n, str) and isinstance(u, str):
+                                    tools.append(MCPToolRef(name=n, uuid=u))
+                            elif isinstance(t, str):
+                                tools.append(MCPToolRef(name=t, uuid=t))
+                    elif isinstance(tool_uuids_raw, list) and isinstance(tool_names_raw, list):
+                        for nm, uid in zip(tool_names_raw, tool_uuids_raw, strict=False):
+                            if isinstance(nm, str) and isinstance(uid, str):
+                                tools.append(MCPToolRef(name=nm, uuid=uid))
+                    elif isinstance(tool_uuids_raw, list):
+                        for i, uid in enumerate(tool_uuids_raw):
+                            if isinstance(uid, str):
+                                tools.append(MCPToolRef(name=f"tool_{i}", uuid=uid))
+                    mcp_list.append(MCPServerRef(server_uuid=server_uuid, tools=tools))
+            agents.append(AgentRef(uuid=agent_uuid, mcp=mcp_list))
+
+        return cls(
+            tenant_uuid=tenant_uuid,
+            agents=agents,
+            workflow=workflow,
+            correct_flow=correct_flow_cfg,
+            error_pattern=error_pattern,
+            error_config=err_cfg,
+            redaction_applied=redaction_applied,
         )
 
 
@@ -286,25 +438,315 @@ class Scenario:
     tenant_distribution: dict[str, float]
     repeat_count: int
     interval_ms: float
+    interval_deviation_ms: float
     root_step: ScenarioStep
     emit_metrics: bool = True
     emit_logs: bool = True
     is_statistical: bool = False
+    context: ScenarioContext | None = None
+    id_generator: ScenarioIdGenerator | None = None
+    # Simulation goal (e.g. happy_path, higher_latency, 4xx_invalid_arguments); defined per scenario.
+    simulation_goal: str | None = None
+    # MCP server context (e.g. phone, electronics, appliances); identifies which mcp_servers entry.
+    mcp_server: str | None = None
+    # Optional multi-turn conversation for this scenario (reference only; used to
+    # drive gen_ai.input.messages / gen_ai.output.messages when provided).
+    conversation_turns: list[dict[str, str]] | None = None
+    # Redaction level for {prefix}.redaction.applied (none, basic, strict). From scenario YAML or context; default none.
+    redaction_applied: str = "none"
 
     def get_trace_hierarchy(self) -> TraceHierarchy:
         """Get the trace hierarchy for this scenario."""
-        return self.root_step.to_hierarchy()
+        if self.context and self.context.correct_flow and self.context.correct_flow.steps:
+            hierarchy = _hierarchy_from_context(self.context)
+            _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
+            return hierarchy
+        hierarchy = self.root_step.to_hierarchy()
+        if self.context:
+            _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
+        return hierarchy
 
     def get_trace_hierarchies(self) -> list[TraceHierarchy]:
         """
         Get trace hierarchies, potentially multiple for retry scenarios.
 
-        For scenarios with retry behavior, this returns a hierarchy per attempt.
-        For normal scenarios, returns a single-item list.
+        When context.correct_flow.steps is set, the happy path is expressed in context:
+        hierarchy is built from context.correct_flow.steps and context (tenant, agent,
+        tools, error_pattern) is applied. Otherwise hierarchy comes from YAML root.
         """
+        if self.context and self.context.correct_flow and self.context.correct_flow.steps:
+            hierarchy = _hierarchy_from_context(self.context)
+            _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
+            return [hierarchy]
         if self.root_step.retry and self.root_step.retry.enabled:
-            return self.root_step.to_retry_hierarchies()
-        return [self.root_step.to_hierarchy()]
+            hierarchies = self.root_step.to_retry_hierarchies()
+        else:
+            hierarchies = [self.root_step.to_hierarchy()]
+        if self.context:
+            for h in hierarchies:
+                _apply_context_to_hierarchy(h, self.context, self.id_generator)
+        return hierarchies
+
+
+def _load_happy_path_latencies() -> dict[SpanType, float]:
+    """
+    Load default latencies for happy-path context flows from scenarios_config.yaml.
+
+    Config shape in scenarios_config.yaml:
+
+    happy_path_latencies_ms:
+      a2a_orchestrate: 1500.0
+      planner: 250.0
+      mcp_tool_execute: 150.0
+      response_compose: 60.0
+    """
+    defaults: dict[SpanType, float] = {
+        SpanType.A2A_ORCHESTRATE: 1500.0,
+        SpanType.PLANNER: 250.0,
+        SpanType.MCP_TOOL_EXECUTE: 150.0,
+        SpanType.RESPONSE_COMPOSE: 60.0,
+    }
+
+    config_path = Path(__file__).parent / "scenarios_config.yaml"
+    if not config_path.exists():
+        return defaults
+
+    try:
+        with config_path.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except Exception:
+        return defaults
+
+    if not isinstance(data, dict):
+        return defaults
+
+    raw_latencies = data.get("happy_path_latencies_ms")
+    if not isinstance(raw_latencies, dict):
+        return defaults
+
+    key_map: dict[str, SpanType] = {
+        "a2a_orchestrate": SpanType.A2A_ORCHESTRATE,
+        "planner": SpanType.PLANNER,
+        "mcp_tool_execute": SpanType.MCP_TOOL_EXECUTE,
+        "response_compose": SpanType.RESPONSE_COMPOSE,
+    }
+
+    latencies = dict(defaults)
+    for key, span_type in key_map.items():
+        value = raw_latencies.get(key)
+        if isinstance(value, (int, float)):
+            latencies[span_type] = float(value)
+
+    return latencies
+
+
+# Default latencies when building hierarchy from context.correct_flow (happy path).
+_DEFAULT_LATENCY_MS = _load_happy_path_latencies()
+
+
+def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
+    """
+    Build trace hierarchy from context.correct_flow.steps (happy path expressed in context).
+    The generator knows the correct path from context; no YAML structure required.
+    """
+    if not context.correct_flow or not context.correct_flow.steps:
+        raise ValueError("context.correct_flow.steps required to build hierarchy from context")
+
+    root_config = SpanConfig(
+        span_type=SpanType.A2A_ORCHESTRATE,
+        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.A2A_ORCHESTRATE],
+        latency_variance=0.25,
+        error_rate=0.0,
+        attribute_overrides={config_attr("a2a.outcome"): "success"},
+    )
+    children: list[TraceHierarchy] = []
+
+    for step in context.correct_flow.steps:
+        step_lower = (step or "").strip().lower()
+        if step_lower in ("planner", "planning"):
+            children.append(
+                TraceHierarchy(
+                    root_config=SpanConfig(
+                        span_type=SpanType.PLANNER,
+                        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.PLANNER],
+                        latency_variance=0.2,
+                        error_rate=0.0,
+                        attribute_overrides={config_attr("step.outcome"): "success"},
+                    ),
+                    children=[],
+                )
+            )
+        elif step_lower in ("response_compose", "response"):
+            children.append(
+                TraceHierarchy(
+                    root_config=SpanConfig(
+                        span_type=SpanType.RESPONSE_COMPOSE,
+                        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.RESPONSE_COMPOSE],
+                        latency_variance=0.1,
+                        error_rate=0.0,
+                        attribute_overrides={
+                            config_attr("response.format"): "a2a_json",
+                            config_attr("step.outcome"): "success",
+                        },
+                    ),
+                    children=[],
+                )
+            )
+        else:
+            # Tool step (name matches agents[].mcp[].tools by order; filled in _apply_context_to_hierarchy)
+            latency = _DEFAULT_LATENCY_MS[SpanType.MCP_TOOL_EXECUTE]
+            execute_config = SpanConfig(
+                span_type=SpanType.MCP_TOOL_EXECUTE,
+                latency_mean_ms=0.0,
+                latency_variance=0.0,
+                error_rate=0.0,
+                attribute_overrides={config_attr("step.outcome"): "success"},
+            )
+            attempt_config = SpanConfig(
+                span_type=SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
+                latency_mean_ms=latency,
+                latency_variance=0.2,
+                error_rate=0.0,
+                attribute_overrides={},
+            )
+            children.append(
+                TraceHierarchy(
+                    root_config=execute_config,
+                    children=[TraceHierarchy(root_config=attempt_config, children=[])],
+                )
+            )
+
+    return TraceHierarchy(root_config=root_config, children=children)
+
+
+def _collect_mcp_hierarchies_in_order(hierarchy: TraceHierarchy) -> list[TraceHierarchy]:
+    """Return list of direct children that are MCP_TOOL_EXECUTE, in order."""
+    return [c for c in hierarchy.children if c.root_config.span_type == SpanType.MCP_TOOL_EXECUTE]
+
+
+def _apply_error_pattern(hierarchy: TraceHierarchy, context: ScenarioContext) -> None:
+    """Set error_rate on root and MCP attempt spans according to context.error_pattern."""
+    import random
+
+    pattern = (context.error_pattern or "happy_path").lower()
+    if pattern in ("happy_path", "none", ""):
+        hierarchy.root_config.error_rate = 0.0
+        for child in hierarchy.children:
+            if child.root_config.span_type == SpanType.MCP_TOOL_EXECUTE and child.children:
+                child.children[0].root_config.error_rate = 0.0
+            _apply_error_pattern(child, context)
+        return
+
+    mcp_list = _collect_mcp_hierarchies_in_order(hierarchy)
+    err_cfg = context.error_config or ErrorPatternConfig()
+    rate = err_cfg.rate
+
+    def zero_all_mcp() -> None:
+        for mcp_h in mcp_list:
+            if mcp_h.children:
+                mcp_h.children[0].root_config.error_rate = 0.0
+
+    if pattern == "single_tool_failure":
+        zero_all_mcp()
+        if mcp_list:
+            step_idx = err_cfg.step_index
+            if step_idx == "random":
+                step_idx = random.randint(0, len(mcp_list) - 1)
+            else:
+                step_idx = max(0, min(int(step_idx), len(mcp_list) - 1))
+            if mcp_list[step_idx].children:
+                mcp_list[step_idx].children[0].root_config.error_rate = rate
+        return
+
+    if pattern == "first_tool_failure":
+        zero_all_mcp()
+        if mcp_list and mcp_list[0].children:
+            mcp_list[0].children[0].root_config.error_rate = rate
+        return
+
+    if pattern == "last_tool_failure":
+        zero_all_mcp()
+        if mcp_list and mcp_list[-1].children:
+            mcp_list[-1].children[0].root_config.error_rate = rate
+        return
+
+    if pattern == "cascade":
+        hierarchy.root_config.error_rate = rate
+        zero_all_mcp()
+        if mcp_list and mcp_list[0].children:
+            mcp_list[0].children[0].root_config.error_rate = rate
+        return
+
+    if pattern == "random":
+        for mcp_h in mcp_list:
+            if mcp_h.children:
+                mcp_h.children[0].root_config.error_rate = 1.0 if random.random() < rate else 0.0
+        return
+
+
+def _apply_context_to_hierarchy(
+    hierarchy: TraceHierarchy,
+    context: ScenarioContext,
+    id_generator: ScenarioIdGenerator | None = None,
+) -> None:
+    """
+    Merge scenario context into hierarchy in place: tenant, agent id on root;
+    MCP server uuid and tool name/uuid on each MCP span in order; flow validation;
+    error pattern applied to root and MCP attempt spans.
+    IDs (e.g. mcp.tool.call.id) are generated from shared scenarios_config if id_generator is set.
+    """
+    if not context.agents:
+        overrides = dict(hierarchy.root_config.attribute_overrides or {})
+        overrides[config_attr("tenant.id")] = context.tenant_uuid
+        hierarchy.root_config.attribute_overrides = overrides
+        _apply_error_pattern(hierarchy, context)
+        return
+
+    agent = context.agents[0]
+    root_overrides = dict(hierarchy.root_config.attribute_overrides or {})
+    root_overrides[config_attr("tenant.id")] = context.tenant_uuid
+    root_overrides[config_attr("a2a.agent.target.id")] = agent.uuid
+    hierarchy.root_config.attribute_overrides = root_overrides
+
+    tools_by_index: list[MCPToolRef] = []
+    if agent.mcp:
+        tools_by_index = agent.mcp[0].tools
+    server_uuid = agent.mcp[0].server_uuid if agent.mcp else ""
+    mcp_index = [0]
+
+    def walk(h: TraceHierarchy) -> None:
+        cfg = h.root_config
+        if cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
+            if id_generator:
+                call_id = id_generator.mcp_tool_call_id(tenant_id=context.tenant_uuid)
+            else:
+                call_id = f"mcp_call_{uuid.uuid4().hex[:12]}"
+            overrides = dict(cfg.attribute_overrides or {})
+            overrides[config_attr("mcp.server.uuid")] = server_uuid
+            overrides["gen_ai.operation.name"] = "execute_tool"
+            overrides[config_attr("mcp.tool.call.id")] = call_id
+            idx = mcp_index[0]
+            if idx < len(tools_by_index):
+                tool = tools_by_index[idx]
+                overrides["gen_ai.tool.name"] = tool.name
+                overrides[config_attr("mcp.tool.uuid")] = tool.uuid
+            mcp_index[0] += 1
+            cfg.attribute_overrides = overrides
+            if h.children:
+                attempt_cfg = h.children[0].root_config
+                attempt_overrides = dict(attempt_cfg.attribute_overrides or {})
+                attempt_overrides[config_attr("mcp.tool.call.id")] = call_id
+                attempt_cfg.attribute_overrides = attempt_overrides
+        for child in h.children:
+            walk(child)
+
+    for child in hierarchy.children:
+        walk(child)
+
+    # When flow.steps tool count != context.agents[0].mcp[0].tools count, hierarchy is
+    # left as-is (no auto-fix); ensure scenario YAML matches.
+
+    _apply_error_pattern(hierarchy, context)
 
 
 # Default prefix used in bundled scenario YAML; normalize to ATTR_PREFIX when loading.
@@ -357,6 +799,14 @@ class ScenarioLoader:
             self.scenarios_dir = SAMPLE_DEFINITIONS_DIR
         else:
             self.scenarios_dir = Path(scenarios_dir)
+        self._id_generator: ScenarioIdGenerator | None = None
+
+    def get_id_generator(self) -> ScenarioIdGenerator:
+        """Return shared ID generator (loads scenarios_config.yaml once)."""
+        if self._id_generator is None:
+            config_path = Path(__file__).parent / "scenarios_config.yaml"
+            self._id_generator = ScenarioIdGenerator(config_path=config_path)
+        return self._id_generator
 
     def _get_span_type(self, type_str: str) -> SpanType:
         """Resolve YAML type string to SpanType (prefix.suffix or bare suffix)."""
@@ -418,12 +868,47 @@ class ScenarioLoader:
             root_raw = root_raw[0]
         root_step = self._parse_step(root_raw if isinstance(root_raw, dict) else {})
 
-        tenant_dist = get_tenant_distribution()
+        scenario_context = ScenarioContext.from_dict(data.get("context"))
+        if scenario_context:
+            tenant_dist = {scenario_context.tenant_uuid: 1.0}
+        else:
+            tenant_dist = get_tenant_distribution()
 
         root_for_detect = data.get("root")
         is_statistical = self._detect_statistical(
             root_for_detect if isinstance(root_for_detect, dict) else {}
         )
+
+        simulation_goal = data.get("simulation_goal")
+        if simulation_goal is not None and not isinstance(simulation_goal, str):
+            simulation_goal = None
+        mcp_server = data.get("mcp_server")
+        if mcp_server is not None and not isinstance(mcp_server, str):
+            mcp_server = None
+
+        redaction_applied = data.get("redaction_applied")
+        if not isinstance(redaction_applied, str) and scenario_context:
+            redaction_applied = scenario_context.redaction_applied
+        if not isinstance(redaction_applied, str):
+            redaction_applied = "none"
+
+        # Optional multi-turn conversation: top-level conversation.turns:
+        # [{ role: user|assistant|tool, text: "..." }, ...]
+        conversation_turns: list[dict[str, str]] | None = None
+        conv_raw = data.get("conversation")
+        if isinstance(conv_raw, dict):
+            turns_raw = conv_raw.get("turns")
+            if isinstance(turns_raw, list):
+                cleaned: list[dict[str, str]] = []
+                for t in turns_raw:
+                    if not isinstance(t, dict):
+                        continue
+                    role = t.get("role")
+                    text = t.get("text")
+                    if isinstance(role, str) and isinstance(text, str):
+                        cleaned.append({"role": role, "text": text})
+                if cleaned:
+                    conversation_turns = cleaned
 
         return Scenario(
             name=data.get("name", "unnamed"),
@@ -432,10 +917,17 @@ class ScenarioLoader:
             tenant_distribution=tenant_dist,
             repeat_count=data.get("repeat_count", 1),
             interval_ms=data.get("interval_ms", 500),
+            interval_deviation_ms=float(data.get("interval_deviation_ms", 0)),
             root_step=root_step,
             emit_metrics=data.get("emit_metrics", True),
             emit_logs=data.get("emit_logs", True),
             is_statistical=is_statistical,
+            context=scenario_context,
+            id_generator=self.get_id_generator(),
+            simulation_goal=simulation_goal,
+            mcp_server=mcp_server,
+            conversation_turns=conversation_turns,
+            redaction_applied=redaction_applied or "none",
         )
 
     def _detect_statistical(self, data: dict) -> bool:

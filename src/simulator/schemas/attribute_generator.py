@@ -32,6 +32,12 @@ class GenerationContext:
     environment: str = "development"
     user_id: str | None = None
     route: str | None = None
+    # Redaction level from scenario (e.g. none, basic, strict). Default none.
+    redaction_applied: str = "none"
+    # Optional: precomputed LLM messages for content capture (when scenario
+    # defines conversation.turns and we want consistent gen_ai.* attributes).
+    llm_input_messages: Any | None = None
+    llm_output_messages: Any | None = None
 
     @classmethod
     def create(
@@ -40,16 +46,19 @@ class GenerationContext:
         session_id: str | None = None,
         **kwargs,
     ) -> "GenerationContext":
-        """Create a generation context with defaults (tenant from TENANT_UUID env)."""
+        """Create a generation context with defaults (tenant from scenarios_config.yaml or 'test-tenant-001')."""
         return cls(
             tenant_id=tenant_id or get_default_tenant_ids()[0],
-            session_id=session_id or f"sess_{uuid.uuid4().hex[:12]}",
-            request_id=kwargs.get("request_id") or f"req_{uuid.uuid4().hex[:12]}",
+            session_id=session_id or f"sess_toro_{uuid.uuid4().hex[:12]}",
+            request_id=kwargs.get("request_id") or f"req_{uuid.uuid4().hex[:6]}",
             turn_index=kwargs.get("turn_index", 0),
             environment=kwargs.get("environment", "development"),
             user_id=kwargs.get("user_id")
             or f"usr_sha256:{hashlib.sha256(uuid.uuid4().bytes).hexdigest()[:16]}",
             route=kwargs.get("route"),
+            redaction_applied=kwargs.get("redaction_applied", "none"),
+            llm_input_messages=kwargs.get("llm_input_messages"),
+            llm_output_messages=kwargs.get("llm_output_messages"),
         )
 
 
@@ -162,12 +171,21 @@ class AttributeGenerator:
             return context.turn_index
         if _attr_matches(name, "route"):
             return context.route if context.route is not None else "default"
+        if _attr_matches(name, "redaction.applied"):
+            return context.redaction_applied
         if _attr_matches(name, "schema.version") or name == schema_version_attr():
             return self.schema.schema_version
         if name == "service.name":
             return "telemetry-simulator"
         if name == "service.version":
             return "1.0.0"
+
+        # LLM content: when scenario provided conversation.turns, use precomputed
+        # messages for gen_ai.input.messages / gen_ai.output.messages.
+        if name == "gen_ai.input.messages" and context.llm_input_messages is not None:
+            return context.llm_input_messages
+        if name == "gen_ai.output.messages" and context.llm_output_messages is not None:
+            return context.llm_output_messages
 
         if "hash" in name:
             return f"sha256:{hashlib.sha256(uuid.uuid4().bytes).hexdigest()[:32]}"

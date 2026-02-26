@@ -1,5 +1,5 @@
 .PHONY: help venv venv-force check-venv install install-dev clean clean-venv format lint typecheck check test
-.PHONY: run run-fast run-count run-scenario run-validate list-scenarios
+.PHONY: run run-validate list-scenarios
 .PHONY: jaeger-up jaeger-down
 
 # Python and venv paths
@@ -10,15 +10,8 @@ VENV_ACTIVATE := $(VENV_BIN)/activate
 VENV_PYTHON := $(VENV_BIN)/python
 VENV_PIP := $(VENV_BIN)/pip
 
-# Default OTLP endpoint and tenant (required by simulator; override as needed)
+# Default OTLP endpoint (override as needed)
 OTLP_ENDPOINT ?= http://localhost:4318
-TENANT_UUID ?= dev-tenant-1
-export TENANT_UUID
-
-# Schema path: set SCHEMA_PATH or TELEMETRY_SIMULATOR_SCHEMA_PATH (required for run/validate)
-ifdef SCHEMA_PATH
-export TELEMETRY_SIMULATOR_SCHEMA_PATH := $(SCHEMA_PATH)
-endif
 
 # Check if venv exists and is usable
 check-venv:
@@ -50,10 +43,7 @@ help:
 	@echo "  make install-dev           - Install with development dependencies"
 	@echo ""
 	@echo "Running the simulator:"
-	@echo "  make run                   - Run mixed workload (100 traces, 500ms interval)"
-	@echo "  make run-fast              - Run fast mixed workload (0.2s interval)"
-	@echo "  make run-count             - Generate 50 traces then stop"
-	@echo "  make run-scenario          - Run YAML scenario (set SCENARIO=name)"
+	@echo "  make run                   - Run mixed workload (requires SEMCONV)"
 	@echo "  make run-validate          - Validate schema and show summary"
 	@echo "  make list-scenarios        - List available scenarios"
 	@echo ""
@@ -69,14 +59,10 @@ help:
 	@echo "  make clean-venv            - Remove virtual environment"
 	@echo ""
 	@echo "Environment variables:"
-	@echo "  SCHEMA_PATH or TELEMETRY_SIMULATOR_SCHEMA_PATH - Path to semantic-conventions YAML (required)"
-	@echo "  OTLP_ENDPOINT                      			- OTLP collector endpoint (default: http://localhost:4318)"
-	@echo "  TENANT_UUID                        			- Tenant ID for generated telemetry (default: dev-tenant-1)"
-	@echo "  TELEMETRY_SIMULATOR_ATTR_PREFIX    			- Attribute prefix for spans/metrics (default: vendor)"
-	@echo "  SCENARIO                           			- Scenario name for run-scenario (e.g., successful_agent_turn)"
-	@echo "  SCENARIOS_DIR                      			- Folder with scenario YAML files (default: built-in sample definitions)"
-	@echo "  COUNT                              			- Number of traces to generate (default: 100)"
-	@echo "  INTERVAL                           			- Interval between traces in ms (default: 500)"
+	@echo "  SEMCONV                            - Path to semantic-conventions YAML (required)"
+	@echo "  OTLP_ENDPOINT                      - OTLP collector endpoint (default: http://localhost:4318)"
+	@echo "  VENDOR                             - Attribute prefix for spans/metrics (default: vendor)"
+	@echo "  SCENARIOS_DIR                      - Folder with scenario YAML files (default: built-in sample definitions)"
 	@echo ""
 	@echo "Live trace visualization (Docker or Podman):"
 	@echo "  make jaeger-up             - Start Jaeger (OTLP + UI) for live traces"
@@ -85,8 +71,7 @@ help:
 	@echo ""
 	@echo "Example workflows:"
 	@echo "  make venv && make install && make run"
-	@echo "  SCHEMA_PATH=/path/to/otel-semantic-conventions.yaml make run"
-	@echo "  SCENARIO=successful_agent_turn make run-scenario"
+	@echo "  SEMCONV=/path/to/otel-semantic-conventions.yaml make run"
 	@echo "  make jaeger-up && make run"
 
 # Virtual environment
@@ -135,61 +120,28 @@ install-dev: check-venv
 # SIMULATOR COMMANDS
 # =============================================================================
 
-# Default count and interval
-COUNT ?= 100
-INTERVAL ?= 500
-
-# Run mixed workload (default; use SCENARIOS_DIR for custom definitions folder)
+# Run mixed workload (SCENARIOS_DIR for custom definitions folder). Requires SEMCONV.
 run: check-venv
+	@if [ -z "$(SEMCONV)" ]; then \
+		echo "✗ SEMCONV is required for make run."; \
+		echo "  Example:"; \
+		echo "    SEMCONV=/path/to/otel-semantic-conventions.yaml make run"; \
+		exit 1; \
+	fi
 	@echo "🚀 Starting telemetry simulator..."
 	@echo "   Endpoint: $(OTLP_ENDPOINT)"
-	@echo "   Count: $(COUNT)"
-	@echo "   Interval: $(INTERVAL)ms"
+	@echo "   Schema:   $(SEMCONV)"
 	@echo ""
 	@echo "💡 Press Ctrl+C to stop"
 	@echo ""
 	$(VENV_PYTHON) -m simulator.cli --endpoint $(OTLP_ENDPOINT) run \
-		$(if $(SCHEMA_PATH),--schema-path $(SCHEMA_PATH),) \
-		--count $(COUNT) \
-		--interval $(INTERVAL) \
-		$(if $(SCENARIOS_DIR),--scenarios-dir $(SCENARIOS_DIR),) \
-		--show-full-spans \
-		--no-metrics --no-logs
-
-# Run with fast interval
-run-fast: check-venv
-	@echo "🚀 Starting fast telemetry simulator..."
-	$(VENV_PYTHON) -m simulator.cli --endpoint $(OTLP_ENDPOINT) run \
-		$(if $(SCHEMA_PATH),--schema-path $(SCHEMA_PATH),) \
-		--count $(COUNT) \
-		--interval 200 \
-		--show-full-spans \
-		--no-metrics --no-logs
-
-# Run with limited count
-run-count: check-venv
-	$(VENV_PYTHON) -m simulator.cli --endpoint $(OTLP_ENDPOINT) run \
-		$(if $(SCHEMA_PATH),--schema-path $(SCHEMA_PATH),) \
-		--count 50 \
-		--interval 500 \
-		--show-full-spans \
-		--no-metrics --no-logs
-
-# Run specific YAML scenario (use SCENARIOS_DIR for custom definitions folder)
-SCENARIO ?= successful_agent_turn
-run-scenario: check-venv
-	@echo "🚀 Running scenario: $(SCENARIO)"
-	$(VENV_PYTHON) -m simulator.cli --endpoint $(OTLP_ENDPOINT) scenario \
-		$(if $(SCHEMA_PATH),--schema-path $(SCHEMA_PATH),) \
-		--name $(SCENARIO) \
-		$(if $(SCENARIOS_DIR),--scenarios-dir $(SCENARIOS_DIR),) \
-		--show-full-spans \
-		--no-metrics --no-logs
+		--semconv $(SEMCONV) \
+		$(if $(SCENARIOS_DIR),--scenarios-dir $(SCENARIOS_DIR),)
 
 # Validate schema
 run-validate: check-venv
 	$(VENV_PYTHON) -m simulator.cli validate \
-		$(if $(SCHEMA_PATH),--schema-path $(SCHEMA_PATH),) \
+		$(if $(SEMCONV),--semconv $(SEMCONV),) \
 		--show-schema \
 		--show-spans \
 		--show-metrics
@@ -236,7 +188,7 @@ jaeger-up:
 			$(JAEGER_IMAGE) 2>&1) || true; \
 		if $(CONTAINER_CMD) ps -q -f name=^/$(JAEGER_NAME)$$ 2>/dev/null | grep -q .; then \
 			echo "✓ Jaeger started. UI: http://localhost:16686  OTLP: http://localhost:4318"; \
-			echo "  Run: make run  (or make run-scenario) then open the UI."; \
+			echo "  Run: make run then open the UI."; \
 		else \
 			echo "✗ Failed to start Jaeger."; \
 			if [ -n "$$_run_out" ]; then echo "  $$_run_out"; fi; \
@@ -267,7 +219,7 @@ format: check-venv
 # Lint code
 lint: check-venv
 	@echo "🔍 Linting code with ruff..."
-	$(VENV_PYTHON) -m ruff check src/
+	$(VENV_PYTHON) -m ruff check src/ --fix
 	@echo "✅ Linting complete"
 
 # Type check

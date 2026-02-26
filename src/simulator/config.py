@@ -2,18 +2,23 @@
 Configuration for vendor-agnostic telemetry simulation.
 
 Allows projects to use the simulator with their own attribute namespace by setting
-TELEMETRY_SIMULATOR_ATTR_PREFIX (e.g. "acme" for acme.session.id, acme.turn.status, etc.).
-Default prefix is "vendor"; override with TELEMETRY_SIMULATOR_ATTR_PREFIX for your project.
+VENDOR (e.g. "acme" for acme.session.id, acme.turn.status, etc.).
+Default prefix is "vendor"; override with VENDOR for your project.
+
+Resource attributes and resource.schemaUrl are loaded only from scenarios_config.yaml
+(resource.attributes, resource.schema_url); env vars are not used for these.
 """
 
+from pathlib import Path
+from typing import Any
+
 import os
+import yaml
 
 
 def _get_attr_prefix() -> str:
     """Vendor attribute prefix (e.g. vendor, acme). Default: vendor."""
-    return (
-        os.environ.get("TELEMETRY_SIMULATOR_ATTR_PREFIX") or "vendor"
-    ).strip().lower() or "vendor"
+    return (os.environ.get("VENDOR") or "vendor").strip().lower() or "vendor"
 
 
 def _get_vendor_name() -> str:
@@ -49,40 +54,62 @@ def schema_version_attr() -> str:
     return attr("schema.version")
 
 
+_SCENARIOS_CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "scenarios_config.yaml"
+
+# Keys in resource.attributes that are prefix-relative (expanded with attr() when loading from YAML).
+_PREFIX_RELATIVE_KEYS = frozenset({"module", "component", "otel.source"})
+
+
+def _load_resource_config() -> tuple[str, dict[str, str]]:
+    """Load resource.schema_url and resource.attributes from scenarios_config.yaml. Returns (schema_url, attributes)."""
+    default_url = "https://gentoro.ai/otel/schema/enterprise/1.0.0"
+    default_attrs: dict[str, str] = {}
+    if not _SCENARIOS_CONFIG_PATH.exists():
+        return default_url, default_attrs
+    try:
+        with _SCENARIOS_CONFIG_PATH.open(encoding="utf-8") as f:
+            data: Any = yaml.safe_load(f)
+    except Exception:
+        return default_url, default_attrs
+    if not isinstance(data, dict):
+        return default_url, default_attrs
+    resource = data.get("resource")
+    if not isinstance(resource, dict):
+        return default_url, default_attrs
+    schema_url = resource.get("schema_url")
+    if isinstance(schema_url, str) and schema_url.strip():
+        default_url = schema_url.strip()
+    raw = resource.get("attributes")
+    if not isinstance(raw, dict):
+        return default_url, default_attrs
+    for k, v in raw.items():
+        if isinstance(v, str) and k not in _PREFIX_RELATIVE_KEYS:
+            default_attrs[k] = v
+    # Expand prefix-relative keys so they are stored under full attribute names
+    for rel_key in _PREFIX_RELATIVE_KEYS:
+        if rel_key in raw and isinstance(raw[rel_key], str):
+            default_attrs[attr(rel_key)] = raw[rel_key]
+    return default_url, default_attrs
+
+
 def resource_schema_url() -> str:
-    """Schema URL for the OTEL resource (resource.schemaUrl)."""
-    return os.environ.get("TELEMETRY_SIMULATOR_RESOURCE_SCHEMA_URL", "").strip() or ""
-
-
-def _env(key: str, default: str) -> str:
-    """Get env var with default."""
-    return (os.environ.get(key, "").strip() or default).strip()
+    """Schema URL for the OTEL resource (resource.schemaUrl). From scenarios_config.yaml only."""
+    yaml_url, _ = _load_resource_config()
+    return yaml_url
 
 
 def resource_attributes(tenant_id: str) -> dict[str, str]:
     """
     Build resource attributes per OTEL resource spec.
 
-    Required: service.name, service.version, prefix.module, prefix.component,
-    prefix.tenant.id, prefix.otel.source.
-    Recommended: service.instance.id, deployment.environment.name.
+    Values are loaded only from scenarios_config.yaml (resource.attributes).
+    prefix.tenant.id is set from the given tenant_id (scenario context).
     """
-    otel_src = _env("TELEMETRY_SIMULATOR_OTEL_SOURCE", "propagated")
+    _, yaml_attrs = _load_resource_config()
+    attrs: dict[str, str] = dict(yaml_attrs)
+    attrs[attr("tenant.id")] = tenant_id
+    # Normalize otel.source to allowed values only
+    otel_src = attrs.get(attr("otel.source"), "propagated")
     if otel_src not in ("internal", "propagated"):
-        otel_src = "propagated"
-    attrs: dict[str, str] = {
-        "service.name": _env("TELEMETRY_SIMULATOR_SERVICE_NAME", "telemetry-simulator"),
-        "service.version": _env("TELEMETRY_SIMULATOR_SERVICE_VERSION", "1.0.0"),
-        attr("module"): _env("TELEMETRY_SIMULATOR_MODULE", "data-plane"),
-        attr("component"): _env("TELEMETRY_SIMULATOR_COMPONENT", "simulator"),
-        attr("tenant.id"): tenant_id,
-        attr("otel.source"): otel_src,
-    }
-    instance_id = _env("SERVICE_INSTANCE_ID", "")
-    if instance_id:
-        attrs["service.instance.id"] = instance_id
-    # deployment.environment.name is resource-level only (recommended by spec).
-    attrs["deployment.environment.name"] = _env("DEPLOYMENT_ENVIRONMENT", "") or _env(
-        "TELEMETRY_SIMULATOR_DEPLOYMENT_ENVIRONMENT", "development"
-    )
+        attrs[attr("otel.source")] = "propagated"
     return attrs

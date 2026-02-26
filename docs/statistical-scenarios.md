@@ -10,7 +10,7 @@ Scenarios are defined in YAML files. The simulator includes **sample definitions
 - **Latency distributions** - How long each span takes
 - **Error behavior** - Error rates and propagation patterns
 - **Probabilistic features** - Variable span inclusion, counts, and retries
-- **Attributes** - Static values or sampled from distributions (use `vendor.*` in YAML; the loader normalizes to `TELEMETRY_SIMULATOR_ATTR_PREFIX`)
+- **Attributes** - Static values or sampled from distributions (use `vendor.*` in YAML; the loader normalizes to the `VENDOR` prefix)
 
 ```mermaid
 flowchart TB

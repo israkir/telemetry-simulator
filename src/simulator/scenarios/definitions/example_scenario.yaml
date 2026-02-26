@@ -38,8 +38,8 @@ emit_logs: true
 # -----------------------------------------------------------------------------
 
 root:
-  # Span type: use "type:" or "span_type:". Prefix with vendor. (or your
-  # TELEMETRY_SIMULATOR_ATTR_PREFIX). Supported types: a2a.orchestrate,
+  # Span type: use "type:" or "span_type:". Prefix with vendor (or your VENDOR prefix).
+  # Supported types: a2a.orchestrate,
   # planner, task.execute, llm.call, mcp.tool.execute, mcp.tool.execute.attempt,
   # llm.tool.response.bridge, response.compose, rag.retrieve, a2a.call, cp.request
   type: vendor.a2a.orchestrate

@@ -1,7 +1,8 @@
 """
 Parse OTEL semantic conventions YAML schema.
 
-Reads a semantic-conventions YAML file (path must be provided by the client via TELEMETRY_SIMULATOR_SCHEMA_PATH or --schema-path) and provides structured access to:
+Reads a semantic-conventions YAML file (path must be provided by the client via
+`SEMCONV` or `--semconv`) and provides structured access to:
 - Span definitions (names, kinds, parent relationships)
 - Attribute schemas (types, requirements, allowed values)
 - Metrics definitions
@@ -225,12 +226,10 @@ class SchemaParser:
         if schema_path is not None:
             self.schema_path = Path(schema_path)
             return
-        env_path = os.environ.get("TELEMETRY_SIMULATOR_SCHEMA_PATH") or os.environ.get(
-            "SCHEMA_PATH"
-        )
+        env_path = os.environ.get("SEMCONV")
         if not env_path or not Path(env_path).exists():
             raise FileNotFoundError(
-                "Schema path is required. Set TELEMETRY_SIMULATOR_SCHEMA_PATH or pass --schema-path with the full path to your semantic-conventions YAML file."
+                "Schema path is required. Set SEMCONV or pass --semconv with the full path to your semantic-conventions YAML file."
             )
         self.schema_path = Path(env_path)
 

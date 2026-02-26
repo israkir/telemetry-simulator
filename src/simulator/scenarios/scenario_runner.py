@@ -22,7 +22,62 @@ from ..generators.log_generator import LogGenerator
 from ..generators.metric_generator import MetricGenerator
 from ..generators.trace_generator import TraceGenerator, TraceHierarchy
 from ..schemas.attribute_generator import GenerationContext
+from .id_generator import ScenarioIdGenerator
 from .scenario_loader import Scenario, ScenarioLoader
+
+
+def _context_kwargs_for_scenario(scenario: Scenario, tenant_id: str) -> dict:
+    """Build kwargs for GenerationContext.create using scenario id_generator when set."""
+    kwargs: dict = {
+        "tenant_id": tenant_id,
+        "turn_index": 0,
+        "redaction_applied": getattr(scenario, "redaction_applied", "none"),
+    }
+    id_gen = getattr(scenario, "id_generator", None)
+    if isinstance(id_gen, ScenarioIdGenerator):
+        kwargs["session_id"] = id_gen.session_id(tenant_id=tenant_id)
+        kwargs["request_id"] = id_gen.request_id(tenant_id=tenant_id)
+    # If scenario defines a multi-turn conversation, derive stable LLM input and
+    # output messages for gen_ai.input.messages / gen_ai.output.messages.
+    turns = getattr(scenario, "conversation_turns", None)
+    if turns:
+        # OTEL GenAI messages shape (simplified): list of {role, content:[{type,text}]}
+        input_msgs = []
+        assistant_turns = []
+        for t in turns:
+            role = t.get("role")
+            text = t.get("text")
+            if not isinstance(role, str) or not isinstance(text, str):
+                continue
+            if role == "assistant":
+                assistant_turns.append(text)
+            input_msgs.append(
+                {
+                    "role": role,
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": text,
+                        }
+                    ],
+                }
+            )
+        output_msgs = []
+        if assistant_turns:
+            output_msgs.append(
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": assistant_turns[-1],
+                        }
+                    ],
+                }
+            )
+        kwargs["llm_input_messages"] = input_msgs or None
+        kwargs["llm_output_messages"] = output_msgs or None
+    return kwargs
 
 
 def _int_token_count(val: Any, default: int) -> int:
@@ -89,11 +144,9 @@ class ScenarioRunner:
 
         for i in range(scenario.repeat_count):
             tenant_id = random.choices(tenants, weights=weights)[0]
-
-            context = GenerationContext.create(
-                tenant_id=tenant_id,
-                turn_index=i % 10,
-            )
+            ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
+            ctx_kwargs["turn_index"] = i % 10
+            context = GenerationContext.create(**ctx_kwargs)
 
             hierarchies = scenario.get_trace_hierarchies()
             iteration_trace_ids = []
@@ -123,7 +176,17 @@ class ScenarioRunner:
                 )
 
             if scenario.interval_ms > 0 and i < scenario.repeat_count - 1:
-                time.sleep(scenario.interval_ms / 1000.0)
+                delay_ms = scenario.interval_ms
+                if scenario.interval_deviation_ms > 0:
+                    delay_ms = max(
+                        0,
+                        delay_ms
+                        + random.uniform(
+                            -scenario.interval_deviation_ms,
+                            scenario.interval_deviation_ms,
+                        ),
+                    )
+                time.sleep(delay_ms / 1000.0)
 
         return trace_ids
 
@@ -150,11 +213,9 @@ class ScenarioRunner:
             tenants = list(scenario.tenant_distribution.keys())
             weights = list(scenario.tenant_distribution.values())
             tenant_id = random.choices(tenants, weights=weights)[0]
-
-            context = GenerationContext.create(
-                tenant_id=tenant_id,
-                turn_index=i % 10,
-            )
+            ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
+            ctx_kwargs["turn_index"] = i % 10
+            context = GenerationContext.create(**ctx_kwargs)
             hierarchy = scenario.get_trace_hierarchy()
             trace_id = self.trace_generator.generate_trace(hierarchy, context)
             trace_ids.append(trace_id)

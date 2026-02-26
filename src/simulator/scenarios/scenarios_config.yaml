@@ -1,0 +1,245 @@
+# Shared scenarios configuration (ID formats and settings).
+# Loaded by ScenarioLoader; ID generation uses these programmatic format definitions.
+#
+# Conventions (DB-compliant values):
+#   Attribute / field              | Config key / source       | Format / note
+#   -------------------------------|---------------------------|-------------------------------
+#   {prefix}.tenant.id             | tenant.id / context       | Must be UUID; predefined below or from scenario context.
+#   {prefix}.a2a.agent.target.id   | agents[].id / context     | Must match agents.agent_id (normalized); predefined below.
+#   agent_uuid_resolved            | ingestion                 | From agents.id; set by ingestion (not generated here).
+#   {prefix}.mcp.server.uuid       | mcp_servers.*             | Must be UUID (mcp_servers.id); from mcp_servers config.
+#   {prefix}.mcp.tool.uuid         | mcp_servers.*.tools[]     | Must be UUID (mcp_tools.id); from mcp_servers config.
+#   {prefix}.session.id            | session_id                | No UUID requirement; e.g. sess_toro_abc123.
+#   {prefix}.mcp.tool.call.id      | mcp_tool_call_id          | One per logical MCP tool call (parent + attempt share it).
+#   trace_id                       | OTEL SDK                  | Exactly 32 hex chars (SDK-generated).
+#   span_id                        | OTEL SDK                  | Exactly 16 hex chars (SDK-generated).
+#
+# Template placeholders:
+#   {hex:N}   - N random hexadecimal characters (e.g. {hex:12})
+#   {uuid}    - full UUID with dashes (e.g. a1b2c3d4-1111-4eec-94d6-8f539b31b0ee)
+#   {tenant_id} - current tenant id from scenario context (when provided)
+
+id_formats:
+  # {prefix}.session.id – no UUID requirement
+  session_id: "sess_toro_{hex:12}"
+  # gen_ai.conversation.id / session alignment – same semantics as session
+  conversation_id: "sess_toro_{hex:12}"
+  # {prefix}.request.id – no UUID requirement
+  request_id: "req_{hex:6}"
+  # {prefix}.mcp.tool.call.id – one per logical MCP tool call
+  mcp_tool_call_id: "mcp_call_{hex:12}"
+
+# -----------------------------------------------------------------------------
+# Happy-path context flow latencies (ms)
+# -----------------------------------------------------------------------------
+# These control the default mean latencies for spans generated from
+# ScenarioContext.correct_flow. When omitted, the simulator falls back to
+# convention-aligned defaults defined in scenario_loader.py.
+#
+# Keys:
+#   a2a_orchestrate   -> SpanType.A2A_ORCHESTRATE
+#   planner           -> SpanType.PLANNER
+#   mcp_tool_execute  -> SpanType.MCP_TOOL_EXECUTE
+#   response_compose  -> SpanType.RESPONSE_COMPOSE
+
+happy_path_latencies_ms:
+  a2a_orchestrate: 1500.0
+  planner: 250.0
+  mcp_tool_execute: 150.0
+  response_compose: 60.0
+
+# -----------------------------------------------------------------------------
+# Resource attributes (OTEL resource; used for all spans/metrics/logs)
+# -----------------------------------------------------------------------------
+# Aligns with Gentoro enterprise convention. tenant.id is always injected from tenant.id below at runtime.
+# Prefix-relative keys (module, component, otel.source) are expanded with VENDOR prefix.
+
+resource:
+  schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
+  attributes:
+    service.name: "gentoro-enterprise"
+    service.version: "1.2.0"
+    service.instance.id: "pod-7f9c6d4b8d-xyz12"
+    deployment.environment.name: "prod"
+    module: "data-plane"
+    component: "gateway-ext"
+    otel.source: "propagated"
+
+# -----------------------------------------------------------------------------
+# Predefined tenant ({prefix}.tenant.id must be UUID for matching/aggregation)
+# -----------------------------------------------------------------------------
+# Scenario context references this tenant id. display_name is for UI/logging.
+
+tenant:
+  id: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
+  display_name: "Toro Insurance"
+
+# -----------------------------------------------------------------------------
+# Predefined agents ({prefix}.a2a.agent.target.id; must match agents.agent_id for tenant)
+# -----------------------------------------------------------------------------
+# Scenario context references these agent ids on root/orchestrate spans.
+
+agents:
+  - id: "toro-customer-assistant-001"
+
+# -----------------------------------------------------------------------------
+# MCP server context (Toro Insurance)
+# -----------------------------------------------------------------------------
+# Per OTEL semantic conventions (mcp_tool_execution_model): each MCP tool call
+# carries {prefix}.mcp.server.uuid and {prefix}.mcp.tool.uuid; gen_ai.tool.name
+# identifies the tool. Each server defines the same tool set with server-specific
+# tool UUIDs. Required on spans: {prefix}.mcp.server.uuid, {prefix}.mcp.tool.uuid,
+# {prefix}.mcp.tool.call.id; gen_ai.tool.name for tool identity.
+
+mcp_servers:
+  phone:
+    mcp_server_uuid: "11111111-1111-4eec-8001-000000000001"
+    description: "Mobile phone (loss, damage, breakdown, screen repair, replacement)"
+    tools:
+      - name: new_claim
+        tool_uuid: "11111111-1111-4eec-8001-000000000011"
+      - name: update_appointment
+        tool_uuid: "11111111-1111-4eec-8001-000000000012"
+      - name: claim_status
+        tool_uuid: "11111111-1111-4eec-8001-000000000013"
+      - name: cancel_claim
+        tool_uuid: "11111111-1111-4eec-8001-000000000014"
+      - name: upload_documents
+        tool_uuid: "11111111-1111-4eec-8001-000000000015"
+      - name: choose_insurance
+        tool_uuid: "11111111-1111-4eec-8001-000000000016"
+      - name: buy_insurance
+        tool_uuid: "11111111-1111-4eec-8001-000000000017"
+      - name: cancel_product
+        tool_uuid: "11111111-1111-4eec-8001-000000000018"
+      - name: pay
+        tool_uuid: "11111111-1111-4eec-8001-000000000019"
+  electronics:
+    mcp_server_uuid: "22222222-2222-4eec-8002-000000000002"
+    description: "Home electronics – TVs, smart lights, soundbars, streaming, speakers, gaming"
+    tools:
+      - name: new_claim
+        tool_uuid: "22222222-2222-4eec-8002-000000000021"
+      - name: update_appointment
+        tool_uuid: "22222222-2222-4eec-8002-000000000022"
+      - name: claim_status
+        tool_uuid: "22222222-2222-4eec-8002-000000000023"
+      - name: cancel_claim
+        tool_uuid: "22222222-2222-4eec-8002-000000000024"
+      - name: upload_documents
+        tool_uuid: "22222222-2222-4eec-8002-000000000025"
+      - name: choose_insurance
+        tool_uuid: "22222222-2222-4eec-8002-000000000026"
+      - name: buy_insurance
+        tool_uuid: "22222222-2222-4eec-8002-000000000027"
+      - name: cancel_product
+        tool_uuid: "22222222-2222-4eec-8002-000000000028"
+      - name: pay
+        tool_uuid: "22222222-2222-4eec-8002-000000000029"
+  appliances:
+    mcp_server_uuid: "33333333-3333-4eec-8003-000000000003"
+    description: "Home appliances – dishwashers, fridges, washers, dryers, ovens, microwaves"
+    tools:
+      - name: new_claim
+        tool_uuid: "33333333-3333-4eec-8003-000000000031"
+      - name: update_appointment
+        tool_uuid: "33333333-3333-4eec-8003-000000000032"
+      - name: claim_status
+        tool_uuid: "33333333-3333-4eec-8003-000000000033"
+      - name: cancel_claim
+        tool_uuid: "33333333-3333-4eec-8003-000000000034"
+      - name: upload_documents
+        tool_uuid: "33333333-3333-4eec-8003-000000000035"
+      - name: choose_insurance
+        tool_uuid: "33333333-3333-4eec-8003-000000000036"
+      - name: buy_insurance
+        tool_uuid: "33333333-3333-4eec-8003-000000000037"
+      - name: cancel_product
+        tool_uuid: "33333333-3333-4eec-8003-000000000038"
+      - name: pay
+        tool_uuid: "33333333-3333-4eec-8003-000000000039"
+
+# -----------------------------------------------------------------------------
+# Conversation samples (reference only)
+# -----------------------------------------------------------------------------
+# These are reference examples per service: single-turn pairs of user_input and
+# llm_response. They illustrate the kinds of utterances and responses for each
+# MCP tool flow. Use them when authoring scenario content or mapping to
+# gen_ai.input.messages / gen_ai.output.messages.
+#
+# Multi-turn conversations (turns) are defined in the scenario YAML, not here.
+# In a scenario definition, use conversation.turns: [{ role: user|assistant, text: "..." }, ...]
+# to define a full back-and-forth; the simulator can use that to drive telemetry
+# or content capture. Placeholders like <ADDRESS>, <SECURE_PAYMENT_LINK> represent
+# values that may be redacted per tenant settings.
+
+conversation_samples:
+  new_claim:
+    samples:
+      - user_input: "I dropped my phone, how do I start a claim?"
+        llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+      - user_input: "My TV won't turn on. I want to make a claim."
+        llm_response: "I've created a claim for your TV (EV-2291). What happened? I can then show you available repair slots."
+      - user_input: "My dishwasher is leaking. Can someone come out?"
+        llm_response: "I've opened a claim for your dishwasher (HA-7733). The next available visit is Thursday 10am–2pm. Should I schedule that?"
+      - user_input: "Start a claim for my phone. My address is <ADDRESS> and policy number is <POLICY_NUMBER>."
+        llm_response: "I've started a claim for your phone at <ADDRESS> under policy <POLICY_NUMBER>. Your claim ID is PH-9900; I'll now find appointment options for you."
+
+  update_appointment:
+    samples:
+      - user_input: "I need to move my phone repair to next week. Claim PH-8842."
+        llm_response: "For claim PH-8842, next week I have Mon 9am, Wed 2pm, Fri 11am. Which do you want?"
+      - user_input: "Reschedule my TV repair—claim EV-2291."
+        llm_response: "For EV-2291 I have Tue 10am, Thu 3pm. Which slot?"
+
+  claim_status:
+    status_enum: [processing, completed, appointment_scheduled, technician_on_route]
+    samples:
+      - user_input: "What's the status of my phone claim PH-8842?"
+        llm_response: "Claim PH-8842: appointment scheduled for Thursday 10am. Status: technician on-route to scheduled appointment."
+      - user_input: "Is my dishwasher claim HA-7733 done?"
+        llm_response: "Claim HA-7733 is still processing. The technician visit is scheduled for Thursday 10am–2pm."
+
+  cancel_claim:
+    samples:
+      - user_input: "Cancel my phone claim PH-8842."
+        llm_response: "I've cancelled claim PH-8842. You'll get a confirmation email."
+      - user_input: "I don't need the TV repair anymore. Claim EV-2291."
+        llm_response: "Claim EV-2291 has been cancelled."
+
+  upload_documents:
+    samples:
+      - user_input: "I want to upload photos for my phone claim PH-8842."
+        llm_response: "You can upload photos for PH-8842 here: [link]. Or describe what you have and I'll attach them to the claim."
+      - user_input: "Add the receipt for my fridge repair to claim HA-5521."
+        llm_response: "I've linked the receipt to claim HA-5521 (Home appliances). Anything else to upload?"
+      - user_input: "Upload the accident photos for claim PH-8842."
+        llm_response: "I've attached your photos to claim PH-8842."
+
+  choose_insurance:
+    samples:
+      - user_input: "What does phone cover cost vs adding my TV?"
+        llm_response: "Phone-only: £8/mo. Phone + TV (Home electronics): £14/mo. I can also quote for appliances if you want."
+      - user_input: "Quote for covering my new gaming console."
+        llm_response: "For your console under Home electronics: Standard £6/mo, Premium £10/mo. Which plan do you want?"
+
+  buy_insurance:
+    samples:
+      - user_input: "I'll take the phone + TV bundle at £14."
+        llm_response: "Done. Your order ID is PH-EV-4412. You're covered for phone and TV. Policy details are in the app."
+      - user_input: "Add the dishwasher plan."
+        llm_response: "Your Home appliances order for the dishwasher is confirmed. Order ID HA-9901."
+
+  cancel_product:
+    samples:
+      - user_input: "Cancel my phone policy. Order PH-7712."
+        llm_response: "I've cancelled the product for order PH-7712. Your phone cover will end at the next billing date."
+      - user_input: "I want to cancel my fridge cover. Order HA-9901."
+        llm_response: "Order HA-9901 (fridge cover) is cancelled. No further charges."
+
+  pay:
+    samples:
+      - user_input: "What do I owe and how do I pay? Order PH-7712."
+        llm_response: "For order PH-7712 you have £24 due. Pay now with card, or I can send a link to your email."
+      - user_input: "Pay the balance on my TV order EV-3300."
+        llm_response: "EV-3300 has £12 due. Here is your secure payment link: <SECURE_PAYMENT_LINK>."

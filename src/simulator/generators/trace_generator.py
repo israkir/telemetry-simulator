@@ -27,7 +27,7 @@ from opentelemetry.trace import SpanKind, Status, StatusCode, Tracer
 
 from ..config import attr as config_attr
 from ..config import resource_attributes as config_resource_attributes
-from ..config import resource_schema_url, schema_version_attr
+from ..config import resource_schema_url
 from ..config import span_name as config_span_name
 from ..defaults import get_default_tenant_ids
 from ..schemas.attribute_generator import AttributeGenerator, GenerationContext
@@ -70,6 +70,31 @@ def get_span_name(span_type: SpanType) -> str:
     return span_type.value
 
 
+def _record_span_error(
+    span: Any,
+    span_type: SpanType,
+    overrides: dict[str, Any],
+    message: str = "Error occurred",
+    error_type_override: str | None = None,
+) -> None:
+    """Set status=ERROR, error.type (low-cardinality), and exception event (SemConv-aligned).
+
+    When a span is in error, instrumentation SHOULD set error.type and record an exception
+    event with exception.type, exception.message, exception.stacktrace (OpenTelemetry).
+    """
+    error_type = (
+        error_type_override
+        or overrides.get("error.type")
+        or overrides.get(config_attr("error.type"))
+        or _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "simulated_error")
+    )
+    span.set_attribute("error.type", error_type)
+    span.set_status(Status(StatusCode.ERROR, message))
+    exc = RuntimeError(message)
+    if hasattr(span, "record_exception"):
+        span.record_exception(exc)
+
+
 SPAN_KIND_MAP = {
     SpanType.A2A_ORCHESTRATE: SpanKind.SERVER,
     SpanType.PLANNER: SpanKind.INTERNAL,
@@ -84,7 +109,23 @@ SPAN_KIND_MAP = {
     SpanType.CP_REQUEST: SpanKind.SERVER,
 }
 
-# Convention-required span.class attribute (prefix.span.class) per vendor span type.
+# Low-cardinality error.type per span type when status.code=ERROR (SemConv-aligned).
+_ERROR_TYPE_BY_SPAN_TYPE = {
+    SpanType.A2A_ORCHESTRATE: "orchestration_error",
+    SpanType.PLANNER: "planner_failed",
+    SpanType.TASK_EXECUTE: "task_failed",
+    SpanType.LLM_CALL: "model_error",
+    SpanType.MCP_TOOL_EXECUTE: "tool_execution_failed",
+    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: "tool_attempt_failed",
+    SpanType.LLM_TOOL_RESPONSE_BRIDGE: "bridge_error",
+    SpanType.RESPONSE_COMPOSE: "serialization_error",
+    SpanType.RAG_RETRIEVE: "retrieval_error",
+    SpanType.A2A_CALL: "a2a_call_failed",
+    SpanType.CP_REQUEST: "validation_error",
+}
+
+# Convention-required attributes per vendor span type.
+# Compose span (gentoro.response.compose): MUST have span.class, response.format, step.outcome per spec.
 CONVENTION_ATTRIBUTES = {
     SpanType.A2A_ORCHESTRATE: {config_attr("span.class"): "a2a.orchestrate"},
     SpanType.PLANNER: {config_attr("span.class"): "planner"},
@@ -93,7 +134,11 @@ CONVENTION_ATTRIBUTES = {
     SpanType.MCP_TOOL_EXECUTE: {config_attr("span.class"): "mcp.tool.execute"},
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT: {config_attr("span.class"): "mcp.tool.execute.attempt"},
     SpanType.LLM_TOOL_RESPONSE_BRIDGE: {config_attr("span.class"): "llm.tool.response.bridge"},
-    SpanType.RESPONSE_COMPOSE: {config_attr("span.class"): "response.compose"},
+    SpanType.RESPONSE_COMPOSE: {
+        config_attr("span.class"): "response.compose",
+        config_attr("response.format"): "a2a_json",
+        config_attr("step.outcome"): "success",
+    },
 }
 
 
@@ -171,6 +216,14 @@ class SpanBuilder:
         if convention:
             for k, v in convention.items():
                 attrs.setdefault(k, v)
+        # vendor.a2a.orchestrate root: only root-level attrs (no response.format, no route).
+        # vendor.response.compose: only compose attrs (no a2a.outcome, a2a.agent.target.id).
+        if span_type == SpanType.A2A_ORCHESTRATE:
+            attrs.pop(config_attr("response.format"), None)
+            attrs.pop(config_attr("route"), None)
+        elif span_type == SpanType.RESPONSE_COMPOSE:
+            attrs.pop(config_attr("a2a.outcome"), None)
+            attrs.pop(config_attr("a2a.agent.target.id"), None)
         return attrs
 
 
@@ -220,7 +273,6 @@ class TraceGenerator:
 
         tenant_id = get_default_tenant_ids()[0]
         attrs = dict(config_resource_attributes(tenant_id))
-        attrs[schema_version_attr()] = self.schema.schema_version
         attrs["service.name"] = service_name
         attrs["service.version"] = service_version
         resource = Resource.create(attrs, schema_url=resource_schema_url())
@@ -282,8 +334,20 @@ class TraceGenerator:
 
             is_error = self.span_builder.should_error(config)
             tool_result = overrides.get(config_attr("tool.status.result"))
-            if is_error or tool_result is False:
-                span.set_status(Status(StatusCode.ERROR, "Error occurred"))
+            # gentoro.a2a.orchestrate root: status.code UNSET on success/partial, ERROR on error
+            if config.span_type == SpanType.A2A_ORCHESTRATE:
+                outcome = (overrides.get(config_attr("a2a.outcome")) or "success").lower()
+                if outcome == "error":
+                    _record_span_error(span, config.span_type, overrides)
+                # success / partial: leave status UNSET (do not set OK)
+            elif config.span_type == SpanType.RESPONSE_COMPOSE and (is_error or tool_result is False):
+                span.set_attribute(config_attr("step.outcome"), "fail")
+                _record_span_error(
+                    span, config.span_type, overrides,
+                    error_type_override="serialization_error",
+                )
+            elif is_error or tool_result is False:
+                _record_span_error(span, config.span_type, overrides)
             else:
                 span.set_status(Status(StatusCode.OK))
 
