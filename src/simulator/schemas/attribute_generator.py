@@ -117,6 +117,9 @@ class AttributeGenerator:
                 config_attr("request.id"): context.request_id,
             }
             base.update(overrides)
+            for key in list(base.keys()):
+                if _attr_matches(key, "redaction.applied"):
+                    base[key] = context.redaction_applied
             _ensure_int_token_counts(base)
             return base
 
@@ -129,6 +132,10 @@ class AttributeGenerator:
             attrs[attr_name] = self.generate_value(attr_def, context, overrides)
         span_overrides = {k: v for k, v in overrides.items() if k != _RESOURCE_ONLY_ATTR}
         attrs.update(span_overrides)
+        # Ensure redaction.applied is always the scenario setting (context); overrides must not override it.
+        for key in list(attrs.keys()):
+            if _attr_matches(key, "redaction.applied"):
+                attrs[key] = context.redaction_applied
         _ensure_int_token_counts(attrs)
         return attrs
 
