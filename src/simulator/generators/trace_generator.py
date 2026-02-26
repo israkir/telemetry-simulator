@@ -41,6 +41,7 @@ class SpanType(Enum):
     PLANNER = "planner"
     TASK_EXECUTE = "task.execute"
     LLM_CALL = "llm.call"
+    TOOLS_RECOMMEND = "tools.recommend"
     MCP_TOOL_EXECUTE = "mcp.tool.execute"
     MCP_TOOL_EXECUTE_ATTEMPT = "mcp.tool.execute.attempt"
     LLM_TOOL_RESPONSE_BRIDGE = "llm.tool.response.bridge"
@@ -56,6 +57,7 @@ _VENDOR_SPAN_SUFFIXES = {
     SpanType.PLANNER,
     SpanType.TASK_EXECUTE,
     SpanType.LLM_CALL,
+    SpanType.TOOLS_RECOMMEND,
     SpanType.MCP_TOOL_EXECUTE,
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
     SpanType.LLM_TOOL_RESPONSE_BRIDGE,
@@ -100,6 +102,7 @@ SPAN_KIND_MAP = {
     SpanType.PLANNER: SpanKind.INTERNAL,
     SpanType.TASK_EXECUTE: SpanKind.INTERNAL,
     SpanType.LLM_CALL: SpanKind.CLIENT,
+    SpanType.TOOLS_RECOMMEND: SpanKind.INTERNAL,
     SpanType.MCP_TOOL_EXECUTE: SpanKind.CLIENT,
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT: SpanKind.CLIENT,
     SpanType.LLM_TOOL_RESPONSE_BRIDGE: SpanKind.INTERNAL,
@@ -115,6 +118,7 @@ _ERROR_TYPE_BY_SPAN_TYPE = {
     SpanType.PLANNER: "planner_failed",
     SpanType.TASK_EXECUTE: "task_failed",
     SpanType.LLM_CALL: "model_error",
+    SpanType.TOOLS_RECOMMEND: "capability_resolution_error",
     SpanType.MCP_TOOL_EXECUTE: "tool_execution_failed",
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT: "tool_attempt_failed",
     SpanType.LLM_TOOL_RESPONSE_BRIDGE: "bridge_error",
@@ -133,7 +137,14 @@ CONVENTION_ATTRIBUTES = {
         config_attr("span.class"): "task.execute",
         config_attr("step.outcome"): "success",
     },
-    SpanType.LLM_CALL: {config_attr("span.class"): "llm.call"},
+    SpanType.LLM_CALL: {
+        config_attr("span.class"): "llm.call",
+        config_attr("step.outcome"): "success",
+    },
+    SpanType.TOOLS_RECOMMEND: {
+        config_attr("span.class"): "tools.recommend",
+        config_attr("step.outcome"): "success",
+    },
     SpanType.MCP_TOOL_EXECUTE: {config_attr("span.class"): "mcp.tool.execute"},
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT: {config_attr("span.class"): "mcp.tool.execute.attempt"},
     SpanType.LLM_TOOL_RESPONSE_BRIDGE: {config_attr("span.class"): "llm.tool.response.bridge"},
@@ -350,6 +361,9 @@ class TraceGenerator:
                     error_type_override="serialization_error",
                 )
             elif config.span_type == SpanType.TASK_EXECUTE and (is_error or tool_result is False):
+                span.set_attribute(config_attr("step.outcome"), "fail")
+                _record_span_error(span, config.span_type, overrides)
+            elif config.span_type == SpanType.TOOLS_RECOMMEND and (is_error or tool_result is False):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(span, config.span_type, overrides)
             elif is_error or tool_result is False:

@@ -215,7 +215,7 @@ class MetricGenerator:
         """Record metrics for an LLM inference call."""
         attrs = {
             "tenant.id": context.tenant_id,
-            "gen_ai.provider.name": provider,
+            "gen_ai.system": provider,
             "gen_ai.request.model": model,
         }
 

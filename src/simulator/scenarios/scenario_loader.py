@@ -337,6 +337,8 @@ class ScenarioStep:
             count = child.sample_count()
             for _ in range(count):
                 child_hier = child.to_hierarchy(parent_errored=has_error or sibling_errored)
+                # Conventions: llm_call, tool_recommendation, tool_execution require task.execute parent.
+                child_hier = _ensure_task_execute_parent(child_hier, self.span_type)
                 child_hierarchies.append(child_hier)
 
                 if child_hier.root_config.error_rate > 0:
@@ -416,6 +418,7 @@ class ScenarioStep:
             for child in self.children:
                 if attempt["success"] or child.probability >= 0.5:
                     child_hier = child.to_hierarchy(parent_errored=not attempt["success"])
+                    child_hier = _ensure_task_execute_parent(child_hier, self.span_type)
                     child_hierarchies.append(child_hier)
 
             hierarchies.append(
@@ -504,6 +507,8 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         SpanType.A2A_ORCHESTRATE: 1500.0,
         SpanType.PLANNER: 250.0,
         SpanType.TASK_EXECUTE: 80.0,
+        SpanType.LLM_CALL: 400.0,
+        SpanType.TOOLS_RECOMMEND: 50.0,
         SpanType.MCP_TOOL_EXECUTE: 150.0,
         SpanType.RESPONSE_COMPOSE: 60.0,
     }
@@ -529,6 +534,8 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         "a2a_orchestrate": SpanType.A2A_ORCHESTRATE,
         "planner": SpanType.PLANNER,
         "task_execute": SpanType.TASK_EXECUTE,
+        "llm_call": SpanType.LLM_CALL,
+        "tools_recommend": SpanType.TOOLS_RECOMMEND,
         "mcp_tool_execute": SpanType.MCP_TOOL_EXECUTE,
         "response_compose": SpanType.RESPONSE_COMPOSE,
     }
@@ -544,6 +551,42 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
 
 # Default latencies when building hierarchy from context.correct_flow (happy path).
 _DEFAULT_LATENCY_MS = _load_happy_path_latencies()
+
+# Task types per semantic conventions: llm_call, tool_recommendation, tool_execution.
+# These span types MUST have a task.execute parent with the matching gentoro.task.type.
+_TASK_TYPE_BY_SPAN_TYPE: dict[SpanType, str] = {
+    SpanType.LLM_CALL: "llm_call",
+    SpanType.TOOLS_RECOMMEND: "tool_recommendation",
+    SpanType.MCP_TOOL_EXECUTE: "tool_execution",
+}
+
+
+def _ensure_task_execute_parent(
+    child_hier: TraceHierarchy,
+    parent_span_type: SpanType | None,
+) -> TraceHierarchy:
+    """
+    Wrap hierarchy in task.execute when required by conventions.
+
+    Per Gentoro: llm_call, tool_recommendation, tool_execution MUST have task.execute as
+    parent with gentoro.task.type = llm_call | tool_recommendation | tool_execution.
+    MCP tool execution is never a child of llm.call; it is always under task (tool_execution).
+    """
+    st = child_hier.root_config.span_type
+    task_type = _TASK_TYPE_BY_SPAN_TYPE.get(st)
+    if task_type is None:
+        return child_hier
+    task_config = SpanConfig(
+        span_type=SpanType.TASK_EXECUTE,
+        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
+        latency_variance=0.2,
+        error_rate=0.0,
+        attribute_overrides={
+            config_attr("step.outcome"): "success",
+            config_attr("task.type"): task_type,
+        },
+    )
+    return TraceHierarchy(root_config=task_config, children=[child_hier])
 
 
 def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
@@ -562,9 +605,13 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
         attribute_overrides={config_attr("a2a.outcome"): "success"},
     )
     children: list[TraceHierarchy] = []
-
-    for step in context.correct_flow.steps:
+    steps = list(context.correct_flow.steps)
+    i = 0
+    while i < len(steps):
+        step = steps[i]
         step_lower = (step or "").strip().lower()
+        next_step = (steps[i + 1] or "").strip().lower() if i + 1 < len(steps) else ""
+
         if step_lower in ("planner", "planning"):
             children.append(
                 TraceHierarchy(
@@ -578,6 +625,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                     children=[],
                 )
             )
+            i += 1
         elif step_lower in ("response_compose", "response"):
             children.append(
                 TraceHierarchy(
@@ -594,7 +642,24 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                     children=[],
                 )
             )
+            i += 1
         elif step_lower in ("task", "task_execute", "task.execute"):
+            # LLM Calls doc: gentoro.llm.call parent MUST be gentoro.task.execute (task.type=llm_call).
+            # MCP tool execution has its own task (task.type=tool_execution); never nest under llm.call.
+            task_overrides = {
+                config_attr("step.outcome"): "success",
+                config_attr("task.type"): "llm_call",
+            }
+            llm_call_hierarchy = TraceHierarchy(
+                root_config=SpanConfig(
+                    span_type=SpanType.LLM_CALL,
+                    latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.LLM_CALL],
+                    latency_variance=0.2,
+                    error_rate=0.0,
+                    attribute_overrides={config_attr("step.outcome"): "success"},
+                ),
+                children=[],
+            )
             children.append(
                 TraceHierarchy(
                     root_config=SpanConfig(
@@ -602,13 +667,40 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                         latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
                         latency_variance=0.2,
                         error_rate=0.0,
-                        attribute_overrides={config_attr("step.outcome"): "success"},
+                        attribute_overrides=task_overrides,
                     ),
-                    children=[],
+                    children=[llm_call_hierarchy],
                 )
             )
+            i += 1
+        elif step_lower in ("tools_recommend", "tools.recommend"):
+            # Tool Recommendation doc: gentoro.tools.recommend parent MUST be gentoro.task.execute (task.type=tool_recommendation).
+            tools_recommend_hierarchy = TraceHierarchy(
+                root_config=SpanConfig(
+                    span_type=SpanType.TOOLS_RECOMMEND,
+                    latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TOOLS_RECOMMEND],
+                    latency_variance=0.2,
+                    error_rate=0.0,
+                    attribute_overrides={config_attr("step.outcome"): "success"},
+                ),
+                children=[],
+            )
+            task_config = SpanConfig(
+                span_type=SpanType.TASK_EXECUTE,
+                latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
+                latency_variance=0.2,
+                error_rate=0.0,
+                attribute_overrides={
+                    config_attr("step.outcome"): "success",
+                    config_attr("task.type"): "tool_recommendation",
+                },
+            )
+            children.append(
+                TraceHierarchy(root_config=task_config, children=[tools_recommend_hierarchy])
+            )
+            i += 1
         else:
-            # Tool step (name matches agents[].mcp[].tools by order; filled in _apply_context_to_hierarchy)
+            # Tool step at root level (no preceding task). Conventions: tool_execution requires task.execute parent.
             latency = _DEFAULT_LATENCY_MS[SpanType.MCP_TOOL_EXECUTE]
             execute_config = SpanConfig(
                 span_type=SpanType.MCP_TOOL_EXECUTE,
@@ -624,19 +716,30 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 error_rate=0.0,
                 attribute_overrides={},
             )
-            children.append(
-                TraceHierarchy(
-                    root_config=execute_config,
-                    children=[TraceHierarchy(root_config=attempt_config, children=[])],
-                )
+            mcp_hierarchy = TraceHierarchy(
+                root_config=execute_config,
+                children=[TraceHierarchy(root_config=attempt_config, children=[])],
             )
+            wrapped = _ensure_task_execute_parent(mcp_hierarchy, SpanType.A2A_ORCHESTRATE)
+            children.append(wrapped)
+            i += 1
 
     return TraceHierarchy(root_config=root_config, children=children)
 
 
 def _collect_mcp_hierarchies_in_order(hierarchy: TraceHierarchy) -> list[TraceHierarchy]:
-    """Return list of direct children that are MCP_TOOL_EXECUTE, in order."""
-    return [c for c in hierarchy.children if c.root_config.span_type == SpanType.MCP_TOOL_EXECUTE]
+    """Return list of MCP_TOOL_EXECUTE hierarchies in tree order (depth-first)."""
+    result: list[TraceHierarchy] = []
+
+    def walk(h: TraceHierarchy) -> None:
+        if h.root_config.span_type == SpanType.MCP_TOOL_EXECUTE:
+            result.append(h)
+        for child in h.children:
+            walk(child)
+
+    for child in hierarchy.children:
+        walk(child)
+    return result
 
 
 def _apply_error_pattern(hierarchy: TraceHierarchy, context: ScenarioContext) -> None:
@@ -738,7 +841,6 @@ def _apply_context_to_hierarchy(
                 call_id = f"mcp_call_{uuid.uuid4().hex[:12]}"
             overrides = dict(cfg.attribute_overrides or {})
             overrides[config_attr("mcp.server.uuid")] = server_uuid
-            overrides["gen_ai.operation.name"] = "execute_tool"
             overrides[config_attr("mcp.tool.call.id")] = call_id
             idx = mcp_index[0]
             if idx < len(tools_by_index):
@@ -782,6 +884,7 @@ _SPAN_SUFFIXES = [
     ("planner", SpanType.PLANNER),
     ("task.execute", SpanType.TASK_EXECUTE),
     ("llm.call", SpanType.LLM_CALL),
+    ("tools.recommend", SpanType.TOOLS_RECOMMEND),
     ("mcp.tool.execute.attempt", SpanType.MCP_TOOL_EXECUTE_ATTEMPT),
     ("mcp.tool.execute", SpanType.MCP_TOOL_EXECUTE),
     ("llm.tool.response.bridge", SpanType.LLM_TOOL_RESPONSE_BRIDGE),

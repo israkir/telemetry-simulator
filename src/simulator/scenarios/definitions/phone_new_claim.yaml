@@ -1,12 +1,22 @@
-# Simplest case: Phone MCP server context, happy path – one tool call (new_claim).
+# Phone MCP context, happy path: LLM call → tool recommendation (from LLM result) → tool execution.
 # Toro Insurance: customer (Phone only) starts a claim; agent uses Phone backend (mcp_server).
 #
+# Trace structure (Gentoro-compliant): each task type has its own task.execute parent.
+#   a2a.orchestrate
+#   ├── planner
+#   ├── task.execute (llm_call) → gentoro.llm.call
+#   ├── task.execute (tool_recommendation) → gentoro.tools.recommend
+#   ├── task.execute (tool_execution) → gentoro.mcp.tool.execute → mcp.tool.execute.attempt
+#   └── response.compose
+#
 # Run: telemetry-simulator scenario --name phone_new_claim_happy --count 5
+#      telemetry-simulator run  (uses this when selected in mixed workload)
 
 name: phone_new_claim_happy
 description: >
-  Happy path for Phone mcp_server context: planner → task → new_claim → response_compose.
-  Single tool call; simulation goal and mcp_server are defined in this file.
+  Happy path for Phone mcp_server: planner → LLM task (task→llm.call) →
+  tool recommendation (task→tools.recommend, after LLM result) →
+  tool execution (task→mcp.tool.execute new_claim) → response_compose.
 
 simulation_goal: happy_path
 mcp_server: phone
@@ -22,26 +32,23 @@ interval_deviation_ms: 50   # delay = 100 ± 50 ms (random)
 emit_metrics: false
 emit_logs: false
 
-# Redaction level for {prefix}.redaction.applied (none, basic, strict). Default: none.
 redaction_applied: none
 
-# Happy-path flow is expressed in context; hierarchy is built from correct_flow.steps (no root tree needed).
+# Flow is expressed in context; hierarchy is built from correct_flow.steps.
 context:
-  # Predefined tenant (tenant.id in scenarios_config.yaml)
   tenant_uuid: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
   workflow: "new_claim"
   correct_flow:
     steps:
       - planner
-      - task
-      - new_claim
+      - task              # → task.execute (llm_call) → gentoro.llm.call
+      - tools_recommend   # → task.execute (tool_recommendation) → gentoro.tools.recommend (after LLM result)
+      - new_claim         # → task.execute (tool_execution) → gentoro.mcp.tool.execute
       - response_compose
   error_pattern: happy_path
-  # Predefined agent (agent.id in scenarios_config.yaml → {prefix}.a2a.agent.target.id)
   agents:
     - uuid: "toro-customer-assistant-001"
       mcp:
-        # Phone mcp_server (matches mcp_servers.phone.mcp_server_uuid in scenarios_config.yaml; {prefix}.mcp.server.uuid on spans)
         - server_uuid: "11111111-1111-4eec-8001-000000000001"
           tools:
             - name: new_claim

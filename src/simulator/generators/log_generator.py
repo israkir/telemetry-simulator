@@ -141,7 +141,7 @@ class LogGenerator:
     ):
         """Log an LLM inference call."""
         attrs = self._get_base_attrs(context)
-        attrs["gen_ai.provider.name"] = provider
+        attrs["gen_ai.system"] = provider
         attrs["gen_ai.request.model"] = model
         attrs["gen_ai.operation.name"] = operation
         attrs["gen_ai.usage.input_tokens"] = input_tokens

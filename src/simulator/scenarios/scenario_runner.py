@@ -276,7 +276,7 @@ class ScenarioRunner:
         elif span_type == SpanType.LLM_CALL:
             self.metric_generator.record_llm_inference(
                 context,
-                provider=attrs.get("gen_ai.provider.name", "openai"),
+                provider=attrs.get("gen_ai.system", "openai"),
                 model=attrs.get("gen_ai.request.model", "gpt-4.1-mini"),
                 latency_ms=latency,
                 input_tokens=_int_token_count(attrs.get("gen_ai.usage.input_tokens"), 500),
@@ -338,7 +338,7 @@ class ScenarioRunner:
         elif span_type == SpanType.LLM_CALL:
             self.log_generator.log_llm_inference(
                 context,
-                provider=attrs.get("gen_ai.provider.name", "openai"),
+                provider=attrs.get("gen_ai.system", "openai"),
                 model=attrs.get("gen_ai.request.model", "gpt-4.1-mini"),
                 operation=attrs.get(config_attr("llm.operation"), "chat"),
                 input_tokens=_int_token_count(attrs.get("gen_ai.usage.input_tokens"), 500),

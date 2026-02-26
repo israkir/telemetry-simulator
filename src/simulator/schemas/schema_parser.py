@@ -186,12 +186,12 @@ def _span_suffix(span_name: str) -> str:
 # Map from span name suffix to attribute section key used in otel-semantic.yaml.
 # Order: longer suffixes first so "mcp.tool.execute.attempt" matches before "mcp.tool.execute".
 _SPEC_SPAN_SECTION_ALIASES = [
-    ("mcp.tool.execute.attempt", "mcp_tool_attributes"),
+    ("mcp.tool.execute.attempt", "mcp_tool_attempt_attributes"),
     ("mcp.tool.execute", "mcp_tool_attributes"),
     ("llm.tool.response.bridge", "llm_tool_response_bridge_attributes"),
     ("context.augment", "context_augment_attributes"),
     ("a2a.orchestrate", "a2a_orchestration_attributes"),
-    ("response.compose", "a2a_orchestration_attributes"),
+    ("response.compose", "response_compose_attributes"),
     ("task.execute", "task_execute_attributes"),
     ("llm.call", "llm_call_attributes"),
     ("planner", "planner_attributes"),
@@ -231,6 +231,9 @@ class TelemetrySchema:
                     if section in self.span_attributes:
                         attrs.update(self.span_attributes[section])
                     break
+        # LLM Calls doc: gen_ai.system and gen_ai.request.model are MUST; include llm_inference_attributes for llm.call.
+        if suffix == "llm.call" and "llm_inference_attributes" in self.span_attributes:
+            attrs.update(self.span_attributes["llm_inference_attributes"])
         return attrs
 
     def get_required_attributes(self, span_name: str) -> list[str]:
