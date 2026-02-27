@@ -59,7 +59,7 @@ The simulator is driven by **`src/simulator/scenarios/config/config.yaml`**. Wha
 | **agents** | List of agents by `id` (e.g. `toro-customer-assistant-001`). Scenarios reference `context.agent` by id. No channel or division on agent; scenario sets `context.mcp_server`. |
 | **mcp_servers** | Key → mcp_server_uuid + tools (name, tool_uuid). Scenarios reference `context.mcp_server` by key. |
 | **realistic_scenarios** | `divisions` (division name → mcp_servers key), `error_templates` (simulation_goal → error_type, http_status_codes), `workflow_templates` (workflow name → list of steps). |
-| **data_plane_templates** | Named templates (e.g. `new_claim_happy`) with `workflow`, optional `simulation_goal`, and optional **control_plane_template** (e.g. `allowed`). Scenarios using `data_plane.template` get workflow + steps from config; if they do not set `control_plane.template` in YAML, the request-validation template is taken from the data-plane template so the scenario is bound to the correct control-plane flow (e.g. no error/exception) without code change. |
+| *(no data_plane_templates)* | Data-plane is defined in each scenario YAML: `data_plane.workflow` (key into `workflow_templates` for step list), optional `data_plane.simulation_goal`, optional `data_plane.control_plane_template`. Config supplies only `workflow_templates` (step names) and key → UUID. |
 | **control_plane** | `trace_flow`, `request_validation_templates` (and optional `_defaults` for shared error_rate etc.), `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
 | **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns`. |
 
@@ -102,6 +102,38 @@ Run all scenarios in random mix:
 ```bash
 otelsim run --count 500 --interval 200
 ```
+
+By default, mixed workloads sample uniformly across all loaded scenarios. You can bias the
+selection using a **per-scenario workload weight**:
+
+- **YAML**: add `workload_weight` at the top level of a scenario:
+
+  ```yaml
+  name: new_claim_phone
+  tags: [data-plane, happy-path]
+  workload_weight: 5.0   # 5x more likely than weight 1.0
+  ```
+
+- **Control-plane registry** (`config/config.yaml` → `control_plane.request_scenarios`):
+
+  ```yaml
+  control_plane:
+    request_scenarios:
+      request_allowed_audit_flagged:
+        template: allowed_but_flagged
+        description: "Request allowed but flagged for audit..."
+        workload_weight: 3.0
+  ```
+
+Semantics:
+
+- `workload_weight` is a **non-negative relative weight** used when `otelsim run`
+  randomly picks a scenario (including when `--tags` is set).
+- A scenario with `workload_weight: 3.0` is **about 3× as likely** to be chosen as one
+  with `workload_weight: 1.0` (all else equal).
+- `workload_weight` defaults to **1.0** when omitted; values ≤ 0 effectively remove a
+  scenario from random selection (but you can still run it via `otelsim scenario --name ...`).
+- `--each-once` ignores weights and runs each (filtered) scenario exactly once.
 
 ---
 
