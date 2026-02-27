@@ -60,7 +60,7 @@ The simulator is driven by **`src/simulator/scenarios/config/config.yaml`**. Wha
 | **mcp_servers** | Key → mcp_server_uuid + tools (name, tool_uuid). Scenarios reference `context.mcp_server` by key. |
 | **realistic_scenarios** | `divisions` (division name → mcp_servers key), `error_templates` (simulation_goal → error_type, http_status_codes), `workflow_templates` (workflow name → list of steps). |
 | **data_plane_templates** | Named templates (e.g. `new_claim_happy`) with `workflow` and optional `simulation_goal`. Scenarios use `data_plane.template: <name>` to get workflow + steps from config. |
-| **control_plane** | `trace_flow` (allowed/blocked/error → which traces to emit), `request_validation_templates`, `response_validation_templates`, `latencies_ms`. Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. |
+| **control_plane** | `trace_flow`, `request_validation_templates` (and optional `_defaults` for shared error_rate etc.), `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
 | **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns`. |
 
 Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-path`, `multi-turn`). Use `otelsim run --tags=...` to run only scenarios that have at least one of the given tags.

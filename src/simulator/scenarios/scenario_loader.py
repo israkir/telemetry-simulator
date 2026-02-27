@@ -29,6 +29,7 @@ from ..generators.trace_generator import (
 from ..statistics.correlations import ErrorPropagation, RetryConfig, RetrySequence
 from ..statistics.distributions import Distribution, DistributionFactory
 from .config_resolver import get_default_tenant_id, resolve_context
+from .control_plane_loader import get_request_scenario_registry
 from .id_generator import ScenarioIdGenerator
 from .realistic_modifier import apply_realistic_scenario
 
@@ -1025,6 +1026,23 @@ SAMPLE_DEFINITIONS_DIR = Path(__file__).parent / "definitions"
 EXAMPLE_SCENARIO_NAME = "example_scenario"
 
 
+def _control_plane_scenario_data(name: str, entry: dict[str, Any]) -> dict[str, Any]:
+    """Build minimal scenario dict for control_plane.request_scenarios registry (no YAML file)."""
+    return {
+        "name": name,
+        "description": entry.get("description", ""),
+        "tags": ["control-plane"],
+        "control_plane": {"template": entry["template"]},
+        "context": {"tenant": "toro", "agent": "toro-customer-assistant-001"},
+        "mcp_server": "phone",
+        "repeat_count": 2,
+        "interval_ms": 50,
+        "emit_metrics": False,
+        "emit_logs": False,
+        "redaction_applied": "none",
+    }
+
+
 class ScenarioLoader:
     """Load scenarios from YAML files."""
 
@@ -1054,15 +1072,19 @@ class ScenarioLoader:
         return SpanType.A2A_ORCHESTRATE
 
     def load(self, scenario_name: str) -> Scenario:
-        """Load a scenario by name."""
+        """Load a scenario by name (from YAML or from control_plane.request_scenarios registry)."""
         scenario_file = self.scenarios_dir / f"{scenario_name}.yaml"
-        if not scenario_file.exists():
-            raise FileNotFoundError(f"Scenario not found: {scenario_name}")
-
-        with open(scenario_file, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-
-        return self._parse_scenario(data)
+        if scenario_file.exists():
+            with open(scenario_file, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            return self._parse_scenario(data)
+        if self._is_sample_definitions_dir():
+            registry = get_request_scenario_registry(CONFIG_PATH)
+            entry = registry.get(scenario_name) if isinstance(registry, dict) else None
+            if isinstance(entry, dict) and entry.get("template"):
+                data = _control_plane_scenario_data(scenario_name, entry)
+                return self._parse_scenario(data)
+        raise FileNotFoundError(f"Scenario not found: {scenario_name}")
 
     def _is_sample_definitions_dir(self) -> bool:
         """True when using the bundled sample definitions (exclude reference scenarios)."""
@@ -1072,7 +1094,7 @@ class ScenarioLoader:
             return False
 
     def load_all(self) -> list[Scenario]:
-        """Load all scenarios from the directory."""
+        """Load all scenarios from the directory and from control_plane.request_scenarios when using sample dir."""
         scenarios: list[Scenario] = []
         if not self.scenarios_dir.exists():
             return scenarios
@@ -1085,18 +1107,31 @@ class ScenarioLoader:
                 data = yaml.safe_load(f)
             scenarios.append(self._parse_scenario(data))
 
+        if exclude_example:
+            loaded_names = {s.name for s in scenarios}
+            registry = get_request_scenario_registry(CONFIG_PATH)
+            for name, entry in registry.items():
+                if name not in loaded_names and isinstance(entry, dict) and entry.get("template"):
+                    scenarios.append(self._parse_scenario(_control_plane_scenario_data(name, entry)))
+
         return scenarios
 
     def list_scenarios(self) -> list[str]:
-        """List available scenario names."""
+        """List available scenario names (YAML stems + control_plane.request_scenarios when using sample dir)."""
         if not self.scenarios_dir.exists():
             return []
         exclude_example = self._is_sample_definitions_dir()
-        return [
+        from_files = [
             f.stem
             for f in self.scenarios_dir.glob("*.yaml")
             if not (exclude_example and f.stem == EXAMPLE_SCENARIO_NAME)
         ]
+        if not exclude_example:
+            return from_files
+        registry = get_request_scenario_registry(CONFIG_PATH)
+        file_set = set(from_files)
+        extra = [n for n in registry if n not in file_set]
+        return from_files + sorted(extra)
 
     def _parse_scenario(self, data: dict) -> Scenario:
         """Parse scenario from YAML data."""

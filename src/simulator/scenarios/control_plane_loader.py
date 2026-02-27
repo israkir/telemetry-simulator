@@ -6,6 +6,12 @@ step outcomes, trace flow) are driven by config.yaml. Add new templates or
 trace flows by editing config; no code changes required.
 Attribute keys in config use short names (e.g. request.outcome); the prefix
 is applied at build time from config.attr().
+
+Templates can be merged with control_plane.request_validation_templates._defaults
+so repeated blocks (e.g. error_rate, skip augmentation) are defined once.
+Control-plane request scenarios can be registered in control_plane.request_scenarios
+(name -> { template, description }); the scenario loader will expose them even
+without a separate YAML file.
 """
 
 from pathlib import Path
@@ -18,6 +24,19 @@ from ..generators.trace_generator import (
     SpanType,
     TraceHierarchy,
 )
+
+
+def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """Merge overrides into base recursively. Overrides win; base is not mutated."""
+    out: dict[str, Any] = dict(base)
+    for k, v in overrides.items():
+        if k not in out:
+            out[k] = v
+        elif isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
 
 
 def _load_control_plane_config(config_path: Path | None = None) -> dict[str, Any]:
@@ -108,6 +127,18 @@ def get_latencies_ms(config_path: Path | None = None) -> dict[str, float]:
     return {k: float(v) for k, v in lat.items() if isinstance(v, (int, float))}
 
 
+def get_request_scenario_registry(config_path: Path | None = None) -> dict[str, dict[str, Any]]:
+    """
+    Return control_plane.request_scenarios: scenario name -> { template, description }.
+    Used by the scenario loader to expose control-plane request scenarios without requiring a YAML per scenario.
+    """
+    cp = _load_control_plane_config(config_path)
+    reg = cp.get("request_scenarios")
+    if not isinstance(reg, dict):
+        return {}
+    return {str(k): dict(v) if isinstance(v, dict) else {} for k, v in reg.items()}
+
+
 def build_request_validation_hierarchy_from_template(
     template_id: str,
     config_path: Path | None = None,
@@ -123,10 +154,17 @@ def build_request_validation_hierarchy_from_template(
     templates = cp.get("request_validation_templates")
     if not isinstance(templates, dict) or template_id not in templates:
         raise ValueError(f"Unknown control_plane request_validation template: {template_id}")
+    if (template_id or "").strip().lower() == "_defaults":
+        raise ValueError("_defaults is not a valid template id")
 
-    t = templates[template_id]
-    if not isinstance(t, dict):
+    raw = templates[template_id]
+    if not isinstance(raw, dict):
         raise ValueError(f"Invalid template '{template_id}': not a dict")
+    defaults = templates.get("_defaults")
+    if isinstance(defaults, dict):
+        t = _deep_merge(defaults, raw)
+    else:
+        t = raw
 
     latencies = get_latencies_ms(config_path)
     default_lat = 40.0

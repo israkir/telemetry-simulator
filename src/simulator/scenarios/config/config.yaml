@@ -183,11 +183,47 @@ control_plane:
     blocked: [incoming_validation]
     error: [incoming_validation]
 
-  # Request validation hierarchy templates. Key = template id.
+  # Optional: scenario name -> { template, description }. Loader exposes these as scenarios
+  # without a separate YAML; YAML in definitions/ overrides if present.
+  request_scenarios:
+    request_blocked_by_policy:
+      template: blocked_request_policy
+      description: "Control-plane policy blocks the request; no a2a.orchestrate or response.validation."
+    request_allowed_audit_flagged:
+      template: allowed_but_flagged
+      description: "Request allowed but flagged for audit (gentoro.request.audit.flag=true, allow_with_audit)."
+    request_blocked_rate_limited:
+      template: blocked_rate_limited
+      description: "Early block before policy (gentoro.block.reason=rate_limited); only root + payload spans."
+    request_blocked_invalid_payload:
+      template: blocked_invalid_payload
+      description: "Request blocked by payload validation (invalid_payload)."
+    request_blocked_invalid_payload_multi:
+      template: blocked_invalid_payload_multi
+      description: "Payload validation blocked with multiple gentoro.validation.error events."
+    request_blocked_policy_fail_closed:
+      template: blocked_request_policy_fail_closed
+      description: "Policy engine throws, fail-closed (block.reason=request_policy, policy.fail_mode=closed)."
+    request_blocked_invalid_context:
+      template: blocked_invalid_context
+      description: "Request blocked due to augmentation/context invalid (invalid_context)."
+    request_blocked_invalid_context_augment_exception:
+      template: blocked_invalid_context_augment_exception
+      description: "Augmentation fails with exception; request blocked (invalid_context), augmentation span ERROR."
+    request_error_policy_runtime:
+      template: error_policy_runtime
+      description: "Policy engine runtime exception; request.outcome=error, policy span ERROR with exception event."
+
+  # Request validation hierarchy templates. Key = template id. Merged with _defaults (deep merge).
   # Scenario uses control_plane.request_outcome + control_plane.block_reason to resolve
-  # template id (e.g. blocked + request_policy -> blocked_request_policy), or set
-  # control_plane.template explicitly to use a custom template by id.
+  # template id, or control_plane.template for explicit id.
   request_validation_templates:
+    _defaults:
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 0
     allowed:
       root:
         request.outcome: allowed
