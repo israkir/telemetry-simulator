@@ -88,19 +88,27 @@ class ValidationResult:
 
 # Vendor span suffixes that require GenAI attributes (validator builds full names at init).
 _GENAI_REQUIRED_BY_SUFFIX = {
-    "mcp.tool.execute": ["gen_ai.operation.name", "gen_ai.tool.name"],
-    "mcp.tool.execute.attempt": ["gen_ai.operation.name", "gen_ai.tool.name"],
+    "mcp.tool.execute": ["gen_ai.tool.name"],
+    "mcp.tool.execute.attempt": [],  # minimal: mcp.tool.call.id, attempt.index, attempt.outcome, error.type, retry.reason only
     "llm.call": [
-        "gen_ai.operation.name",
-        "gen_ai.provider.name",
+        "gen_ai.system",
         "gen_ai.request.model",
         "gen_ai.usage.input_tokens",
         "gen_ai.usage.output_tokens",
     ],
 }
 
-# MCP span suffixes for execute_tool operation check.
-_MCP_SPAN_SUFFIXES = ("mcp.tool.execute", "mcp.tool.execute.attempt")
+# Span suffixes that do not carry correlation/context attributes (tenant, session, enduser, redaction).
+_MINIMAL_SPAN_SUFFIXES = frozenset(
+    {
+        "task.execute",
+        "llm.call",
+        "tools.recommend",
+        "mcp.tool.execute",
+        "mcp.tool.execute.attempt",
+        "response.compose",
+    }
+)
 
 # Status suffix by span (vendor names built at init).
 _STATUS_SUFFIX_BY_NONVENDOR = {
@@ -128,7 +136,6 @@ class OtelValidator:
         self._genai_required = {
             config_span_name(s): attrs for s, attrs in _GENAI_REQUIRED_BY_SUFFIX.items()
         }
-        self._mcp_span_names = {config_span_name(s) for s in _MCP_SPAN_SUFFIXES}
         self._llm_call_name = config_span_name("llm.call")
         self._status_suffixes = dict(_STATUS_SUFFIX_BY_NONVENDOR)
         for suffix, status in _STATUS_SUFFIX_BY_VENDOR_SUFFIX.items():
@@ -264,19 +271,6 @@ class OtelValidator:
                     )
                 )
 
-        for mcp_name in self._mcp_span_names:
-            if span_name == mcp_name and attributes.get("gen_ai.operation.name") != "execute_tool":
-                result.add_error(
-                    ValidationError(
-                        severity=ValidationSeverity.WARNING,
-                        attribute="gen_ai.operation.name",
-                        message=f"OTEL GenAI: {mcp_name} should have gen_ai.operation.name=execute_tool",
-                        span_type=span_name,
-                        expected="execute_tool",
-                        actual=attributes.get("gen_ai.operation.name"),
-                    )
-                )
-
         if span_name == self._llm_call_name:
             valid_ops = ["chat", "text_completion", "generate_content"]
             op = attributes.get("gen_ai.operation.name")
@@ -299,18 +293,22 @@ class OtelValidator:
         result: ValidationResult,
     ):
         """Validate vendor-specific conventions (attribute prefix from config)."""
-        if "tenant.id" not in attributes:
+        suffix = span_name.split(".", 1)[-1] if "." in span_name else span_name
+        is_minimal = suffix in _MINIMAL_SPAN_SUFFIXES
+
+        tenant_attr = config_attr("tenant.id")
+        if not is_minimal and tenant_attr not in attributes:
             result.add_error(
                 ValidationError(
                     severity=ValidationSeverity.ERROR,
-                    attribute="tenant.id",
-                    message=f"{VENDOR_NAME}: tenant.id is required on all spans",
+                    attribute=tenant_attr,
+                    message=f"{VENDOR_NAME}: tenant.id is required on this span",
                     span_type=span_name,
                 )
             )
 
         session_attr = config_attr("session.id")
-        if session_attr not in attributes:
+        if not is_minimal and session_attr not in attributes:
             result.add_error(
                 ValidationError(
                     severity=ValidationSeverity.WARNING,

@@ -1,0 +1,26 @@
+# Phone MCP context, happy path. Uses data_plane.template so workflow + simulation_goal
+# come from config (no need to repeat correct_flow or simulation_goal in YAML).
+
+name: new_claim_phone
+description: >
+  Happy path for Phone mcp_server: planner → LLM task → tool recommendation → tool execution (new_claim) → response_compose.
+
+tags:
+  - data-plane
+  - happy-path
+  
+mcp_server: phone
+repeat_count: 5
+interval_ms: 100
+interval_deviation_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  template: new_claim_happy
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

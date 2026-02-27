@@ -8,8 +8,10 @@ Provides commands for:
 """
 
 import argparse
+import os
 import sys
 
+from . import config as sim_config
 from .defaults import get_default_tenant_ids
 from .exporters.file_exporter import FileLogExporter, FileMetricExporter, FileSpanExporter
 from .exporters.otlp_exporter import (
@@ -53,22 +55,22 @@ def _format_progress_line(
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
-        prog="telemetry-simulator",
+        prog="otelsim",
         description="Schema-driven OTEL telemetry simulator for LLM observability",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Run mixed workload to OTLP collector
-  telemetry-simulator run --count 100 --interval 200
+  otelsim run --count 100 --interval 200
 
   # Run specific scenario
-  telemetry-simulator scenario --name successful_agent_turn --count 50
+  otelsim scenario --name new_claim_phone
 
   # Validate schema and show summary
-  telemetry-simulator validate --show-schema
+  otelsim validate --show-schema
 
   # Export to file instead of OTLP
-  telemetry-simulator run --count 10 --output-file traces.jsonl
+  otelsim run --count 10 --output-file traces.jsonl
         """,
     )
 
@@ -80,25 +82,38 @@ Examples:
     )
 
     parser.add_argument(
-        "--schema-path",
+        "--semconv",
+        dest="semconv",
         type=str,
         default=None,
-        help="Path to semantic-conventions YAML (required unless TELEMETRY_SIMULATOR_SCHEMA_PATH is set)",
+        help="Path to semantic-conventions YAML (required unless SEMCONV is set)",
+    )
+
+    parser.add_argument(
+        "--vendor",
+        type=str,
+        default=None,
+        help=(
+            "Attribute prefix for vendor-specific attributes "
+            "(e.g. vendor → vendor.session.id, vendor.tenant.id). "
+            "Overrides TELEMETRY_SIMULATOR_ATTR_PREFIX."
+        ),
     )
 
     parser.add_argument(
         "--service-name",
         type=str,
-        default="telemetry-simulator",
-        help="Service name for telemetry (default: telemetry-simulator)",
+        default="otelsim",
+        help="Service name for telemetry (default: otelsim)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     run_parser = subparsers.add_parser("run", help="Run mixed workload generation")
     run_parser.add_argument("--endpoint", type=str, help=argparse.SUPPRESS)
-    run_parser.add_argument("--schema-path", type=str, help=argparse.SUPPRESS)
+    run_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     run_parser.add_argument("--service-name", type=str, help=argparse.SUPPRESS)
+    run_parser.add_argument("--vendor", type=str, help=argparse.SUPPRESS)
     run_parser.add_argument(
         "--count",
         type=int,
@@ -110,13 +125,6 @@ Examples:
         type=float,
         default=500,
         help="Interval between traces in ms (default: 500)",
-    )
-    run_parser.add_argument(
-        "--tenants",
-        type=str,
-        nargs="+",
-        default=get_default_tenant_ids(),
-        help="Tenant IDs from TENANT_UUID env (required)",
     )
     run_parser.add_argument(
         "--output-file",
@@ -155,11 +163,24 @@ Examples:
         default=None,
         help="Folder with scenario YAML files for mixed workload (default: built-in sample definitions)",
     )
+    run_parser.add_argument(
+        "--tags",
+        type=str,
+        default=None,
+        metavar="TAG[,TAG...]",
+        help="Only run scenarios that have at least one of these tags (e.g. --tags=control-plane or --tags=control-plane,data-plane)",
+    )
+    run_parser.add_argument(
+        "--each-once",
+        action="store_true",
+        help="Run each (tagged) scenario exactly once instead of --count random picks",
+    )
 
     scenario_parser = subparsers.add_parser("scenario", help="Run YAML-defined scenario")
     scenario_parser.add_argument("--endpoint", type=str, help=argparse.SUPPRESS)
-    scenario_parser.add_argument("--schema-path", type=str, help=argparse.SUPPRESS)
+    scenario_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     scenario_parser.add_argument("--service-name", type=str, help=argparse.SUPPRESS)
+    scenario_parser.add_argument("--vendor", type=str, help=argparse.SUPPRESS)
     scenario_parser.add_argument(
         "--name",
         type=str,
@@ -203,6 +224,12 @@ Examples:
         action="store_true",
         help="Disable log export (use when backend accepts traces only, e.g. Jaeger)",
     )
+    scenario_parser.add_argument(
+        "--output-file",
+        type=str,
+        default=None,
+        help="Output file path (if set, exports traces to file instead of OTLP)",
+    )
 
     list_parser = subparsers.add_parser("list", help="List available scenarios")
     list_parser.add_argument(
@@ -213,7 +240,7 @@ Examples:
     )
 
     validate_parser = subparsers.add_parser("validate", help="Validate schema and configuration")
-    validate_parser.add_argument("--schema-path", type=str, help=argparse.SUPPRESS)
+    validate_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     validate_parser.add_argument(
         "--show-schema",
         action="store_true",
@@ -237,9 +264,18 @@ def cmd_run(args: argparse.Namespace):
     """Run mixed workload generation."""
     print("Starting mixed workload telemetry generation...")
     print(f"   Endpoint: {args.endpoint}")
-    print(f"   Count: {args.count}")
+    each_once = getattr(args, "each_once", False)
+    if each_once:
+        print("   Mode: each (tagged) scenario once")
+    else:
+        print(f"   Count: {args.count}")
     print(f"   Interval: {args.interval}ms")
-    print(f"   Tenants: {', '.join(args.tenants)}")
+    tags_list: list[str] | None = None
+    if getattr(args, "tags", None) and isinstance(args.tags, str):
+        tags_list = [t.strip() for t in args.tags.split(",") if t.strip()]
+        if tags_list:
+            print(f"   Tags filter: {', '.join(tags_list)}")
+    print(f"   Tenants: {', '.join(get_default_tenant_ids())}")
     print()
 
     if args.output_file:
@@ -282,7 +318,7 @@ def cmd_run(args: argparse.Namespace):
             trace_exporter=trace_exporter,
             metric_exporter=metric_exporter,
             log_exporter=log_exporter,
-            schema_path=args.schema_path,
+            schema_path=args.semconv,
             service_name=args.service_name,
             show_full_spans=getattr(args, "show_full_spans", False),
             scenarios_dir=getattr(args, "scenarios_dir", None),
@@ -292,6 +328,8 @@ def cmd_run(args: argparse.Namespace):
             count=args.count,
             interval_ms=args.interval,
             progress_callback=progress_callback,
+            tags=tags_list,
+            each_once=each_once,
         )
 
         runner.shutdown()
@@ -303,9 +341,20 @@ def cmd_run(args: argparse.Namespace):
             and trace_ids
         ):
             print()
-            print("Sample trace IDs:")
-            for trace_id in trace_ids[:5]:
+            max_show = 10
+            to_show = trace_ids if len(trace_ids) <= max_show else trace_ids[:max_show]
+            label = "Trace IDs:" if len(trace_ids) <= max_show else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            print(label)
+            for trace_id in to_show:
                 print(f"   {trace_id}")
+            logical_requests = 0 if each_once else args.count
+            if logical_requests and len(trace_ids) != logical_requests:
+                per_request = len(trace_ids) / float(logical_requests)
+                print(
+                    f"   \nNote: Each logical request currently emits separate traces for "
+                    f"control-plane request validation, data-plane orchestration, and "
+                    f"response validation (≈{per_request:.1f} traces/request)."
+                )
 
     except KeyboardInterrupt:
         print("\nGeneration interrupted")
@@ -334,21 +383,41 @@ def cmd_scenario(args: argparse.Namespace):
 
     print(f"   Description: {scenario.description}")
     print(f"   Repeat count: {scenario.repeat_count}")
-    print(f"   Interval: {scenario.interval_ms}ms")
+    if not getattr(args, "output_file", None):
+        print(f"   Endpoint: {args.endpoint}")
+        print(f"   Service: {args.service_name} (select this in Jaeger UI)")
+    interval_str = f"{scenario.interval_ms}ms"
+    if scenario.interval_deviation_ms > 0:
+        interval_str += f" ±{scenario.interval_deviation_ms}ms"
+    print(f"   Interval: {interval_str}")
     print(f"   Tags: {', '.join(scenario.tags)}")
     print()
 
-    trace_exporter = create_otlp_trace_exporter(args.endpoint)
-    metric_exporter = (
-        create_otlp_metric_exporter(args.endpoint)
-        if scenario.emit_metrics and not getattr(args, "no_metrics", False)
-        else None
-    )
-    log_exporter = (
-        create_otlp_log_exporter(args.endpoint)
-        if scenario.emit_logs and not getattr(args, "no_logs", False)
-        else None
-    )
+    if getattr(args, "output_file", None):
+        trace_exporter = FileSpanExporter(args.output_file)
+        metric_exporter = (
+            FileMetricExporter(args.output_file.replace(".jsonl", "_metrics.jsonl"))
+            if scenario.emit_metrics and not getattr(args, "no_metrics", False)
+            else None
+        )
+        log_exporter = (
+            FileLogExporter(args.output_file.replace(".jsonl", "_logs.jsonl"))
+            if scenario.emit_logs and not getattr(args, "no_logs", False)
+            else None
+        )
+        print(f"   Output: {args.output_file}")
+    else:
+        trace_exporter = create_otlp_trace_exporter(args.endpoint)
+        metric_exporter = (
+            create_otlp_metric_exporter(args.endpoint)
+            if scenario.emit_metrics and not getattr(args, "no_metrics", False)
+            else None
+        )
+        log_exporter = (
+            create_otlp_log_exporter(args.endpoint)
+            if scenario.emit_logs and not getattr(args, "no_logs", False)
+            else None
+        )
 
     def progress_callback(
         current: int,
@@ -367,7 +436,7 @@ def cmd_scenario(args: argparse.Namespace):
             trace_exporter=trace_exporter,
             metric_exporter=metric_exporter,
             log_exporter=log_exporter,
-            schema_path=args.schema_path,
+            schema_path=args.semconv,
             service_name=args.service_name,
             show_full_spans=getattr(args, "show_full_spans", False),
         )
@@ -381,9 +450,19 @@ def cmd_scenario(args: argparse.Namespace):
             not (getattr(args, "show_spans", False) or getattr(args, "show_all_attributes", False))
             and trace_ids
         ):
-            print("Sample trace IDs:")
-            for tid in trace_ids[:5]:
+            max_show = 10
+            to_show = trace_ids if len(trace_ids) <= max_show else trace_ids[:max_show]
+            label = "Trace IDs:" if len(trace_ids) <= max_show else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            print(label)
+            for tid in to_show:
                 print(f"   {tid}")
+            if scenario.repeat_count and len(trace_ids) != scenario.repeat_count:
+                per_request = len(trace_ids) / float(scenario.repeat_count)
+                print(
+                    f"   Note: Each logical request currently emits separate traces for "
+                    f"control-plane request validation, data-plane orchestration, and "
+                    f"response validation (≈{per_request:.1f} traces/request)."
+                )
 
     except KeyboardInterrupt:
         print("\nGeneration interrupted")
@@ -415,16 +494,19 @@ def cmd_list(args: argparse.Namespace):
             else f"     {scenario.description}"
         )
         print(f"     Tags: {tags}")
-        print(f"     Repeat: {scenario.repeat_count}, Interval: {scenario.interval_ms}ms")
+        interval_str = f"{scenario.interval_ms}ms"
+        if scenario.interval_deviation_ms > 0:
+            interval_str += f" ±{scenario.interval_deviation_ms}ms"
+        print(f"     Repeat: {scenario.repeat_count}, Interval: {interval_str}")
         print()
 
 
 def cmd_validate(args: argparse.Namespace):
     """Validate schema and show information."""
     try:
-        parser = SchemaParser(args.schema_path)
+        parser = SchemaParser(args.semconv)
         schema = parser.parse()
-        validator = OtelValidator(args.schema_path)
+        validator = OtelValidator(args.semconv)
 
         print("Schema loaded successfully")
         print(f"   Version: {schema.schema_version}")
@@ -468,7 +550,7 @@ def cmd_validate(args: argparse.Namespace):
 
 
 _DEFAULT_ENDPOINT = "http://localhost:4318"
-_DEFAULT_SERVICE_NAME = "telemetry-simulator"
+_DEFAULT_SERVICE_NAME = "otelsim"
 
 
 def main():
@@ -479,6 +561,19 @@ def main():
     if args.command is None:
         parser.print_help()
         sys.exit(0)
+
+    # Optional vendor override: CLI flag wins over env. This controls the
+    # attribute prefix used by config.attr/span_name (e.g. vendor.*).
+    vendor = getattr(args, "vendor", None)
+    if vendor:
+        v = vendor.strip().lower()
+        if v:
+            os.environ["TELEMETRY_SIMULATOR_ATTR_PREFIX"] = v
+            # Update module-level config so existing imports see the new prefix.
+            sim_config.ATTR_PREFIX = v
+            # VENDOR_NAME: use explicit env override when set; otherwise capitalize prefix.
+            custom_name = os.environ.get("TELEMETRY_SIMULATOR_VENDOR_NAME", "").strip()
+            sim_config.VENDOR_NAME = custom_name or v.capitalize()
 
     # Subparsers that accept global options can leave endpoint/service_name unset when
     # options are given only after the subcommand; normalize so commands always get defaults.

@@ -1,0 +1,23 @@
+# Control-plane blocks due to invalid payload. Uses config template by name.
+# Minimal context: tenant + agent only (no workflow, simulation_goal, or error_pattern).
+
+name: request_blocked_invalid_payload
+description: >
+  Request blocked by payload validation (invalid_payload). No data-plane or response validation.
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  template: blocked_invalid_payload
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001

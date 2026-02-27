@@ -1,0 +1,2464 @@
+# Gentoro LLM Observability Semantic Conventions
+# Schema Version: 1.0.0
+#
+# This file defines the canonical attribute schema for LLM agent observability.
+# All telemetry producers MUST follow these conventions to ensure compatibility
+# with downstream analytics, dashboards, and ML pipelines.
+#
+# OTEL Alignment:
+#   - Follows OpenTelemetry Semantic Conventions for GenAI (development status)
+#     https://opentelemetry.io/docs/specs/semconv/gen-ai/
+#   - Resource: service.*, deployment.environment.name (OTEL)
+#   - GenAI: gen_ai.* namespace for inference and execute_tool per OTEL; gen_ai.conversation.id when available
+#   - Error recording: See error_recording (SemConv-aligned). status.code=ERROR → set error.type; record exception event (exception.type, exception.message, exception.stacktrace).
+#   - Span names: gentoro.llm.call for LLM; gentoro.mcp.tool.execute / gentoro.mcp.tool.execute.attempt for tools
+#   - Custom: gentoro.* for platform-specific spans and attributes
+#   - MCP: Follows OpenTelemetry Semantic Conventions for MCP (mcp.* namespace)
+#     https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/mcp.md
+#
+# Attribute Classification:
+#   - REQUIRED: Must be present
+#   - RECOMMENDED: Should be present when applicable
+#   - METADATA: Auxiliary, not indexed for fast queries
+#
+# Attribute Categories:
+#   - FIRST_CLASS: Analytics-critical, used for dashboards/alerts/aggregations
+#   - METADATA: Auxiliary context for debugging, not indexed for fast queries
+
+schema_version: "1.0.0"
+
+# =============================================================================
+# LINEAGE: CONTROL-PLANE <-> DATA-PLANE (cross-deployment join)
+# The control-plane lives outside the data-plane (separate deployment). Each
+# emits its own trace_id for a given logical request; correlation is via
+# gentoro.session.id and stored/correlated trace IDs.
+# =============================================================================
+lineage:
+  control_plane:
+    description: "CP and DP run in different deployments/processes and emit separate traces for a single logical request."
+    control_plane_trace_id:
+      rule: "Control-plane incoming and outgoing validation spans (gentoro.request.validation, gentoro.response.validation) use their own trace_id per request."
+      note: "CP trace_ids (cp_incoming_trace_id, cp_outgoing_trace_id) are stored alongside dp_trace_id for lineage and audit."
+    data_plane_trace_id:
+      rule: "Data-plane spans (gentoro.a2a.orchestrate and children) use a separate trace_id per request (dp_trace_id)."
+    join_by:
+      a2a: "gentoro.session.id = contextId from request when present (else CP-generated). Retrieve from request; replicate and share downstream."
+      effect: "Session/txn views (txn_session_state_agg_v1) aggregate correlated_trace_ids and session_id; when multiple trace_ids exist due to propagation gaps, they are joined by gentoro.session.id and stored trace IDs."
+    session_aggregation:
+      note: "txn_session_state_agg_v1 stores cp_incoming_trace_id, cp_outgoing_trace_id, dp_trace_id and correlated_trace_ids for session-level lineage."
+    incoming_outgoing_semantics:
+      status: "Control-plane uses gentoro.request.outcome and gentoro.response.outcome (allowed, blocked, error); status.code UNSET for allowed/blocked, ERROR for runtime failure."
+
+# =============================================================================
+# EMISSION POLICY: ONE SOURCE OF TRUTH
+# Metrics and logs are emitted directly by applications (data-plane, control-plane).
+# The collector does NOT derive metrics or logs from traces/spans.
+# =============================================================================
+emission_policy:
+  metrics:
+    source: "Applications (data-plane, control-plane) emit metrics via OTLP Meter."
+    not_derived: "The collector does not use spanmetrics or other span-to-metrics; metrics come only from application emission."
+  logs:
+    source: "Applications emit log records via OTLP Logger (e.g. OTLP log bridge), with trace_id/span_id for correlation."
+    not_derived: "Logs are not generated or derived from spans; they are emitted at decision points and events."
+  correlation:
+    note: "Use the same attribute names and values on spans, metrics, and logs (e.g. gentoro.tenant.id, gentoro.session.id) so dashboards and session views can correlate; the source of truth for each signal is the application."
+
+# =============================================================================
+# ERROR RECORDING (SemConv-aligned, Normative)
+# When a span is in error, set error.type and record exception event per OpenTelemetry.
+# =============================================================================
+error_recording:
+  when_span_in_error: "When a span is in error (status.code=ERROR), instrumentation SHOULD set error.type to a low-cardinality identifier (provider error code, canonical exception name, or stable internal error id). (OpenTelemetry)"
+  exception_event: "If an exception is available, record it using an exception event with exception.type, exception.message, exception.stacktrace as available. (OpenTelemetry)"
+  reference: "https://opentelemetry.io/docs/specs/semconv/general/recording-errors/"
+
+# =============================================================================
+# SESSION (first-class, shared across request)
+# Session identifies one logical interaction; all spans/traces in the same
+# request share the same session. We use the defined standard (A2A): contextId
+# for session, taskId for request. Retrieve from the request; no need for
+# Orchestrator Agents to add additional attributes. Replicate and share downstream.
+# =============================================================================
+session:
+  concept: "Session is a first-class identifier for one logical interaction (e.g. one user turn or one agent run). All telemetry for that request shares the same session id so that events from caller agent, CP, DP, MCP servers and dependencies can be combined."
+  a2a_alignment:
+    context_id: "gentoro.session.id = A2A contextId when present in the request; otherwise CP-generated. We retrieve contextId from the request; Orchestrator Agents need not add extra attributes."
+  source:
+    from_request: "CP reads A2A contextId from the incoming request. If present, set gentoro.session.id = contextId; otherwise the control-plane entry point MUST generate one (e.g. UUID or prefixed id) and set it in Baggage (and optionally response header)."
+  first_class_resource: "gentoro.session.id is a first-class RESOURCE attribute. Set it from the request (contextId) or generated value at the start of each request so that every span and log from that process for that request carries the same session id."
+  propagation: "Replicate and share the same session id downstream: OpenTelemetry Baggage and, when forwarding, A2A context so DP, MCP servers and dependencies receive the same value. All OTel-instrumented services SHOULD add gentoro.session.id to their resource/span attributes."
+  combining_events: "Events from external sources (caller agent, MCP servers, their dependencies) are combined by session id: each producer sets gentoro.session.id on resource/span from the propagated Baggage (or from their own context if they are the session originator). Session views (e.g. txn_session_state_agg_v1) group by gentoro.session.id."
+
+# =============================================================================
+# RESOURCE ATTRIBUTES
+# Set at process/service startup, apply to all telemetry from that instance.
+# Per-request attributes (e.g. gentoro.session.id) are set from Baggage/context.
+# =============================================================================
+resource_attributes:
+  # Service identification (OTEL standard)
+  service.name:
+    type: string
+    required: true
+    category: first_class
+    description: "Logical name of the service (e.g., 'orchestrator-agent', 'claims-mcp')"
+    examples: ["orchestrator-agent", "risk-agent", "claims-mcp-server"]
+
+  service.version:
+    type: string
+    required: true
+    category: first_class
+    description: "Semantic version of the service"
+    examples: ["1.2.3", "2.0.0-beta.1"]
+
+  service.namespace:
+    type: string
+    required: false
+    category: metadata
+    description: "Namespace for service grouping"
+    examples: ["gentoro", "partner"]
+
+  service.instance.id:
+    type: string
+    required: false
+    category: metadata
+    description: "Unique instance identifier (pod name, container ID)"
+    examples: ["orchestrator-agent-7d8f9-abc12"]
+
+  # Deployment context (OTEL)
+  deployment.environment.name:
+    type: string
+    required: true
+    category: first_class
+    description: "Deployment environment name (OTEL)"
+    allowed_values: ["development", "staging", "production"]
+    examples: ["development", "staging", "production"]
+
+  # Tenant context (injected by collector)
+  gentoro.tenant.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Tenant/workspace identifier (OTEL convention). Injected by data-plane collector."
+    note: "Set via TENANT_UUID environment variable in otelcol"
+    examples: ["tenant-42a7c9e1", "dev-tenant-1"]
+
+  # Platform module (e.g. data-plane, control-plane). Internal: set by the platform; not tenant-configurable.
+  gentoro.module:
+    type: string
+    required: false
+    category: metadata
+    description: "Gentoro platform module emitting the telemetry (e.g. data-plane, control-plane). For debug and internal routing only."
+    examples: ["data-plane", "control-plane"]
+    note: "Internal/platform-defined; in production module names are set by the platform and are not open for tenant manipulation."
+
+  # Data plane component (observability; which subsystem emitted the telemetry)
+  # Internal: values are set by the platform; not open for tenant configuration.
+  gentoro.component:
+    type: string
+    required: false
+    category: first_class
+    description: "Data plane component emitting the telemetry (resource attribute)."
+    allowed_values: ["orchestrator", "planning", "retrieval", "llm", "mcp_client", "tool_recommender"]
+    examples: ["orchestrator", "llm", "mcp_client"]
+    note: "Internal/platform-defined; in production component names are set by the platform and are not tenant-configurable."
+
+  # Session (first-class: A2A contextId from request or CP-generated, propagated via Baggage)
+  gentoro.session.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Session identifier for this request. A2A contextId when present in the request; otherwise generated at control-plane entry point. Retrieved from request (no extra client attributes required). All spans and logs share it; replicate and share downstream."
+    examples: ["sess_a1b2c3d4", "conv_5j66UpCpwteGg4YSxUnt7lPY"]
+    note: "A2A defines contextId for session. Enables combining events from caller agent, CP, DP, MCP servers and dependencies. Pipeline uses it for session/txn aggregation (txn_session_state_agg_v1)."
+
+# =============================================================================
+# CANONICAL SPAN NAMES
+# Each span type has a fixed name for reliable filtering and aggregation.
+#
+# OTEL Alignment:
+#   - gentoro.llm.call: Uses gen_ai.* per OTEL GenAI; see llm_call_model
+#   - gentoro.mcp.tool.execute / gentoro.mcp.tool.execute.attempt: Two-level MCP tool model (see mcp_tool_execution_model)
+# =============================================================================
+span_names:
+  # A2A orchestration (see a2a_orchestration_model)
+  gentoro.a2a.orchestrate:
+    description: "Root span for one A2A request; represents the orchestration lifecycle. Every A2A request MUST create a single root span."
+    span_kind: SERVER
+    is_root: true
+    note: "MUST have kind=SERVER. status.code MUST be UNSET on success/partial; MUST be ERROR on error. Blocked outcomes are handled in control-plane."
+
+  gentoro.response.compose:
+    description: "Response construction/serialization. Orchestrator MUST include this span."
+    span_kind: INTERNAL
+    parent: gentoro.a2a.orchestrate
+    note: "MUST have kind=INTERNAL, name=gentoro.response.compose. Required attributes: gentoro.span.class=response.compose, gentoro.response.format, gentoro.step.outcome. error.type SHOULD if failed. See response_compose_span_spec."
+
+  gentoro.planner:
+    description: "Planner stage: receives A2A intent, produces sub-tasks and extracted entities. MUST be created when planning is attempted."
+    span_kind: INTERNAL
+    parent: gentoro.a2a.orchestrate
+    note: "MUST have kind=INTERNAL. Parent MUST be gentoro.a2a.orchestrate (direct child of root)."
+
+  gentoro.task.execute:
+    description: "Tasks: execution of one planner-produced sub-task. Orchestrator MUST create one dedicated child span per sub-task. Parent is planner or root if no planner. See task_execution_span_spec."
+    span_kind: INTERNAL
+    parent: gentoro.planner | gentoro.a2a.orchestrate
+    note: "MUST have kind=INTERNAL, name=gentoro.task.execute. Parent MUST be gentoro.planner or gentoro.a2a.orchestrate (if no planner). Required: gentoro.span.class=task.execute, gentoro.task.id, gentoro.task.type, gentoro.step.outcome."
+
+  gentoro.context.augment:
+    description: "Context augmentation (RAG): retrieval and injection of external knowledge. Child of gentoro.task.execute when task.type=context_augmentation."
+    span_kind: INTERNAL
+    parent: gentoro.task.execute
+    note: "MUST have kind=INTERNAL. Parent MUST be gentoro.task.execute with gentoro.task.type=context_augmentation."
+
+  gentoro.llm.call:
+    description: "LLM interaction span: direct model invocation, multi-turn, tool usage. One span per LLM call; parent is task with type llm_call."
+    span_kind: CLIENT
+    parent: gentoro.task.execute
+    note: "MUST have kind=CLIENT. Parent MUST be gentoro.task.execute where gentoro.task.type=llm_call. Parent for gentoro.mcp.tool.execute when model requests tools."
+
+  gentoro.tools.recommend:
+    description: "Tool Recommender / MCP Advisor: selects which MCP tools to make available to the LLM. Does not execute tools."
+    span_kind: INTERNAL
+    parent: gentoro.task.execute
+    note: "MUST have kind=INTERNAL. Parent MUST be gentoro.task.execute where gentoro.task.type=tool_recommendation."
+
+  gentoro.mcp.tool.execute:
+    description: "Logical MCP tool invocation (covers all retries/attempts). Parent of attempt spans."
+    span_kind: CLIENT
+    parent: gentoro.llm.call | gentoro.task.execute
+    note: "MUST have kind=CLIENT. Parent MUST be active gentoro.llm.call (preferred) or surrounding gentoro.task.execute where gentoro.task.type=tool_execution."
+
+  gentoro.mcp.tool.execute.attempt:
+    description: "Individual execution attempt (one per retry). Child of gentoro.mcp.tool.execute."
+    span_kind: CLIENT
+    parent: gentoro.mcp.tool.execute
+    note: "MUST have kind=CLIENT. Parent MUST be the logical tool call span (gentoro.mcp.tool.execute). Each retry/attempt MUST be represented by one attempt span."
+
+  # Control-plane: incoming request validation (normative root name)
+  gentoro.request.validation:
+    description: "Root span for incoming request validation (payload, policy, augmentation). One per request; MUST create this root SERVER span."
+    span_kind: SERVER
+    is_root: true
+    note: "MUST have kind=SERVER, name=gentoro.request.validation. Required: gentoro.span.class=request.validation, gentoro.request.outcome, gentoro.tenant.id. status.code UNSET for allowed/blocked; ERROR for runtime failure."
+
+  gentoro.validation.payload:
+    description: "Payload validation step. Child of gentoro.request.validation; create when step executes."
+    span_kind: INTERNAL
+    parent: gentoro.request.validation
+    note: "SHOULD create when payload validation runs. gentoro.span.class=validation.payload; gentoro.step.outcome (pass|fail); gentoro.validation.result (valid|invalid). On failure: status.code=ERROR, emit gentoro.validation.error events."
+
+  gentoro.augmentation:
+    description: "Augmentation step. Child of gentoro.request.validation."
+    span_kind: INTERNAL
+    parent: gentoro.request.validation
+    note: "SHOULD create when augmentation runs. Required: gentoro.span.class=augmentation, gentoro.step.outcome. Use gentoro.augment.*.action (created|propagated|attached|missing) for low-cardinality."
+
+  gentoro.response.validation:
+    description: "Root span for outgoing response validation (policy/DLP). One SERVER span per outgoing response; separate trace from request validation."
+    span_kind: SERVER
+    is_root: true
+    note: "MUST create one root per outgoing response. Required: gentoro.span.class=response.validation, gentoro.response.outcome. Optional: gen_ai.conversation.id. status.code UNSET for allowed/blocked; ERROR for runtime failure."
+
+  gentoro.validation.policy:
+    description: "Policy evaluation step. Child of gentoro.request.validation or gentoro.response.validation."
+    span_kind: INTERNAL
+    parent: gentoro.request.validation | gentoro.response.validation
+    note: "SHOULD create when policy step runs. Required: gentoro.span.class=validation.policy, gentoro.policy.engine, gentoro.policy.decision, gentoro.step.outcome. Request: parent=gentoro.request.validation; Response: parent=gentoro.response.validation."
+
+  gentoro.llm.tool.response.bridge:
+    description: "Bridge span when tool results are fed back into the LLM (same task as the LLM call). Optional; supports debugging tool-augmented flows."
+    span_kind: INTERNAL
+    parent: gentoro.task.execute
+    note: "Parent = gentoro.task.execute (type=llm_call). Required: gentoro.span.class=llm.tool.response.bridge, gen_ai.tool.call.id, gentoro.step.outcome. Correlates tool execution with LLM turn."
+
+# =============================================================================
+# RESPONSE COMPOSE SPAN (Normative)
+# The orchestrator MUST include a span representing response construction/serialization.
+# =============================================================================
+response_compose_span_spec:
+  requirement: "The orchestrator MUST include a span representing response construction/serialization."
+
+  span_identity:
+    kind: { requirement: MUST, value: INTERNAL }
+    name: { requirement: MUST, value: "gentoro.response.compose" }
+
+  attributes:
+    gentoro.span.class:
+      type: string
+      requirement: MUST
+      definition: "Value: response.compose."
+    gentoro.response.format:
+      type: "string (enum)"
+      requirement: MUST
+      definition: "Output encoding produced. See Response format enum."
+    gentoro.step.outcome:
+      type: "string (enum)"
+      requirement: MUST
+      definition: "Step outcome. See Step outcome enum (compose)."
+    error.type:
+      type: string
+      requirement: "SHOULD (if failed)"
+      definition: "Low-cardinality error identifier per error_recording (e.g. serialization_error). (OpenTelemetry)"
+
+  enums:
+    gentoro.response.format:
+      description: "Output encoding produced (compose span)."
+      values:
+        a2a_json: "A2A response produced as a single JSON payload."
+        a2a_stream: "A2A response produced as a stream (chunked/events)."
+    gentoro.step.outcome.compose:
+      description: "Step outcome for response compose span."
+      values:
+        success: "Step completed successfully."
+        fail: "Step failed."
+
+# =============================================================================
+# TASK EXECUTION SPAN (Required)
+# This section defines how the orchestrator MUST instrument the execution of
+# planner-produced sub-tasks. It intentionally stays high-level, without
+# entering the internal semantics of RAG, LLM calls, tool recommendation, or
+# MCP tool execution.
+# Flow: Planner → Orchestrator → Task Execution → Response Compose
+# =============================================================================
+task_execution_span_spec:
+  requirement: "For each sub-task produced by the planner, the orchestrator MUST create a dedicated child span."
+
+  span_identity:
+    kind: { requirement: MUST, value: INTERNAL }
+    name: { requirement: MUST, value: "gentoro.task.execute" }
+
+  parent_child_relationship:
+    parent_must_be_one_of:
+      - "The planner span (gentoro.planner)"
+      - "The root orchestration span (gentoro.a2a.orchestrate) if no planner span exists."
+
+  attributes:
+    required:
+      gentoro.span.class:
+        type: string
+        requirement: MUST
+        definition: "Value: task.execute."
+      gentoro.task.id:
+        type: string
+        requirement: MUST
+        definition: "Stable identifier for this sub-task (from planner output)."
+      gentoro.task.type:
+        type: "string (enum)"
+        requirement: MUST
+        definition: "High-level category of task. See Task type enum (gentoro.task.type)."
+      gentoro.step.outcome:
+        type: "string (enum)"
+        requirement: MUST
+        definition: "Outcome of this task. See Step outcome enum (gentoro.step.outcome.task)."
+    optional_recommended:
+      gentoro.task.retry.count:
+        type: int
+        requirement: SHOULD
+        definition: "Number of retries attempted for this task."
+      gentoro.task.fallback.used:
+        type: boolean
+        requirement: SHOULD
+        definition: "true if degraded/fallback logic was applied."
+      error.type:
+        type: string
+        requirement: "SHOULD (if failed)"
+        definition: "Low-cardinality error classification."
+
+  enums:
+    gentoro.task.type:
+      description: "High-level category of task (coarse-grained for low-cardinality)."
+      values:
+        context_augmentation: "Task primarily augments context (e.g., retrieval/RAG)."
+        llm_call: "Task invokes an LLM/model."
+        tool_recommendation: "Task recommends/selects MCP tools for LLM usage."
+        tool_execution: "Task executes MCP tools / external capabilities."
+        other: "Any other orchestrator-managed task."
+    gentoro.step.outcome.task:
+      description: "Step outcome for task execute span."
+      values:
+        success: "Task completed successfully."
+        fail: "Task failed."
+        skipped: "Task intentionally skipped (conditional plan branch, early termination)."
+
+  failure_and_outcome_rules:
+    task_failure_rules_4_1: |
+      If a task fails:
+      - Task span MUST set gentoro.step.outcome="fail".
+      - Task span MUST set status.code="ERROR".
+      - Task span SHOULD set error.type (low-cardinality).
+      - Task span MUST emit an exception event when an exception exists, using:
+        exception.type; optionally exception.message; optionally exception.stacktrace.
+    root_outcome_interaction_4_2:
+      all_tasks_succeed: "All tasks succeed → Root outcome (gentoro.a2a.outcome)=success, Root status.code=UNSET."
+      partial: "≥1 task fails but valid response produced → Root outcome=partial, Root status.code=UNSET."
+      error: "Task failure prevents valid response → Root outcome=error, Root status.code=ERROR."
+
+  cardinality_and_telemetry_hygiene:
+    must_avoid: "Raw prompts; retrieved documents; full tool inputs/outputs; entity values."
+    should_prefer: "Stable IDs (gentoro.task.id); counts; enum values; boolean flags."
+    rationale: "Keeps traces queryable, cost-efficient, and privacy-safe."
+
+  examples:
+    successful_task_execution:
+      description: "Successful task execution (6.1)"
+      span:
+        spanId: "task-3"
+        parentSpanId: "planner"
+        kind: INTERNAL
+        name: "gentoro.task.execute"
+        status: { code: UNSET }
+        attributes:
+          gentoro.span.class: "task.execute"
+          gentoro.task.id: "task_3"
+          gentoro.task.type: "llm_call"
+          gentoro.step.outcome: "success"
+          gentoro.task.retry.count: 1
+    failed_task_with_retry_and_fallback:
+      description: "Failed task with retry + fallback (6.2)"
+      span:
+        spanId: "task-5"
+        parentSpanId: "planner"
+        kind: INTERNAL
+        name: "gentoro.task.execute"
+        status: { code: ERROR }
+        attributes:
+          gentoro.span.class: "task.execute"
+          gentoro.task.id: "task_5"
+          gentoro.task.type: "tool_execution"
+          gentoro.step.outcome: "fail"
+          gentoro.task.retry.count: 2
+          gentoro.task.fallback.used: true
+          error.type: "tool_unavailable"
+        events:
+          - name: "exception"
+            attributes:
+              exception.type: "ToolUnavailableError"
+              exception.message: "Requested MCP tool not reachable"
+
+# =============================================================================
+# DATA PLANE A2A OBSERVABILITY (Normative)
+# Standardizes OTel tracing for A2A request: orchestration, planning, RAG, LLM, tool
+# recommendation, MCP execution. Supports debugging, performance, cost/usage, auditability.
+# =============================================================================
+data_plane_a2a_observability:
+  purpose: "Data plane traces each A2A request as it is orchestrated, planned, augmented (RAG), fulfilled (LLM), enriched (tool recommendation), and executed (MCP tools)."
+
+  flow_guarantees:
+    one_response: "Each A2A request results in exactly one A2A response (success or error)."
+    one_trace: "A single A2A request SHOULD be represented as one trace in the Data plane."
+    trace_propagation: "If upstream trace context is propagated (e.g. W3C traceparent), the Data plane SHOULD continue that trace; otherwise it starts a new trace."
+    cp_dp_correlation: "Correlation across Control plane and Data plane is by gentoro.session.id and correlated trace IDs (e.g. gentoro.cp.incoming_trace_id, gentoro.cp.outgoing_trace_id, gentoro.dp.trace_id)."
+
+  design_principles:
+    otel_first: "Use status.code and error_recording (error.type + exception event) for runtime failures."
+    stable_names: "Span names describe operations (no outcomes embedded)."
+    prefer_semconv: "Use GenAI + MCP semantic conventions for model calls, retrieval, tool execution."
+    low_cardinality: "Keep custom attributes bounded."
+    high_detail_as_events: "Emit detailed step diagnostics as events (not high-cardinality attributes)."
+    sensitive_opt_in: "Prompts, outputs, tool args/results MUST NOT be recorded by default (GenAI semconv warns about sensitivity)."
+
+  diagnostic_events:
+    gentoro.planning.result:
+      description: "Planning output (recommended). Keep bounded/truncated."
+      attributes: ["gentoro.planning.tasks (JSON string or structured; bounded)", "gentoro.planning.confidence (float bucketed or enum)"]
+    gentoro.retrieval.summary:
+      description: "Retrieval summary (recommended). Prefer summary data; never dump full documents."
+      attributes: ["gentoro.retrieval.hit_count (int)", "gentoro.retrieval.top_k (int)", "gentoro.retrieval.latency_ms (int)"]
+    gentoro.tools.recommended:
+      description: "Tool recommendation summary (recommended). Truncate tool list."
+      attributes: ["gentoro.tools.list (array of tool names; truncate)", "gentoro.tools.count (int)"]
+    gentoro.agent.tool_selection:
+      description: "LLM tool selection plan (optional, bounded). Captures the input and structured plan used to choose tools; avoid dumping full prompts when redaction is enabled."
+      attributes:
+        - "gentoro.agent.tool_selection.input.raw (string; may be redacted/truncated)"
+        - "gentoro.agent.tool_selection.tool.plan (JSON string; bounded tool_plan structure)"
+
+  enums:
+    gentoro.a2a.outcome: ["success", "partial", "error"]
+    gentoro.step.outcome: ["success", "fail", "skip"]
+    gentoro.component: ["orchestrator", "planning", "retrieval", "llm", "mcp_client", "tool_recommender"]
+    gentoro.rag.approach: ["vector", "keyword", "hybrid", "rerank"]
+    gentoro.tools.recommended.source: ["static", "learned", "hybrid"]
+
+  typical_span_tree:
+    description: "Canonical hierarchy (span names). Doc may use gentoro.planning / gentoro.tool_recommendation; conventions use gentoro.planner, gentoro.tools.recommend. One gentoro.task.execute span per planner-produced sub-task (Tasks)."
+    root: "gentoro.a2a.orchestrate (SERVER)"
+    children:
+      - "gentoro.planner (INTERNAL)"
+      - "gentoro.task.execute (INTERNAL) — one per sub-task (Tasks); parent planner or root"
+      - "gentoro.task.execute (type=context_augmentation) → gentoro.context.augment"
+      - "gentoro.task.execute (type=llm_call) → gentoro.llm.call (CLIENT); optional gentoro.llm.tool.response.bridge"
+      - "gentoro.task.execute (type=tool_recommendation) → gentoro.tools.recommend (INTERNAL)"
+      - "gentoro.task.execute (type=tool_execution) → gentoro.mcp.tool.execute (CLIENT) / gentoro.mcp.tool.execute.attempt"
+      - "gentoro.response.compose (INTERNAL)"
+
+# =============================================================================
+# CONTROL-PLANE VALIDATION MODEL (Normative — gateway-ext)
+# Incoming request validation (payload + policy + augmentation); outgoing
+# response validation (policy/DLP). Blocked ≠ runtime error; validation details as events.
+# =============================================================================
+control_plane_validation_model:
+  purpose: "Standardizes OTel tracing from gateway-ext for request/response validation, debugging, auditing, and policy compliance."
+
+  flow_guarantees:
+    one_response_max: "Each incoming request results in at most one outgoing response (accepted → one response validation trace; rejected/blocked → no response validation trace)."
+    separate_traces: "Incoming request validation (gentoro.request.validation), Data plane orchestration (gentoro.a2a.orchestrate), and outgoing response validation (gentoro.response.validation) are represented as separate traces for a single logical request."
+
+  design_principles:
+    otel_first: "Use status.code and error_recording (error.type + exception event) for runtime failures."
+    blocked_not_error: "Blocks are intentional outcomes (status UNSET); runtime faults are errors (status ERROR)."
+    stable_names: "Span names describe operations; no outcomes embedded in names."
+    enums_fixed: "All enum fields use the dictionary in this model."
+    validation_as_events: "Individual validation issues are emitted as events, not attributes."
+
+  status_code_guidance:
+    allowed: "status.code = UNSET"
+    blocked: "status.code = UNSET (intentional block, not runtime error)"
+    runtime_failure: "status.code = ERROR"
+
+  error_recording: "Runtime failures: apply top-level error_recording (status.code=ERROR, error.type, exception event)."
+
+  span_classes:
+    description: "gentoro.span.class values for control-plane spans (normative)."
+    request_validation: "request.validation — incoming request validation root"
+    validation_payload: "validation.payload — payload validation step"
+    validation_policy: "validation.policy — policy validation step"
+    augmentation: "augmentation — augmentation step"
+    response_validation: "response.validation — outgoing response validation root"
+
+  incoming_request_validation:
+    root_span:
+      name: "gentoro.request.validation"
+      kind: SERVER
+      required_attributes:
+        - gentoro.span.class = "request.validation"
+        - gentoro.request.outcome
+        - gentoro.tenant.id
+      optional_attributes:
+        - gen_ai.conversation.id
+        - gentoro.enduser.pseudo.id
+    child_spans:
+      payload:
+        name: "gentoro.validation.payload"
+        kind: INTERNAL
+        parent: gentoro.request.validation
+        required: [gentoro.span.class, gentoro.step.outcome, gentoro.validation.result]
+      policy:
+        name: "gentoro.validation.policy"
+        kind: INTERNAL
+        parent: gentoro.request.validation
+        required: [gentoro.span.class, gentoro.policy.engine, gentoro.policy.decision, gentoro.step.outcome]
+        recommended: [gentoro.policy.rule.id, gentoro.policy.reason, gentoro.policy.severity]
+      augmentation:
+        name: "gentoro.augmentation"
+        kind: INTERNAL
+        parent: gentoro.request.validation
+        required: [gentoro.span.class, gentoro.step.outcome]
+        recommended: [gentoro.augment.conversation_id.action, gentoro.augment.enduser_id.action, gentoro.augment.target_agent_id.action]
+    request_outcome_rules:
+      fully_allowed: "gentoro.request.outcome = allowed"
+      allowed_but_flagged: "gentoro.request.outcome = allowed; gentoro.request.audit.flag = true"
+      blocked_payload: "gentoro.request.outcome = blocked; gentoro.block.reason = invalid_payload"
+      blocked_rate_limited: "gentoro.request.outcome = blocked; gentoro.block.reason = rate_limited"
+      blocked_policy: "gentoro.request.outcome = blocked; gentoro.block.reason = request_policy"
+      blocked_augmentation: "gentoro.request.outcome = blocked; gentoro.block.reason = invalid_context"
+      runtime_failure: "gentoro.request.outcome = error; status.code = ERROR"
+    payload_failure_rules:
+      payload_span_must: "gentoro.validation.result = invalid; gentoro.step.outcome = fail; status.code = ERROR"
+      events: "Emit one or more gentoro.validation.error event(s) with gentoro.validation.error.path, gentoro.validation.error.rule, gentoro.validation.error.code"
+    policy_flagging_rules:
+      when_allow_with_audit: "Policy span MUST gentoro.policy.decision = allow_with_audit, gentoro.step.outcome = pass; Root MUST gentoro.request.audit.flag = true; Root SHOULD gentoro.request.audit.source = policy"
+
+    validation_error_event:
+      name: "gentoro.validation.error"
+      when: "Payload validation fails; emit one event per validation issue (multiple events per span are allowed)"
+      required_attributes: [gentoro.validation.error.path, gentoro.validation.error.rule, gentoro.validation.error.code]
+
+  outgoing_response_validation:
+    root_span:
+      name: "gentoro.response.validation"
+      kind: SERVER
+      required_attributes: [gentoro.span.class = "response.validation", gentoro.response.outcome]
+      optional_attributes: [gen_ai.conversation.id]
+    child_spans:
+      policy:
+        name: "gentoro.validation.policy"
+        kind: INTERNAL
+        parent: gentoro.response.validation
+        required: [gentoro.span.class, gentoro.policy.engine, gentoro.policy.decision, gentoro.step.outcome]
+        recommended: [gentoro.policy.rule.id, gentoro.policy.reason, gentoro.policy.severity]
+    response_outcome_rules:
+      fully_allowed: "gentoro.response.outcome = allowed"
+      allowed_but_flagged: "gentoro.response.outcome = allowed; gentoro.response.audit.flag = true"
+      blocked_by_policy: "gentoro.response.outcome = blocked; gentoro.block.reason = response_policy"
+      runtime_failure: "gentoro.response.outcome = error; status.code = ERROR"
+    policy_flagging_rules:
+      when_allow_with_audit: "Policy span MUST gentoro.policy.decision = allow_with_audit, gentoro.step.outcome = pass; Root MUST gentoro.response.audit.flag = true; Root SHOULD gentoro.response.audit.source = policy"
+    policy_runtime_exception: "Policy span MUST set status.code=ERROR and apply error_recording; root may be outcome = error or outcome = blocked with gentoro.block.reason = response_policy, gentoro.policy.fail_mode = closed"
+
+  enums:
+    gentoro.request.outcome:
+      description: "Overall outcome of incoming request validation"
+      values:
+        allowed: "Request accepted"
+        blocked: "Request rejected by validation/policy"
+        error: "Runtime/system failure"
+
+    gentoro.response.outcome:
+      description: "Overall outcome of outgoing response validation"
+      values:
+        allowed: "Response permitted"
+        blocked: "Response blocked by policy/DLP"
+        error: "Runtime/system failure"
+
+    gentoro.step.outcome.cp:
+      description: "Outcome of a single validation/processing step (control-plane)"
+      values:
+        pass: "Step completed normally"
+        fail: "Step encountered runtime/processing failure"
+        block: "Step intentionally blocked (policy)"
+        skip: "Step not executed"
+
+    gentoro.validation.result:
+      description: "Validation result"
+      values:
+        valid: "Validation passed"
+        invalid: "Validation failed"
+
+    gentoro.policy.decision:
+      description: "Policy engine decision (enforcement vs advisory)"
+      values:
+        allow: "Request permitted"
+        block: "Request denied"
+        allow_with_audit: "Request permitted but flagged for audit"
+
+    gentoro.block.reason:
+      description: "Stable, low-cardinality reason for request or response blocked"
+      values:
+        invalid_payload: "Payload validation failed"
+        request_policy: "Policy denied request (or fail-closed on policy error)"
+        response_policy: "Policy denied response (outgoing response validation)"
+        invalid_context: "Augmentation/context invalid"
+        not_found: "Resource not found"
+        rate_limited: "Rate limited"
+        unknown: "Unclassified"
+
+    gentoro.policy.severity:
+      description: "Risk/importance indicator for policy (prioritization & analytics)"
+      values:
+        low: "Low severity"
+        medium: "Medium severity"
+        high: "High severity"
+
+    gentoro.augment.action:
+      description: "Augmentation action for a context field (low-cardinality)"
+      values:
+        created: "Generated by system"
+        propagated: "Passed through unchanged"
+        attached: "Successfully bound"
+        missing: "Not available"
+
+    gentoro.error.category:
+      description: "Error category for classification"
+      values:
+        validation: "Validation failure"
+        policy: "Policy decision / block"
+        runtime: "Runtime/system failure"
+
+    gentoro.span.class.cp:
+      description: "Span class for control-plane validation spans"
+      values:
+        request.validation: "Incoming request validation"
+        validation.payload: "Payload validation"
+        validation.policy: "Policy validation"
+        augmentation: "Augmentation"
+        response.validation: "Outgoing response validation"
+
+# =============================================================================
+# STATUS SCHEMA (all spans)
+# Every status field uses the same shape: result (boolean), code (string), metadata (object).
+# Use .code for dimensions/grouping; result for pass/fail; metadata for optional details.
+# =============================================================================
+status_schema:
+  shape:
+    result: "boolean; true = success/passed, false = failed/blocked"
+    code: "string; domain-specific enum (e.g. SUCCESS, OK, ERROR)"
+    metadata: "optional object (JSON); e.g. {\"reason\":\"...\"}"
+  applies_to:
+    - "gentoro.a2a.outcome (gentoro.a2a.orchestrate)"
+    - "gentoro.step.outcome / gentoro.mcp.attempt.outcome (gentoro.mcp.tool.execute, gentoro.mcp.tool.execute.attempt)"
+    - "gentoro.step.outcome (gentoro.response.compose)"
+    - "gentoro.step.outcome (gentoro.planner)"
+    - "gentoro.step.outcome (gentoro.task.execute)"
+    - "gentoro.step.outcome (gentoro.context.augment)"
+    - "gentoro.step.outcome (gentoro.llm.call)"
+    - "gentoro.step.outcome (gentoro.tools.recommend)"
+    - "gentoro.request.outcome / gentoro.response.outcome / gentoro.step.outcome (control-plane validation; gentoro.request.validation and child spans)"
+
+# =============================================================================
+# A2A ORCHESTRATION MODEL (Normative)
+# Every A2A request MUST create root (gentoro.a2a.orchestrate), planner when
+# planning is attempted (gentoro.planner), one task span per sub-task (gentoro.task.execute),
+# and compose (gentoro.response.compose). OTEL-aligned.
+# =============================================================================
+a2a_orchestration_model:
+  overview: "Root = orchestration lifecycle; planner = intent → sub-tasks/entities; task.execute = one span per sub-task; compose = response construction. status.code and outcome enums are normative."
+
+  root_span:
+    name: "gentoro.a2a.orchestrate"
+    kind: SERVER
+    status: "UNSET on success/partial; ERROR on error (OpenTelemetry: UNSET = completed without error)"
+    required_attributes:
+      gentoro.span.class: { value: "a2a.orchestrate", type: string }
+      gentoro.a2a.agent.target.id: { type: string }
+      gentoro.a2a.outcome: { type: enum, ref: "gentoro.a2a.outcome" }
+      gentoro.enduser.pseudo.id: { type: string }
+    recommended_attributes:
+      gen_ai.conversation.id: { type: string }
+    normative_rule: "Root span status.code MUST be UNSET when gentoro.a2a.outcome is success or partial; MUST be ERROR when gentoro.a2a.outcome is error."
+
+  planner_span:
+    name: "gentoro.planner"
+    kind: INTERNAL
+    parent_required: "gentoro.a2a.orchestrate (direct child)"
+    required_attributes:
+      gentoro.span.class: { value: "planner", type: string }
+      gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome.planner" }
+      gentoro.planner.output.task.count: { type: int }
+      gentoro.planner.output.entity.count: { type: int }
+    recommended_attributes:
+      gentoro.planner.strategy: { type: enum, ref: "gentoro.planner.strategy" }
+      gentoro.planner.output.format: { type: enum, ref: "gentoro.planner.output.format" }
+      gentoro.planner.fallback.used: { type: boolean }
+      error.type: { type: string, when: "if failed" }
+    cardinality: "Do not store raw intent text, full task descriptions, or extracted entity values. Use counts, stable IDs, and enums. Debug details: event with truncated/sanitized payload, gated by debug/opt-in."
+
+  task_execute_span:
+    name: "gentoro.task.execute"
+    kind: INTERNAL
+    parent_required: "gentoro.planner or gentoro.a2a.orchestrate (if no planner)"
+    required_attributes:
+      gentoro.span.class: { value: "task.execute", type: string }
+      gentoro.task.id: { type: string }
+      gentoro.task.type: { type: enum, ref: "gentoro.task.type" }
+      gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome.task" }
+    recommended_attributes:
+      gentoro.task.retry.count: { type: int }
+      gentoro.task.fallback.used: { type: boolean }
+      error.type: { type: string, when: "if failed" }
+    cardinality: "MUST avoid: raw prompts, retrieved documents, full tool inputs/outputs, entity values. SHOULD prefer: stable IDs (gentoro.task.id), counts, enums, boolean flags."
+
+  compose_span:
+    name: "gentoro.response.compose"
+    kind: INTERNAL
+    parent_required: "gentoro.a2a.orchestrate"
+    required_attributes:
+      gentoro.span.class: { value: "response.compose", type: string }
+      gentoro.response.format: { type: enum, ref: "gentoro.response.format" }
+      gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome.compose" }
+    recommended_attributes:
+      error.type: { type: string, when: "if failed (low-cardinality)" }
+
+  enums:
+    gentoro.a2a.outcome:
+      description: "Overall outcome of orchestration (root span)"
+      values:
+        success: "Fully successful response produced. Root status.code = UNSET."
+        partial: "Response produced, but one or more sub-tasks/steps failed. Root status.code = UNSET."
+        error: "Runtime fault: no valid response produced. Root status.code = ERROR."
+      note: "Blocked outcomes are handled in control-plane; data-plane uses partial or error for runtime/fulfillment failures."
+
+    gentoro.response.format:
+      description: "Output encoding produced (compose span)"
+      values:
+        a2a_json: "A2A response produced as a single JSON payload."
+        a2a_stream: "A2A response produced as a stream (chunked/events)."
+
+    gentoro.step.outcome.compose:
+      description: "Step outcome for response compose span"
+      values:
+        success: "Step completed successfully."
+        fail: "Step failed."
+
+    gentoro.step.outcome.planner:
+      description: "Step outcome for planner span"
+      values:
+        success: "Planner produced a valid plan (sub-tasks/entities) usable by the orchestrator."
+        fail: "Planner did not produce a usable plan."
+
+    gentoro.planner.strategy:
+      description: "Planning approach used"
+      values:
+        rules: "Deterministic decomposition and extraction (no model calls)."
+        model: "LLM/model-assisted decomposition and extraction."
+        hybrid: "Mix of deterministic + model-assisted techniques."
+
+    gentoro.planner.output.format:
+      description: "Shape of the produced plan"
+      values:
+        task_list: "Flat ordered list of tasks."
+        task_graph: "Dependency graph / DAG of tasks."
+        task_tree: "Hierarchical decomposition (parent/child tasks)."
+
+    gentoro.task.type:
+      description: "High-level category of task (coarse-grained for low-cardinality)"
+      values:
+        context_augmentation: "Task primarily augments context (e.g. retrieval/RAG)."
+        llm_call: "Task invokes an LLM/model."
+        tool_recommendation: "Task recommends/selects MCP tools for LLM usage."
+        tool_execution: "Task executes MCP tools / external capabilities."
+        other: "Any other orchestrator-managed task."
+
+    gentoro.step.outcome.task:
+      description: "Step outcome for task execute span"
+      values:
+        success: "Task completed successfully."
+        fail: "Task failed."
+        skipped: "Task intentionally skipped (conditional plan branch, early termination)."
+
+    gentoro.component:
+      description: "Data plane component (resource attribute)"
+      values:
+        orchestrator: "A2A orchestrator"
+        planning: "Planner"
+        retrieval: "RAG/retrieval"
+        llm: "LLM integration"
+        mcp_client: "MCP tool client"
+        tool_recommender: "Tool recommender / MCP advisor"
+
+    gentoro.rag.approach:
+      description: "RAG/retrieval approach (low-cardinality)"
+      values:
+        vector: "Vector similarity"
+        keyword: "Keyword/lexical"
+        hybrid: "Vector + keyword"
+        rerank: "Reranking applied"
+
+    gentoro.tools.recommended.source:
+      description: "Source of tool recommendation"
+      values:
+        static: "Static/default tool set"
+        learned: "Learned/ML-based"
+        hybrid: "Combined"
+
+  task_failure_rules:
+    task_failure: |
+      If a task fails: Task span MUST set gentoro.step.outcome=fail, status.code=ERROR.
+      Task span SHOULD set error.type (low-cardinality). Task span MUST emit an exception event
+      when an exception exists (exception.type; optionally exception.message; optionally exception.stacktrace).
+    root_outcome_interaction:
+      all_tasks_succeed: "All tasks succeed → root gentoro.a2a.outcome = success, root status.code = UNSET."
+      some_fail_valid_response: "≥1 task fails but valid response produced → root gentoro.a2a.outcome = partial, root status.code = UNSET."
+      task_failure_no_response: "Task failure prevents valid response → root gentoro.a2a.outcome = error, root status.code = ERROR."
+
+  planner_failure_rules:
+    planner_failure: |
+      If planner fails: Planner span MUST set status.code=ERROR, gentoro.step.outcome=fail, and apply error_recording.
+    root_outcome_interaction:
+      planner_success: "Planner success + tasks executed normally → root gentoro.a2a.outcome = success or partial, root status.code = UNSET."
+      planner_fail_fallback: "Planner fail but orchestrator produces response via fallback → root gentoro.a2a.outcome = partial, root status.code = UNSET."
+      planner_fail_no_response: "Planner fail and no valid response → root gentoro.a2a.outcome = error, root status.code = ERROR."
+
+  error_recording: "On any span failure: apply top-level error_recording (status.code=ERROR, error.type, exception event)."
+
+  failure_rules:
+    compose_failure: "If response composition fails: Compose span MUST set status.code=ERROR and apply error_recording. Set gentoro.step.outcome=fail."
+    root_on_compose_failure: "Root span MUST set gentoro.a2a.outcome='error' and status.code=ERROR."
+
+# =============================================================================
+# CONTEXT AUGMENTATION (RAG) — gentoro.context.augment (Normative)
+# Extends Planner → Task Execution: context_augmentation tasks MUST have a child
+# span gentoro.context.augment. Low-cardinality; no raw queries or document content.
+# =============================================================================
+context_augmentation_model:
+  overview: "Context augmentation (RAG) = child of gentoro.task.execute when gentoro.task.type=context_augmentation. Captures retrieval counts, source, strategy; no raw queries or contents."
+
+  span:
+    name: "gentoro.context.augment"
+    kind: INTERNAL
+    parent_required: "gentoro.task.execute where gentoro.task.type=context_augmentation"
+    required_attributes:
+      gentoro.span.class: { value: "context.augment", type: string }
+      gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome.context_augment" }
+      gentoro.rag.query.count: { type: int }
+      gentoro.rag.result.count: { type: int }
+    recommended_attributes:
+      gentoro.rag.latency.ms: { type: int }
+      gentoro.rag.source: { type: enum, ref: "gentoro.rag.source" }
+      gentoro.rag.strategy: { type: enum, ref: "gentoro.rag.strategy" }
+      gentoro.rag.rerank.used: { type: boolean }
+      gentoro.rag.cache.hit: { type: boolean }
+      error.type: { type: string, when: "if failed" }
+    cardinality: "MUST avoid: raw queries, retrieved document contents, embeddings, entity values. SHOULD prefer: counts, enums, cache/rerank flags, latency."
+
+  enums:
+    gentoro.step.outcome.context_augment:
+      description: "Outcome of context augmentation step"
+      values:
+        success: "Context successfully retrieved and attached."
+        fail: "Retrieval failed or unusable."
+        skipped: "Retrieval intentionally skipped."
+
+    gentoro.rag.source:
+      description: "Knowledge source used"
+      values:
+        vector_db: "Vector similarity store."
+        search_index: "Keyword / hybrid search engine."
+        knowledge_graph: "Graph-based retrieval."
+        cache: "Cached retrieval results."
+        other: "Other retrieval backend."
+
+    gentoro.rag.strategy:
+      description: "Retrieval strategy"
+      values:
+        semantic: "Embedding / vector similarity."
+        keyword: "Lexical / BM25-like."
+        hybrid: "Semantic + keyword."
+        direct_lookup: "Deterministic ID/key retrieval."
+
+  failure_rules:
+    on_failure: "Span MUST set status.code=ERROR, gentoro.step.outcome=fail, and apply error_recording. Example error.type: retrieval_timeout, index_unavailable, no_results."
+
+    outcome_interaction:
+    success: "Retrieval succeeds → task outcome unchanged."
+    fail_continue: "Retrieval fails but orchestration continues → root may become partial."
+    fail_no_response: "Retrieval failure prevents valid response → root outcome error."
+
+# =============================================================================
+# LLM CALL — gentoro.llm.call (Normative)
+# Direct model invocation, multi-turn, MCP tool usage. Aligns with OTEL GenAI
+# (gen_ai.*). Low-cardinality; no raw prompts, completions, or tool args/results.
+# =============================================================================
+llm_call_model:
+  overview: "One span per LLM interaction under a task with type=llm_call. Captures outcome, provider/model, token usage, turn and tool counts; events for gen_ai.turn, gen_ai.tool.request, gen_ai.tool.response."
+
+  span:
+    name: "gentoro.llm.call"
+    kind: CLIENT
+    parent_required: "gentoro.task.execute where gentoro.task.type=llm_call"
+    required_attributes:
+      gentoro.span.class: { value: "llm.call", type: string }
+      gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome.llm_call" }
+      gen_ai.system: { type: string, description: "Provider/system (e.g. openai, anthropic)" }
+      gen_ai.request.model: { type: string, description: "Model identifier" }
+    recommended_attributes:
+      gen_ai.request.type: { type: enum, ref: "gen_ai.request.type" }
+      gen_ai.response.finish_reason: { type: enum, ref: "gen_ai.response.finish_reason" }
+      gen_ai.usage.input_tokens: { type: int }
+      gen_ai.usage.output_tokens: { type: int }
+      gentoro.llm.turn.count: { type: int }
+      gentoro.llm.tool.request.count: { type: int }
+      gentoro.llm.tool.execution.count: { type: int }
+      gentoro.llm.streaming: { type: boolean }
+      error.type: { type: string, when: "if failed" }
+    cardinality: "By default MUST avoid: raw prompts, full completions, tool arguments/results, conversation transcripts. SHOULD prefer: token counts, turn counts, tool counts, model/provider identifiers. When gentoro.llm.content.capture.enabled is true, MAY include gen_ai.input.messages and gen_ai.output.messages (and redacted variants when gentoro.llm.content.redaction.enabled is true) per OTEL GenAI events convention."
+    optional_content_attributes:
+      description: "Opt-in content capture per OTEL gen_ai.client.inference.operation.details. Only set when gentoro.llm.content.capture.enabled is true."
+      attributes:
+        - gen_ai.input.messages
+        - gen_ai.output.messages
+        - gentoro.gen_ai.input.redacted
+        - gentoro.gen_ai.output.redacted
+      flags:
+        gentoro.llm.content.capture.enabled: "When true, instrumentation MAY emit gen_ai.input.messages and gen_ai.output.messages (raw). Default false."
+        gentoro.llm.content.redaction.enabled: "When true, instrumentation SHOULD also emit gentoro.gen_ai.input.redacted and gentoro.gen_ai.output.redacted. Requires content capture enabled. Default false."
+
+  events:
+    gen_ai.turn:
+      description: "Model turn boundary"
+      attributes: ["gen_ai.turn.index (int)", "gen_ai.turn.role (enum: system, user, assistant, tool)"]
+    gen_ai.tool.request:
+      description: "Model requested a tool"
+      attributes: ["gen_ai.tool.name", "gen_ai.tool.call.id"]
+    gen_ai.tool.response:
+      description: "Tool result injected into model"
+      attributes: ["gen_ai.tool.name", "gen_ai.tool.call.id", "gen_ai.tool.success (boolean)"]
+    gen_ai.client.inference.operation.details:
+      description: "OTEL GenAI event for completion details including chat history and model response. Opt-in; use when gentoro.llm.content.capture.enabled is true. Carries user input (raw and optionally redacted) and LLM output. See https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/"
+      attributes:
+        - gen_ai.operation.name
+        - gen_ai.input.messages
+        - gen_ai.output.messages
+        - gen_ai.system_instructions
+        - gentoro.llm.content.capture.enabled
+        - gentoro.llm.content.redaction.enabled
+        - gentoro.gen_ai.input.redacted
+        - gentoro.gen_ai.output.redacted
+        - gentoro.redaction.applied
+
+  enums:
+    gentoro.step.outcome.llm_call:
+      description: "Outcome of LLM interaction"
+      values:
+        success: "Valid model response obtained."
+        fail: "Model interaction failed."
+        partial: "Response obtained with degraded behavior."
+
+    gen_ai.request.type:
+      description: "Request type"
+      values:
+        completion: "Single prompt → single response."
+        chat: "Multi-turn chat interaction."
+        tool_call: "Tool-augmented request."
+
+    gen_ai.response.finish_reason:
+      description: "Completion reason"
+      values:
+        stop: "Natural completion."
+        length: "Token limit reached."
+        tool_call: "Model requested tool."
+        error: "Aborted due to error."
+
+  failure_rules:
+    on_failure: "Span MUST set status.code=ERROR, gentoro.step.outcome=fail, and apply error_recording. Example error.type: model_timeout, provider_unavailable, invalid_response."
+
+# =============================================================================
+# TOOL RECOMMENDATION (MCP Advisor) — gentoro.tools.recommend (Normative)
+# Tool Recommender selects which MCP tools to offer the LLM. Does not execute tools.
+# Low-cardinality: no tool descriptions, schemas, or raw reasoning.
+# =============================================================================
+tools_recommend_model:
+  overview: "One span per tool recommendation phase under a task with type=tool_recommendation. Captures available/selected counts, strategy, constraints, latency; no tool content."
+
+  span:
+    name: "gentoro.tools.recommend"
+    kind: INTERNAL
+    parent_required: "gentoro.task.execute where gentoro.task.type=tool_recommendation"
+    required_attributes:
+      gentoro.span.class: { value: "tools.recommend", type: string }
+      gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome.tools_recommend" }
+      gentoro.mcp.tools.available.count: { type: int }
+      gentoro.mcp.tools.selected.count: { type: int }
+    recommended_attributes:
+      gentoro.mcp.selection.strategy: { type: enum, ref: "gentoro.mcp.selection.strategy" }
+      gentoro.mcp.selection.constraints: { type: enum, ref: "gentoro.mcp.selection.constraints" }
+      gentoro.mcp.selection.latency.ms: { type: int }
+      gentoro.mcp.selection.fallback.used: { type: boolean }
+      error.type: { type: string, when: "if failed" }
+    cardinality: "MUST avoid: tool descriptions, tool schemas, raw selection reasoning, prompts/context. SHOULD prefer: counts, enum strategy/constraint, latency, fallback flags."
+
+  enums:
+    gentoro.step.outcome.tools_recommend:
+      description: "Outcome of tool recommendation"
+      values:
+        success: "Tools successfully selected."
+        fail: "Recommendation failed."
+        skipped: "Recommendation intentionally skipped."
+
+    gentoro.mcp.selection.strategy:
+      description: "Selection mechanism"
+      values:
+        capability_match: "Based on declared tool capabilities."
+        semantic_match: "Embedding/semantic similarity."
+        policy_filtered: "Primarily policy/permission filtering."
+        hybrid: "Combined strategies."
+        default: "Static/default tool set."
+
+    gentoro.mcp.selection.constraints:
+      description: "Dominant constraint applied"
+      values:
+        policy: "Governance/policy constraints."
+        permissions: "User/system permissions."
+        environment: "Runtime/environment limitations."
+        latency_budget: "Time/latency constraints."
+        none: "No dominant constraint."
+
+  failure_rules:
+    on_failure: "Span MUST set status.code=ERROR, gentoro.step.outcome=fail, and apply error_recording. Example error.type: no_tools_available, policy_violation, capability_resolution_error."
+
+  outcome_interaction:
+    success: "LLM span receives selected tool set."
+    fail_continue: "Recommendation fails but LLM proceeds → root outcome may become partial."
+    fail_blocks: "Recommendation failure blocks LLM → root outcome error."
+
+# =============================================================================
+# MCP TOOL EXECUTION — TWO-LEVEL SPAN MODEL (Normative)
+# This specification defines how Gentoro instruments MCP tool executions
+# requested by the LLM using a two-level span model. Compliant with OTEL
+# semantic conventions.
+# =============================================================================
+mcp_tool_execution_model:
+  overview: "Parent span = logical tool invocation (all retries). Child spans = individual attempts (one per retry). Maximizes debuggability, latency analysis, and failure diagnosis."
+
+  span_hierarchy:
+    description: "Required hierarchy"
+    structure: |
+      gentoro.llm.call (CLIENT)
+        └── gentoro.mcp.tool.execute (CLIENT)   ← Parent (logical call)
+              ├── gentoro.mcp.tool.execute.attempt (CLIENT) ← Attempt #1
+              ├── gentoro.mcp.tool.execute.attempt (CLIENT) ← Attempt #2
+              └── gentoro.mcp.tool.execute.attempt (CLIENT) ← Attempt #N
+
+  parent_span:
+    name: "gentoro.mcp.tool.execute"
+    kind: CLIENT
+    parent_required: "Active gentoro.llm.call span (preferred) or surrounding gentoro.task.execute span where gentoro.task.type=tool_execution"
+    required_attributes:
+      gentoro.span.class: { value: "mcp.tool.execute", type: string }
+      gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome" }
+      gentoro.mcp.server.uuid: { type: string, format: uuid }
+      gentoro.mcp.tool.uuid: { type: string, format: uuid }
+      gentoro.mcp.tool.call.id: { type: string }
+    recommended_attributes:
+      gentoro.retry.count: { type: int, description: "Number of retries (attempts − 1)" }
+      gentoro.retry.policy: { type: enum, ref: "gentoro.retry.policy" }
+      gen_ai.tool.call.id: { type: string }
+      gen_ai.tool.name: { type: string }
+      error.type: { type: string, when: "if failed" }
+
+  attempt_span:
+    name: "gentoro.mcp.tool.execute.attempt"
+    kind: CLIENT
+    parent_required: "The logical tool call span (gentoro.mcp.tool.execute)"
+    required_attributes:
+      gentoro.span.class: { value: "mcp.tool.execute.attempt", type: string }
+      gentoro.mcp.tool.call.id: { type: string, same_as_parent: true }
+      gentoro.mcp.attempt.index: { type: int, description: "Attempt sequence number (1..N)" }
+      gentoro.mcp.attempt.outcome: { type: enum, ref: "gentoro.mcp.attempt.outcome" }
+    recommended_attributes:
+      error.type: { type: string, when: "if failed" }
+      gentoro.retry.reason: { type: enum, ref: "gentoro.retry.reason" }
+      gentoro.retry.backoff.ms: { type: int, description: "Backoff delay in ms before this attempt" }
+      transport_semconv: { type: varies, description: "e.g. http.response.status_code, rpc.method (OTEL transport semconv)" }
+
+  enums:
+    gentoro.step.outcome:
+      description: "Final outcome of logical tool call (parent span)"
+      values:
+        success: "Tool eventually succeeded"
+        fail: "Tool failed after retries"
+        skipped: "Tool intentionally not executed"
+
+    gentoro.mcp.attempt.outcome:
+      description: "Outcome of this attempt (attempt span)"
+      values:
+        success: "Attempt succeeded"
+        fail: "Attempt failed"
+
+    gentoro.retry.policy:
+      description: "Retry strategy used"
+      values:
+        none: "No retries"
+        fixed: "Fixed delay"
+        exponential: "Exponential backoff"
+        exponential_jitter: "Backoff + jitter"
+        circuit_breaker: "Controlled by CB state"
+
+    gentoro.retry.reason:
+      description: "Retry trigger reason"
+      values:
+        timeout: "Attempt timed out"
+        unavailable: "Server/tool unavailable"
+        rate_limited: "Rate limiting"
+        transient_error: "Retryable transient failure"
+        unknown: "Unclassified"
+
+    error.type_suggested:
+      description: "Suggested low-cardinality error classifiers"
+      values:
+        timeout: "Call exceeded latency budget"
+        unavailable: "Tool/server unreachable"
+        invalid_arguments: "Validation failure"
+        tool_error: "Tool returned failure"
+        protocol_error: "MCP protocol/serialization"
+
+  failure_rules:
+    attempt_failure: "If an attempt fails: Attempt span MUST set status.code=ERROR, gentoro.mcp.attempt.outcome=fail, and apply error_recording."
+    logical_call_failure: "If all attempts fail: Parent span MUST set status.code=ERROR, gentoro.step.outcome=fail, and apply error_recording."
+
+  cardinality_safety:
+    must_avoid: "Tool inputs/outputs; payloads; user/context data"
+    should_prefer: "UUIDs; attempt indices; error enums; backoff/latency metrics"
+    error_type_suggested: "timeout | unavailable | invalid_arguments | tool_error | protocol_error"
+
+# =============================================================================
+# COMMON SPAN ATTRIBUTES (apply to ALL spans)
+#
+# OTEL Notes:
+#   - trace_id and span_id are part of SpanContext, not attributes
+#   - Uses gen_ai.conversation.id (OTEL standard) for session tracking
+#   - gentoro.session.id is the canonical session (resource and span)
+#   - Uses enduser.id (OTEL standard) for user identification
+# =============================================================================
+# Common attributes apply to all spans unless applies_to is set (OTEL-style applicability).
+# applies_to: list of span name suffixes that carry this attribute. task.execute, llm.call, tools.recommend,
+# response.compose, and mcp.tool.execute/mcp.tool.execute.attempt are excluded so those spans stay minimal.
+common_attributes:
+  # OTEL standard: Conversation/session identifier (OTEL GenAI)
+  gen_ai.conversation.id:
+    type: string
+    required: recommended
+    category: first_class
+    description: "Conversation/session identifier (OTEL). Set when available; SHOULD equal gentoro.session.id for same conversation."
+    examples: ["sess_9c2f", "conv_5j66UpCpwteGg4YSxUnt7lPY"]
+    applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
+
+  # Canonical session (first-class); A2A contextId from request or CP-generated; copy from resource when present so spans carry it for correlation
+  gentoro.session.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Session id for this request. A2A contextId when present in the request; otherwise CP-generated. Set on resource from request or Baggage; copy to span for query convenience. Same value across caller, CP, DP, MCP and dependencies. No extra client attributes required."
+    examples: ["sess_a1b2c3d4", "conv_5j66UpCpwteGg4YSxUnt7lPY"]
+    applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
+
+  # OTEL standard: End user identifier
+  enduser.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Hashed user identifier (no PII)"
+    examples: ["usr_sha256:a1b2c3..."]
+    applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
+
+  # Tenant context
+  gentoro.tenant.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Tenant/workspace identifier"
+    examples: ["tenant_102", "tenant_302", "tenant-42a7c9e1"]
+    applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
+
+  # Deployment environment (matches resource attribute, OTEL)
+  deployment.environment.name:
+    type: string
+    required: true
+    category: first_class
+    allowed_values: ["development", "staging", "production"]
+    description: "Runtime environment name"
+    applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
+
+  gentoro.redaction.applied:
+    type: string
+    required: true
+    category: first_class
+    allowed_values: ["none", "basic", "strict"]
+    description: "Level of PII redaction applied to content fields"
+    applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
+
+# =============================================================================
+# SPAN-SPECIFIC ATTRIBUTES
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# A2A / orchestration (gentoro.a2a.agent.target.id used on root and tasks)
+# -----------------------------------------------------------------------------
+a2a_call_attributes:
+  a2a.protocol:
+    type: string
+    required: true
+    category: first_class
+    allowed_values: ["http", "grpc", "mcp", "internal_queue", "gentoro.internal.v1", "https+json"]
+    description: "Communication protocol"
+
+  gentoro.a2a.agent.target.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Target agent identifier (orchestration root and A2A calls)."
+    examples: ["agent-6d7b0a20-9c5b-4b0e-9cbb-1b6ef2ce7b10", "integration_agent", "gentoro.risk_agent"]
+
+  a2a.target.service:
+    type: string
+    required: false
+    category: metadata
+    description: "Concrete service name if different from agent"
+    examples: ["integration-agent-svc"]
+
+  a2a.operation:
+    type: string
+    required: true
+    category: first_class
+    allowed_values: ["delegate", "summarize", "retrieve", "validate", "plan", "execute"]
+    description: "A2A operation type"
+
+  a2a.request.id:
+    type: string
+    required: true
+    category: first_class
+    description: "A2A request correlation ID"
+    examples: ["a2a_req_8f3a"]
+
+  # Payload (metadata)
+  a2a.payload.schema:
+    type: string
+    required: false
+    category: metadata
+    description: "Versioned payload schema"
+    examples: ["SendMessageRequest@v1"]
+
+  a2a.payload.redacted:
+    type: string
+    required: false
+    category: metadata
+    description: "Redacted JSON payload"
+
+  a2a.payload.size_bytes:
+    type: int
+    required: false
+    category: metadata
+    description: "Payload size in bytes"
+
+  a2a.auth.type:
+    type: string
+    required: false
+    category: metadata
+    allowed_values: ["service_jwt", "mtls", "api_key"]
+    description: "Authentication method"
+
+  # Trust boundary
+  a2a.trust.boundary:
+    type: string
+    required: false
+    category: first_class
+    allowed_values: ["internal", "external"]
+    description: "Trust boundary classification"
+
+  a2a.external.vendor:
+    type: string
+    required: false
+    category: first_class
+    description: "External vendor name"
+    examples: ["AcmeFraudAI"]
+
+  a2a.external.contract.version:
+    type: string
+    required: false
+    category: metadata
+    description: "External API contract version"
+
+  # Result (server side)
+  a2a.result.summary:
+    type: string
+    required: false
+    category: metadata
+    description: "Short safe summary of response"
+
+  a2a.result.size_bytes:
+    type: int
+    required: false
+    category: metadata
+    description: "Response size in bytes"
+
+  a2a.response.schema:
+    type: string
+    required: false
+    category: metadata
+    description: "Response schema version"
+
+  a2a.response.hash:
+    type: string
+    required: false
+    category: metadata
+    description: "Response content hash"
+
+  a2a.error.type:
+    type: string
+    required: false
+    category: first_class
+    allowed_values: ["VALIDATION", "AUTH", "TIMEOUT", "UPSTREAM_5XX", "RATE_LIMIT"]
+    description: "Error classification"
+
+  a2a.retryable:
+    type: boolean
+    required: false
+    category: first_class
+    description: "Whether error is retryable"
+
+  a2a.retry.count:
+    type: int
+    required: false
+    category: first_class
+    description: "Number of retry attempts"
+
+  a2a.retry.attempt:
+    type: int
+    required: false
+    category: metadata
+    description: "Current retry attempt number"
+
+  a2a.latency_ms:
+    type: int
+    required: false
+    category: first_class
+    description: "End-to-end latency in milliseconds"
+
+  a2a.parent.call_id:
+    type: string
+    required: false
+    category: metadata
+    description: "Parent A2A call ID for nested calls"
+
+  # Input/output (alternative naming)
+  a2a.input.hash:
+    type: string
+    required: false
+    category: metadata
+    description: "Input payload hash"
+
+  a2a.input.redacted:
+    type: string
+    required: false
+    category: metadata
+    description: "Redacted input payload"
+
+  a2a.response.summary:
+    type: string
+    required: false
+    category: metadata
+    description: "Response summary"
+
+# -----------------------------------------------------------------------------
+# gentoro.response.compose (Response Compose — minimal; only these attributes)
+# Child of gentoro.a2a.orchestrate. Kind=INTERNAL.
+# -----------------------------------------------------------------------------
+response_compose_attributes:
+  gentoro.span.class:
+    type: string
+    required: true
+    category: first_class
+    description: "Span class. Value: response.compose."
+    allowed_values: ["response.compose"]
+
+  gentoro.response.format:
+    type: string
+    required: true
+    category: first_class
+    description: "Output encoding produced."
+    allowed_values: ["a2a_json", "a2a_stream"]
+
+  gentoro.step.outcome:
+    type: string
+    required: true
+    category: first_class
+    description: "Outcome of compose step."
+    allowed_values: ["success", "fail", "skipped"]
+
+# -----------------------------------------------------------------------------
+# gentoro.a2a.orchestrate (A2A Orchestration root only; response.compose has its own section)
+# -----------------------------------------------------------------------------
+a2a_orchestration_attributes:
+  gentoro.a2a.outcome:
+    type: string
+    required: true
+    category: first_class
+    description: "Overall outcome of orchestration (root span). Root status.code MUST be UNSET for success/partial; MUST be ERROR for error."
+    allowed_values: ["success", "partial", "error"]
+
+  gentoro.enduser.pseudo.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Pseudonymous end-user identifier (non-PII)."
+    examples: ["user_9f3c2a"]
+
+# -----------------------------------------------------------------------------
+# gentoro.planner (Planner stage, child of gentoro.a2a.orchestrate)
+# Per planner spec: intent → sub-tasks and extracted entities. Use counts/enums; no raw intent or entity values.
+# Correlation/context attributes (session, tenant, route, redaction, enduser) use applies_to in common_attributes and exclude planner and task.execute.
+# -----------------------------------------------------------------------------
+planner_attributes:
+  gentoro.planner.output.task.count:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of sub-tasks produced for the orchestrator."
+    examples: [0, 6]
+
+  gentoro.planner.output.entity.count:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of extracted entities produced by the planner."
+    examples: [0, 4]
+
+  gentoro.planner.strategy:
+    type: string
+    required: false
+    category: first_class
+    description: "Planning approach used."
+    allowed_values: ["rules", "model", "hybrid"]
+
+  gentoro.planner.output.format:
+    type: string
+    required: false
+    category: first_class
+    description: "Shape of the produced plan."
+    allowed_values: ["task_list", "task_graph", "task_tree"]
+
+  gentoro.planner.fallback.used:
+    type: boolean
+    required: false
+    category: first_class
+    description: "true if planner used a degraded/fallback approach (rules-based, cached plan, etc.)."
+
+# -----------------------------------------------------------------------------
+# gentoro.task.execute (Task execution, child of planner or root)
+# One span per planner-produced sub-task. High-level; no RAG/LLM/tool internals.
+# See task_execution_span_spec for full normative spec (identity, attributes, failure rules, examples).
+# -----------------------------------------------------------------------------
+task_execute_attributes:
+  gentoro.task.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Stable identifier for this sub-task (from planner output)."
+    examples: ["task_3", "task_5"]
+
+  gentoro.step.outcome:
+    type: string
+    required: true
+    category: first_class
+    description: "Outcome of this task (task execute span)."
+    allowed_values: ["success", "fail", "skipped"]
+
+  gentoro.task.type:
+    type: string
+    required: true
+    category: first_class
+    description: "High-level category of task (coarse-grained for low-cardinality)."
+    allowed_values: ["context_augmentation", "llm_call", "tool_recommendation", "tool_execution", "other"]
+
+  gentoro.task.retry.count:
+    type: int
+    required: false
+    category: first_class
+    description: "Number of retries attempted for this task."
+    examples: [0, 1, 2]
+
+  gentoro.task.fallback.used:
+    type: boolean
+    required: false
+    category: first_class
+    description: "true if degraded/fallback logic was applied for this task."
+
+  error.type:
+    type: string
+    required: false
+    category: first_class
+    description: "Low-cardinality error classification. SHOULD set when task fails (status.code=ERROR)."
+
+# -----------------------------------------------------------------------------
+# gentoro.mcp.tool.execute.attempt (MCP Tool Attempt — minimal; only these attributes)
+# Child of gentoro.mcp.tool.execute. One span per attempt/retry.
+# -----------------------------------------------------------------------------
+mcp_tool_attempt_attributes:
+  gentoro.mcp.tool.call.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Stable ID for this logical tool call; shared with parent."
+    examples: ["call_100", "call_102"]
+
+  gentoro.mcp.attempt.index:
+    type: int
+    required: true
+    category: first_class
+    description: "Attempt sequence number (1..N)."
+    examples: [1, 2, 3]
+
+  gentoro.mcp.attempt.outcome:
+    type: string
+    required: true
+    category: first_class
+    description: "Outcome of this attempt."
+    allowed_values: ["success", "fail"]
+
+  error.type:
+    type: string
+    required: false
+    category: first_class
+    description: "Low-cardinality error identifier when attempt failed."
+    allowed_values: ["timeout", "unavailable", "invalid_arguments", "tool_error", "protocol_error"]
+
+  gentoro.retry.reason:
+    type: string
+    required: false
+    category: first_class
+    description: "Reason this attempt was a retry (when attempt > 1)."
+    allowed_values: ["timeout", "unavailable", "rate_limited", "transient_error", "unknown"]
+
+# -----------------------------------------------------------------------------
+# gentoro.mcp.tool.execute (MCP Tool Call — parent span only; no attempt-only attrs)
+# Two-level span model: parent = logical call, children = attempts.
+# -----------------------------------------------------------------------------
+mcp_tool_attributes:
+  gentoro.span.class:
+    type: string
+    required: true
+    category: first_class
+    description: "Span class. MCP: 'mcp.tool.execute' | 'mcp.tool.execute.attempt'. Orchestration: 'a2a.orchestrate' | 'response.compose' | 'planner' | 'task.execute'. RAG: 'context.augment'. LLM: 'llm.call' | 'llm.tool.response.bridge'. Tool recommendation: 'tools.recommend'. Control-plane: 'request.validation' | 'validation.payload' | 'validation.policy' | 'augmentation' | 'response.validation'."
+    allowed_values: ["mcp.tool.execute", "mcp.tool.execute.attempt", "a2a.orchestrate", "response.compose", "planner", "task.execute", "context.augment", "llm.call", "llm.tool.response.bridge", "tools.recommend", "request.validation", "validation.payload", "validation.policy", "augmentation", "response.validation"]
+
+  gentoro.step.outcome:
+    type: string
+    required: true
+    category: first_class
+    description: "Final outcome of logical tool call (parent span only)."
+    allowed_values: ["success", "fail", "skipped"]
+
+  gentoro.mcp.server.uuid:
+    type: string
+    required: true
+    category: first_class
+    description: "MCP server identifier (UUID)."
+    examples: ["11111111-2222-3333-4444-555555555555"]
+
+  gentoro.mcp.tool.uuid:
+    type: string
+    required: true
+    category: first_class
+    description: "MCP tool identifier (UUID)."
+    examples: ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
+
+  gentoro.mcp.tool.call.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Stable ID for this logical tool call; shared across parent and all attempt spans."
+    examples: ["call_100", "call_101"]
+
+  gentoro.retry.count:
+    type: int
+    required: false
+    category: first_class
+    description: "Number of retries (attempts − 1). SHOULD set on parent span."
+    examples: [0, 1, 2]
+
+  gentoro.retry.policy:
+    type: string
+    required: false
+    category: first_class
+    description: "Retry strategy used. SHOULD set on parent span."
+    allowed_values: ["none", "fixed", "exponential", "exponential_jitter", "circuit_breaker"]
+
+  # OTEL GenAI tool attributes (tool name and call id only)
+  gen_ai.tool.name:
+    type: string
+    required: false
+    category: first_class
+    description: "Stable tool name. SHOULD set on parent span; correlates to LLM tool request."
+    examples: ["claims.getClaimStatus", "slack.sendMessage", "customer_profile_lookup"]
+
+  gen_ai.tool.call.id:
+    type: string
+    required: false
+    category: first_class
+    description: "Tool call identifier"
+    examples: ["call_mszuSIzqtI65i1wAUOE8w5H4"]
+
+  # OTEL standard; set when span is in error (status.code=ERROR). See error_recording.
+  error.type:
+    type: string
+    required: false
+    category: first_class
+    description: "Low-cardinality error identifier per error_recording. Suggested: timeout, unavailable, invalid_arguments, tool_error, protocol_error."
+    allowed_values: ["timeout", "unavailable", "invalid_arguments", "tool_error", "protocol_error"]
+    examples: ["timeout", "unavailable", "tool_error", "protocol_error"]
+
+# -----------------------------------------------------------------------------
+# gentoro.context.augment (Context Augmentation / RAG)
+# Child of gentoro.task.execute when task.type=context_augmentation. Per context_augmentation_model.
+# -----------------------------------------------------------------------------
+context_augment_attributes:
+  gentoro.rag.query.count:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of retrieval queries issued."
+    examples: [0, 1, 2]
+
+  gentoro.rag.result.count:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of retrieved items selected."
+    examples: [0, 5]
+
+  gentoro.rag.latency.ms:
+    type: int
+    required: false
+    category: first_class
+    description: "End-to-end retrieval latency in milliseconds."
+    examples: [148]
+
+  gentoro.rag.source:
+    type: string
+    required: false
+    category: first_class
+    description: "Knowledge source used."
+    allowed_values: ["vector_db", "search_index", "knowledge_graph", "cache", "other"]
+
+  gentoro.rag.strategy:
+    type: string
+    required: false
+    category: first_class
+    description: "Retrieval strategy."
+    allowed_values: ["semantic", "keyword", "hybrid", "direct_lookup"]
+
+  gentoro.rag.rerank.used:
+    type: boolean
+    required: false
+    category: first_class
+    description: "Whether reranking was applied."
+
+  gentoro.rag.cache.hit:
+    type: boolean
+    required: false
+    category: first_class
+    description: "Whether retrieval cache was used."
+
+  gentoro.rag.approach:
+    type: string
+    required: false
+    category: first_class
+    description: "RAG/retrieval approach (low-cardinality)."
+    allowed_values: ["vector", "keyword", "hybrid", "rerank"]
+
+# -----------------------------------------------------------------------------
+# gentoro.tools.recommend (Tool Recommender / MCP Advisor)
+# Child of gentoro.task.execute when task.type=tool_recommendation. Per tools_recommend_model.
+# -----------------------------------------------------------------------------
+tools_recommend_attributes:
+  gentoro.mcp.tools.available.count:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of candidate MCP tools evaluated."
+    examples: [0, 8, 12]
+
+  gentoro.mcp.tools.selected.count:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of tools selected."
+    examples: [0, 1, 3]
+
+  gentoro.mcp.selection.strategy:
+    type: string
+    required: false
+    category: first_class
+    description: "Selection mechanism."
+    allowed_values: ["capability_match", "semantic_match", "policy_filtered", "hybrid", "default"]
+
+  gentoro.mcp.selection.constraints:
+    type: string
+    required: false
+    category: first_class
+    description: "Dominant constraint applied."
+    allowed_values: ["policy", "permissions", "environment", "latency_budget", "none"]
+
+  gentoro.mcp.selection.latency.ms:
+    type: int
+    required: false
+    category: first_class
+    description: "Recommendation latency in milliseconds."
+    examples: [42]
+
+  gentoro.mcp.selection.fallback.used:
+    type: boolean
+    required: false
+    category: first_class
+    description: "Whether fallback/default selection was used."
+
+  gentoro.tools.recommended.source:
+    type: string
+    required: false
+    category: first_class
+    description: "Source of tool recommendation."
+    allowed_values: ["static", "learned", "hybrid"]
+
+# -----------------------------------------------------------------------------
+# GenAI attributes (shared by gentoro.llm.call; gen_ai.* per OTEL GenAI)
+# See: https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
+# -----------------------------------------------------------------------------
+llm_inference_attributes:
+  gen_ai.system:
+    type: string
+    required: true
+    category: first_class
+    description: "Provider/system (e.g. openai, anthropic). MUST on gentoro.llm.call; use this for provider (do not use gen_ai.provider.name)."
+    allowed_values: ["openai", "anthropic", "azure.ai.openai", "azure.ai.inference", "gcp.vertex_ai", "gcp.gemini", "gcp.gen_ai", "aws.bedrock", "cohere", "mistral_ai", "deepseek", "groq", "perplexity", "x_ai", "ibm.watsonx.ai"]
+    examples: ["openai", "anthropic"]
+
+  gen_ai.request.model:
+    type: string
+    required: true
+    category: first_class
+    description: "Model requested per OTEL spec"
+    examples: ["gpt-4.1-mini", "claude-3-opus", "gemini-pro"]
+
+  gen_ai.request.type:
+    type: string
+    required: false
+    category: first_class
+    description: "Request type per LLM call spec."
+    allowed_values: ["completion", "chat", "tool_call"]
+    examples: ["completion", "chat"]
+
+  gen_ai.response.finish_reason:
+    type: string
+    required: false
+    category: first_class
+    description: "Completion reason (single value)."
+    allowed_values: ["stop", "length", "tool_call", "error"]
+    examples: ["stop", "length"]
+
+  # OTEL GenAI token usage
+  gen_ai.usage.input_tokens:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of input/prompt tokens"
+
+  gen_ai.usage.output_tokens:
+    type: int
+    required: true
+    category: first_class
+    description: "Number of output/completion tokens"
+
+  # OTEL standard; set when span is in error (status.code=ERROR). See error_recording.
+  error.type:
+    type: string
+    required: false
+    category: first_class
+    description: "Low-cardinality error identifier per error_recording."
+    examples: ["timeout", "rate_limit", "content_filtered", "500", "_OTHER"]
+
+  # Tool call attributes (OTEL standard)
+  gen_ai.tool.name:
+    type: string
+    required: false
+    category: first_class
+    description: "Tool name requested by model"
+
+  gen_ai.tool.call.id:
+    type: string
+    required: false
+    category: first_class
+    description: "Tool call identifier"
+    examples: ["call_mszuSIzqtI65i1wAUOE8w5H4"]
+
+# -----------------------------------------------------------------------------
+# gentoro.llm.call (LLM interaction span — per llm_call_model)
+# Required: gentoro.span.class=llm.call, gentoro.step.outcome, gen_ai.system, gen_ai.request.model.
+# See llm_inference_attributes for shared gen_ai.* and token usage.
+# -----------------------------------------------------------------------------
+llm_call_attributes:
+  gentoro.llm.turn.count:
+    type: int
+    required: false
+    category: first_class
+    description: "Number of turns in this LLM interaction."
+    examples: [1, 4]
+
+  gentoro.llm.tool.request.count:
+    type: int
+    required: false
+    category: first_class
+    description: "Number of tool calls requested by the model."
+    examples: [0, 2]
+
+  gentoro.llm.tool.execution.count:
+    type: int
+    required: false
+    category: first_class
+    description: "Number of tools executed."
+    examples: [0, 2]
+
+  gentoro.llm.streaming:
+    type: boolean
+    required: false
+    category: first_class
+    description: "Whether streaming response was used."
+
+# -----------------------------------------------------------------------------
+# LLM content capture (opt-in; OTEL gen_ai.client.inference.operation.details)
+# User input and LLM output — raw and redacted — gated by flags.
+# See: https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
+#
+# Stage: set these attributes on the gentoro.llm.call span (the LLM invocation span).
+# One span per LLM call; conversation samples (input/output messages) belong on that span.
+# -----------------------------------------------------------------------------
+llm_content_capture_attributes:
+  gentoro.llm.content.capture.enabled:
+    type: boolean
+    required: false
+    category: metadata
+    description: "When true, instrumentation MAY include user input and LLM output in telemetry (gen_ai.input.messages, gen_ai.output.messages). When false, MUST NOT emit content attributes. Default false. Sensitive/PII: only set content when explicitly enabled."
+    examples: [true, false]
+
+  gentoro.llm.content.redaction.enabled:
+    type: boolean
+    required: false
+    category: metadata
+    description: "When true (and content capture enabled), instrumentation SHOULD emit redacted variants: gentoro.gen_ai.input.redacted and gentoro.gen_ai.output.redacted. When false, only raw content may be present. Default false."
+    examples: [true, false]
+
+  gen_ai.input.messages:
+    type: any
+    required: false
+    category: metadata
+    description: "OTEL GenAI: chat history provided to the model (user/assistant/tool). Structured per OTEL Input messages JSON schema. Opt-in; set only when gentoro.llm.content.capture.enabled is true. Likely contains PII/sensitive data."
+    note: "MUST follow https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-input-messages.json when used."
+
+  gen_ai.output.messages:
+    type: any
+    required: false
+    category: metadata
+    description: "OTEL GenAI: messages returned by the model (assistant response). Structured per OTEL Output messages JSON schema. Opt-in; set only when gentoro.llm.content.capture.enabled is true. Likely contains PII/sensitive data."
+    note: "MUST follow https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-output-messages.json when used."
+
+  gen_ai.system_instructions:
+    type: any
+    required: false
+    category: metadata
+    description: "OTEL GenAI: system message or instructions provided separately from chat history. Opt-in. May contain sensitive information."
+
+  gentoro.gen_ai.input.redacted:
+    type: any
+    required: false
+    category: metadata
+    description: "Redacted user input (same structure as gen_ai.input.messages). Set when gentoro.llm.content.redaction.enabled is true. Use gentoro.redaction.applied to indicate level (basic, strict)."
+
+  gentoro.gen_ai.output.redacted:
+    type: any
+    required: false
+    category: metadata
+    description: "Redacted LLM output (same structure as gen_ai.output.messages). Set when gentoro.llm.content.redaction.enabled is true. Use gentoro.redaction.applied to indicate level (basic, strict)."
+
+# -----------------------------------------------------------------------------
+# gentoro.llm.tool.response.bridge (Data plane A2A — tool result fed back to LLM)
+# Optional span under gentoro.task.execute (type=llm_call); correlates tool execution with LLM.
+# -----------------------------------------------------------------------------
+llm_tool_response_bridge_attributes:
+  # Required on span: gentoro.span.class=llm.tool.response.bridge, gen_ai.tool.call.id, gentoro.step.outcome
+  # gen_ai.tool.call.id and gentoro.step.outcome defined elsewhere
+
+# -----------------------------------------------------------------------------
+# Gentoro diagnostic events (recommended; event attributes — keep bounded)
+# Per data_plane_a2a_observability. Emit as span events; never dump full docs/prompts/tool I/O.
+# -----------------------------------------------------------------------------
+diagnostic_event_attributes:
+  gentoro.planning.tasks:
+    type: string
+    required: false
+    category: metadata
+    description: "Planning output (event gentoro.planning.result). JSON or structured; keep bounded/truncated."
+  gentoro.planning.confidence:
+    type: string
+    required: false
+    category: first_class
+    description: "Planning confidence (event). Float bucketed or enum."
+  gentoro.retrieval.hit_count:
+    type: int
+    required: false
+    category: first_class
+    description: "Retrieval hit count (event gentoro.retrieval.summary)."
+  gentoro.retrieval.top_k:
+    type: int
+    required: false
+    category: first_class
+    description: "Retrieval top_k (event gentoro.retrieval.summary)."
+  gentoro.retrieval.latency_ms:
+    type: int
+    required: false
+    category: first_class
+    description: "Retrieval latency ms (event gentoro.retrieval.summary)."
+  gentoro.tools.list:
+    type: string
+    required: false
+    category: metadata
+    description: "Tool names (event gentoro.tools.recommended). Array or comma-separated; truncate."
+  gentoro.tools.count:
+    type: int
+    required: false
+    category: first_class
+    description: "Number of tools recommended (event gentoro.tools.recommended)."
+
+  gentoro.agent.tool_selection.input.raw:
+    type: string
+    required: false
+    category: metadata
+    description: "Raw user input or context considered during tool selection (may be redacted or truncated)."
+
+  gentoro.agent.tool_selection.tool.plan:
+    type: string
+    required: false
+    category: metadata
+    description: "JSON-encoded tool selection plan (tool_plan array) for event gentoro.agent.tool_selection; keep bounded."
+
+# -----------------------------------------------------------------------------
+# Control-plane validation (gateway-ext — gentoro.request.validation and child spans)
+# Per control_plane_validation_model. status.code UNSET for allowed/blocked; ERROR for runtime failure.
+# Validation details as events; enums from model (gentoro.request.outcome, gentoro.response.outcome, etc.).
+# -----------------------------------------------------------------------------
+cp_request_attributes:
+  # Normative outcome enums (control_plane_validation_model)
+  gentoro.request.outcome:
+    type: string
+    required: false
+    category: first_class
+    description: "Overall outcome of incoming request validation. Use with status.code UNSET for allowed/blocked, ERROR for error."
+    allowed_values: ["allowed", "blocked", "error"]
+
+  gentoro.response.outcome:
+    type: string
+    required: false
+    category: first_class
+    description: "Overall outcome of outgoing response validation (policy/DLP)."
+    allowed_values: ["allowed", "blocked", "error"]
+
+  gentoro.validation.result:
+    type: string
+    required: false
+    category: first_class
+    description: "Result of a validation step."
+    allowed_values: ["valid", "invalid"]
+
+  gentoro.policy.decision:
+    type: string
+    required: false
+    category: first_class
+    description: "Policy engine decision. Use allow_with_audit when permitted but flagged."
+    allowed_values: ["allow", "block", "allow_with_audit"]
+
+  gentoro.block.reason:
+    type: string
+    required: false
+    category: first_class
+    description: "Reason request was blocked (stable, low-cardinality). Set on root when gentoro.request.outcome=blocked."
+    allowed_values: ["invalid_payload", "request_policy", "response_policy", "invalid_context", "not_found", "rate_limited", "unknown"]
+
+  gentoro.request.audit.flag:
+    type: boolean
+    required: false
+    category: first_class
+    description: "true when request is allowed but flagged for audit (e.g. allow_with_audit). Root span."
+
+  gentoro.request.audit.source:
+    type: string
+    required: false
+    category: first_class
+    description: "Source of audit flag when gentoro.request.audit.flag=true. e.g. policy."
+    examples: ["policy"]
+
+  gentoro.response.audit.flag:
+    type: boolean
+    required: false
+    category: first_class
+    description: "true when response is allowed but flagged for audit (e.g. allow_with_audit). Root span (gentoro.response.validation)."
+
+  gentoro.response.audit.source:
+    type: string
+    required: false
+    category: first_class
+    description: "Source of audit flag when gentoro.response.audit.flag=true. e.g. policy."
+    examples: ["policy"]
+
+  gentoro.policy.engine:
+    type: string
+    required: false
+    category: first_class
+    description: "Policy engine identifier (e.g. dlp, abac). Required on gentoro.validation.policy span."
+    examples: ["dlp", "abac"]
+
+  gentoro.policy.rule.id:
+    type: string
+    required: false
+    category: first_class
+    description: "Rule/policy identifier. SHOULD set when decision=block or allow_with_audit."
+    examples: ["dlp_013", "abac_207"]
+
+  gentoro.policy.reason:
+    type: string
+    required: false
+    category: first_class
+    description: "Human-readable explanation. SHOULD set when decision=block or allow_with_audit."
+    examples: ["sensitive_data_detected", "unusual_geo"]
+
+  gentoro.policy.severity:
+    type: string
+    required: false
+    category: first_class
+    description: "Risk/importance indicator. SHOULD set when allow_with_audit."
+    allowed_values: ["low", "medium", "high"]
+
+  gentoro.policy.fail_mode:
+    type: string
+    required: false
+    category: first_class
+    description: "Behavior when policy engine fails (e.g. fail-closed)."
+    allowed_values: ["closed", "open"]
+
+  gentoro.augment.conversation_id.action:
+    type: string
+    required: false
+    category: first_class
+    description: "Augmentation action for conversation ID (low-cardinality)."
+    allowed_values: ["created", "propagated", "attached", "missing"]
+
+  gentoro.augment.enduser_id.action:
+    type: string
+    required: false
+    category: first_class
+    description: "Augmentation action for end-user ID."
+    allowed_values: ["created", "propagated", "attached", "missing"]
+
+  gentoro.augment.target_agent_id.action:
+    type: string
+    required: false
+    category: first_class
+    description: "Augmentation action for target agent ID."
+    allowed_values: ["created", "propagated", "attached", "missing"]
+
+  # Event attributes for gentoro.validation.error (payload validation failure; one event per issue)
+  gentoro.validation.error.path:
+    type: string
+    required: false
+    category: first_class
+    description: "JSON path or location of validation error (event attribute)."
+    examples: ["$.messages[0].content", "$.model"]
+
+  gentoro.validation.error.rule:
+    type: string
+    required: false
+    category: first_class
+    description: "Validation rule that failed (event attribute)."
+    examples: ["required", "minItems", "enum"]
+
+  gentoro.validation.error.code:
+    type: string
+    required: false
+    category: first_class
+    description: "Error code for the validation failure (event attribute)."
+    examples: ["missing_field", "too_few_items", "invalid_enum"]
+
+  gentoro.error.category:
+    type: string
+    required: false
+    category: first_class
+    description: "Error category when step fails (low-cardinality)."
+    allowed_values: ["validation", "policy", "runtime"]
+
+  # Step outcome for CP (pass, fail, block, skip — distinct from data-plane step.outcome)
+  gentoro.step.outcome.cp:
+    type: string
+    required: false
+    category: first_class
+    description: "Outcome of a single validation/processing step (control-plane). Use pass/fail/block/skip per control_plane_validation_model."
+    allowed_values: ["pass", "fail", "block", "skip"]
+
+  # Lineage: control-plane has its own trace_id (CP lives outside data-plane)
+  gentoro.cp.incoming_trace_id:
+    type: string
+    required: true
+    category: first_class
+    description: "Control-plane trace ID (this span's trace_id). CP has its own trace; record it for session/txn aggregation and join with data-plane via session id and stored trace IDs."
+    examples: ["a1b2c3d4e5f6789012345678abcdef01"]
+
+  gentoro.cp.outgoing_trace_id:
+    type: string
+    required: false
+    category: first_class
+    description: "Same as gentoro.cp.incoming_trace_id when the CP span is the root of the CP trace. Set when request was allowed/flagged and forwarded to DP (for consistency in session views)."
+    examples: ["a1b2c3d4e5f6789012345678abcdef01"]
+
+  # Data-plane trace ID (DP has its own trace in a separate deployment)
+  gentoro.dp.trace_id:
+    type: string
+    required: false
+    category: first_class
+    description: "Data-plane trace ID. Set on data-plane spans; session/txn views aggregate to link CP and DP. DP has its own trace_id (different from CP)."
+    note: "Join CP and DP via gentoro.session.id and stored trace IDs (cp_incoming_trace_id, cp_outgoing_trace_id, dp_trace_id) in txn_session_state_agg_v1."
+
+  # OpenTelemetry context source (how the active OTel context was established for emitted spans)
+  # Internal: set by the platform; not open for tenant configuration.
+  gentoro.otel.source:
+    type: string
+    required: false
+    category: first_class
+    description: "Specifies how the active OpenTelemetry context was established for the emitted spans."
+    allowed_values: ["propagated", "generated"]
+    values:
+      propagated: "Context was extracted from an upstream system via standard OTel propagation (e.g., W3C Trace Context / Baggage)."
+      generated: "No upstream context was present. Gentoro generated a new root context."
+    note: "Internal/platform-defined; not tenant-configurable."
+
+  # CP/DP deployment context (for multi-deployment join)
+  gentoro.cp.deployment_version:
+    type: string
+    required: false
+    category: metadata
+    description: "Control-plane deployment version"
+  gentoro.cp.instance_uuid:
+    type: string
+    required: false
+    category: metadata
+    description: "Control-plane instance identifier (UUID)"
+
+# =============================================================================
+# ATTRIBUTE CONSISTENCY (spans, metrics, logs)
+# Use the same attribute names across signals so dashboards and session views
+# can correlate. Applications emit metrics and logs directly; these lists define
+# which attributes to attach for consistency (not derivation from spans).
+# =============================================================================
+  attribute_consistency:
+  # Resource attributes (OTEL: service.*, deployment.environment.name)
+  resource:
+    - service.name
+    - service.version
+    - deployment.environment.name
+    - gentoro.tenant.id
+    - gentoro.session.id
+
+  # When emitting metrics: use these as dimensions/labels (same names as span attributes)
+  metrics_attributes:
+    - gentoro.tenant.id
+    - gentoro.session.id
+    - deployment.environment.name
+    - gentoro.a2a.outcome
+    - mcp.method.name
+    - mcp.protocol.version
+    - mcp.session.id
+    - gen_ai.tool.name
+    - gentoro.span.class
+    - gentoro.step.outcome
+    - gentoro.mcp.attempt.outcome
+    - gentoro.mcp.attempt.index
+    - gentoro.retry.policy
+    - gentoro.retry.count
+    - gentoro.rag.query.count
+    - gentoro.rag.result.count
+    - gentoro.rag.source
+    - gentoro.rag.strategy
+    - gentoro.rag.rerank.used
+    - gentoro.rag.cache.hit
+    - gen_ai.system
+    - gen_ai.request.model
+    - gen_ai.request.type
+    - gen_ai.response.finish_reason
+    - gentoro.llm.turn.count
+    - gentoro.llm.tool.request.count
+    - gentoro.llm.tool.execution.count
+    - gentoro.llm.streaming
+    - gentoro.llm.content.capture.enabled
+    - gentoro.llm.content.redaction.enabled
+    - gen_ai.input.messages
+    - gen_ai.output.messages
+    - gen_ai.system_instructions
+    - gentoro.gen_ai.input.redacted
+    - gentoro.gen_ai.output.redacted
+    - gentoro.a2a.agent.target.id
+    - gentoro.a2a.outcome
+    - gentoro.response.format
+    - gentoro.enduser.pseudo.id
+    - gentoro.planner.strategy
+    - gentoro.planner.output.format
+    - gentoro.planner.output.task.count
+    - gentoro.planner.output.entity.count
+    - gentoro.planner.fallback.used
+    - gentoro.task.id
+    - gentoro.task.type
+    - gentoro.task.retry.count
+    - gentoro.task.fallback.used
+    - gentoro.mcp.tools.available.count
+    - gentoro.mcp.tools.selected.count
+    - gentoro.mcp.selection.strategy
+    - gentoro.mcp.selection.constraints
+    - gentoro.mcp.selection.latency.ms
+    - gentoro.mcp.selection.fallback.used
+    - gentoro.component
+    - gentoro.rag.approach
+    - gentoro.tools.recommended.source
+    - gentoro.otel.source
+    # Control-plane
+    - gentoro.request.outcome
+    - gentoro.response.outcome
+    - gentoro.validation.result
+    - gentoro.policy.decision
+    - gentoro.error.category
+    - gentoro.block.reason
+    - gentoro.request.audit.flag
+    - gentoro.request.audit.source
+    - gentoro.response.audit.flag
+    - gentoro.response.audit.source
+    - gentoro.policy.engine
+    - gentoro.policy.rule.id
+    - gentoro.policy.reason
+    - gentoro.policy.severity
+
+  # When emitting logs: include these attributes (and trace_id/span_id from context) for correlation
+  logs_attributes:
+    - gen_ai.conversation.id
+    - gentoro.session.id
+    - gentoro.tenant.id
+    # Control-plane (for CP request logs)
+    - gentoro.cp.incoming_trace_id
+    - gentoro.cp.outgoing_trace_id
+    - gentoro.request.outcome
+    - gentoro.response.outcome
+    - gentoro.response.audit.flag
+    - gentoro.response.audit.source
+
+# =============================================================================
+# CANONICAL METRICS (emitted by data-plane / control-plane)
+# Applications emit these metrics directly via OTLP Meter. The collector does
+# NOT derive metrics from spans (no spanmetrics). One source of truth.
+#
+# emitted_by: which deployment emits this metric (data-plane | control-plane)
+# aligns_with_span: span type this metric corresponds to (for correlation only)
+# =============================================================================
+canonical_metrics:
+  # ----- Data-plane emitted -----
+  gentoro.orchestration.count:
+    type: counter
+    unit: "1"
+    description: "Count of A2A orchestrations (root spans)"
+    dimensions: [gentoro.tenant.id, deployment.environment.name, gentoro.a2a.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.a2a.orchestrate
+
+  gentoro.orchestration.duration_ms:
+    type: histogram
+    unit: ms
+    description: "Orchestration duration distribution (root span)"
+    dimensions: [gentoro.tenant.id, deployment.environment.name, gentoro.a2a.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.a2a.orchestrate
+
+  gentoro.tool.count:
+    type: counter
+    unit: "1"
+    description: "Count of MCP tool calls (logical; one per gentoro.mcp.tool.execute)"
+    dimensions: [gentoro.tenant.id, gen_ai.tool.name, gentoro.step.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.mcp.tool.execute
+
+  gentoro.tool.latency_ms:
+    type: histogram
+    unit: ms
+    description: "Tool call latency distribution (per logical call or per attempt)"
+    dimensions: [gentoro.tenant.id, gen_ai.tool.name, gentoro.step.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.mcp.tool.execute
+
+  gentoro.tools.recommend.count:
+    type: counter
+    unit: "1"
+    description: "Count of tool recommendation phases (gentoro.tools.recommend)"
+    dimensions: [gentoro.tenant.id, gentoro.mcp.selection.strategy, gentoro.step.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.tools.recommend
+
+  gentoro.tools.recommend.latency_ms:
+    type: histogram
+    unit: ms
+    description: "Tool recommendation latency (gentoro.mcp.selection.latency.ms)"
+    dimensions: [gentoro.tenant.id, gentoro.mcp.selection.strategy]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.tools.recommend
+    value_attribute: gentoro.mcp.selection.latency.ms
+
+  gentoro.rag.count:
+    type: counter
+    unit: "1"
+    description: "Count of context augmentations (RAG)"
+    dimensions: [gentoro.tenant.id, gentoro.rag.source, gentoro.step.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.context.augment
+
+  gentoro.rag.latency_ms:
+    type: histogram
+    unit: ms
+    description: "Context augmentation latency (gentoro.rag.latency.ms)"
+    dimensions: [gentoro.tenant.id, gentoro.rag.source, gentoro.rag.strategy]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.context.augment
+
+  gentoro.rag.documents_returned:
+    type: histogram
+    unit: "1"
+    description: "Distribution of retrieved items (gentoro.rag.result.count)"
+    dimensions: [gentoro.tenant.id, gentoro.rag.source]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.context.augment
+    value_attribute: gentoro.rag.result.count
+
+  gentoro.llm.count:
+    type: counter
+    unit: "1"
+    description: "Count of LLM calls (gentoro.llm.call)"
+    dimensions: [gentoro.tenant.id, gen_ai.system, gen_ai.request.model, gentoro.step.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.llm.call
+
+  gentoro.llm.latency_ms:
+    type: histogram
+    unit: ms
+    description: "LLM call latency distribution"
+    dimensions: [gentoro.tenant.id, gen_ai.system, gen_ai.request.model]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.llm.call
+
+  gentoro.llm.tokens.input:
+    type: counter
+    unit: "1"
+    description: "Total input tokens consumed"
+    dimensions: [gentoro.tenant.id, gen_ai.system, gen_ai.request.model]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.llm.call
+    value_attribute: gen_ai.usage.input_tokens
+
+  gentoro.llm.tokens.output:
+    type: counter
+    unit: "1"
+    description: "Total output tokens generated"
+    dimensions: [gentoro.tenant.id, gen_ai.system, gen_ai.request.model]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.llm.call
+    value_attribute: gen_ai.usage.output_tokens
+
+  gentoro.a2a.count:
+    type: counter
+    unit: "1"
+    description: "Count of A2A orchestrations by target agent"
+    dimensions: [gentoro.tenant.id, gentoro.a2a.agent.target.id, gentoro.a2a.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.a2a.orchestrate
+
+  gentoro.a2a.latency_ms:
+    type: histogram
+    unit: ms
+    description: "A2A orchestration latency by target agent"
+    dimensions: [gentoro.tenant.id, gentoro.a2a.agent.target.id, gentoro.a2a.outcome]
+    emitted_by: data-plane
+    aligns_with_span: gentoro.a2a.orchestrate
+
+  # ----- Control-plane emitted (request/response validation; outcome = allowed | blocked | error) -----
+  gentoro.request.validation.count:
+    type: counter
+    unit: "1"
+    description: "Incoming request validations (gentoro.request.validation)"
+    dimensions: [gentoro.tenant.id, deployment.environment.name, gentoro.request.outcome]
+    emitted_by: control-plane
+    aligns_with_span: gentoro.request.validation
+
+  gentoro.response.validation.count:
+    type: counter
+    unit: "1"
+    description: "Outgoing response validations (when request was allowed)"
+    dimensions: [gentoro.tenant.id, gentoro.response.outcome]
+    emitted_by: control-plane
+    aligns_with_span: gentoro.response.validation
+
+  gentoro.request.validation.duration_ms:
+    type: histogram
+    unit: ms
+    description: "Incoming request validation duration"
+    dimensions: [gentoro.tenant.id, gentoro.request.outcome]
+    emitted_by: control-plane
+    aligns_with_span: gentoro.request.validation

@@ -1,0 +1,25 @@
+# Payload validation fails with multiple errors → blocked (invalid_payload).
+# Root + payload only; payload span has status ERROR and multiple gentoro.validation.error events.
+
+name: request_blocked_invalid_payload_multi
+description: >
+  Control-plane request blocked by payload validation with multiple validation errors; root has
+  gentoro.request.outcome=blocked, gentoro.block.reason=invalid_payload; payload span has
+  status=ERROR and multiple gentoro.validation.error events (path, rule, code).
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  template: blocked_invalid_payload_multi
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001

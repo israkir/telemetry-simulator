@@ -5,7 +5,7 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 ## Prerequisites
 
 - Docker or Podman (Makefile prefers Podman if available)
-- Simulator running locally (e.g. `make run` or `make run-scenario`)
+- Simulator running locally (e.g. `otelsim run --semconv /path/to/conventions.yaml`)
 
 ## Steps
 
@@ -20,14 +20,12 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 2. **Run the simulator**:
 
    ```bash
-   make run
-   # or a specific scenario:
-   SCENARIO=successful_agent_turn make run-scenario
+   otelsim run --semconv /path/to/semconv.yaml
    ```
 
 3. **Open the Jaeger UI**: [http://localhost:16686](http://localhost:16686)
 
-   - Select service **telemetry-simulator**
+   - Select service **otelsim**
    - Click **Find Traces** to see generated traces
 
 4. **Stop Jaeger when done**:
@@ -38,8 +36,8 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 
 ## Environment
 
-- **OTLP endpoint**: The simulator uses `http://localhost:4318` by default (set `OTLP_ENDPOINT` or `--endpoint` to change).
-- **Schema and tenant**: Ensure `TELEMETRY_SIMULATOR_SCHEMA_PATH` (or `SCHEMA_PATH`) and `TENANT_UUID` are set as described in the [README](../README.md).
+- **OTLP endpoint**: The simulator uses `http://localhost:4318` by default (use `--endpoint` to change; the Makefile uses `OTLP_ENDPOINT` when set).
+- **Schema and tenant**: Set `SEMCONV` as in the [README](../README.md). Tenant ID comes from `config/config.yaml`.
 
 ## See Also
 
