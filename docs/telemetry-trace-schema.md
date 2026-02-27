@@ -1,6 +1,8 @@
 # Telemetry Data Trace: Schema and Examples
 
-This document describes the structure of the telemetry trace data in `traces.jsonl`: span schema, trace hierarchy, attribute semantics, and examples. It is aligned with the **Gentoro LLM Observability Semantic Conventions** defined in `src/simulator/scenarios/conventions/semconv.yaml` (schema version **1.0.0**).
+This document describes the structure of telemetry trace data produced by the simulator: span schema, trace hierarchy, attribute semantics, and examples. When exporting to file (e.g. `otelsim run --output-file traces.jsonl`), each line is one span in JSON Lines format. The schema is aligned with the **Gentoro LLM Observability Semantic Conventions** in `src/simulator/scenarios/conventions/semconv.yaml` (schema version **1.0.0**).
+
+**Vendor prefix:** Span and attribute names use the configurable vendor prefix (`VENDOR` env or `--vendor`, default `vendor`). The bundled config and semconv use the same structure; examples below use the `gentoro.*` prefix as in the convention. Replace with your prefix (e.g. `vendor.*`) when validating or querying.
 
 ---
 
@@ -13,7 +15,7 @@ This document describes the structure of the telemetry trace data in `traces.jso
 | Enum values | `semconv.yaml` → `enums` under each model | Normative where specified. |
 | Status and outcome rules | `semconv.yaml` → `status_schema`, `failure_rules`, `error_recording` | Root/task/compose status and outcome interaction. |
 
-**Simulator / `traces.jsonl` notes** (differences to be aware of when validating data against semconv):
+**Simulator notes** (differences to be aware of when validating data against semconv):
 
 - **Span class attribute**: Semconv defines **`gentoro.span.class`** as the canonical attribute for span identity (e.g. `a2a.orchestrate`, `planner`, `task.execute`). When running with Gentoro semantics, spans SHOULD carry `gentoro.span.class` in line with the schema.
 - **`deployment.environment.name`**: Semconv allowed values are `development`, `staging`, `production`. The simulator may use `prod` as shorthand; map to `production` for analytics if needed.
@@ -23,9 +25,9 @@ This document describes the structure of the telemetry trace data in `traces.jso
 
 ## 1. Trace Data Format
 
-- **Format**: JSON Lines (`.jsonl`) — one JSON object per line, each representing a single **span**.
-- **Source**: OpenTelemetry-style spans emitted by the otelsim (Python, SDK 1.39.1).
-- **Content**: Agent-to-Agent (A2A) orchestration traces for a customer-assistant flow (e.g. claims, tool use, LLM calls).
+- **Format**: JSON Lines (`.jsonl`) when using `--output-file` — one JSON object per line, each representing a single **span**. When sending to OTLP, the same span structure is emitted.
+- **Source**: OpenTelemetry spans emitted by the simulator (OTEL SDK).
+- **Content**: Agent-to-Agent (A2A) orchestration traces (e.g. claims, tool use, LLM calls).
 
 Each line is a complete span. Spans are grouped by `trace_id`; within a trace, the hierarchy is given by `parent_span_id` (root spans have `parent_span_id: null`).
 
@@ -33,7 +35,7 @@ Each line is a complete span. Spans are grouped by `trace_id`; within a trace, t
 
 ## 2. Span Schema (Top-Level)
 
-Every span in `traces.jsonl` has the following top-level fields:
+Every span has the following top-level fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -57,7 +59,7 @@ Every span in `traces.jsonl` has the following top-level fields:
 
 ### 2.2 Resource Object
 
-Resource attributes identify the emitting service and environment (OTEL resource). All spans in this file share the same resource shape. Semconv defines first-class and metadata categories; below are the keys present in `traces.jsonl`:
+Resource attributes identify the emitting service and environment (OTEL resource). All spans share the same resource shape. Semconv defines first-class and metadata categories; below are the keys present in simulator output (prefix may be `gentoro` or your `VENDOR`):
 
 | Key | Type | Semconv | Example / Description |
 |-----|------|---------|------------------------|
@@ -484,4 +486,4 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 
 ---
 
-This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect both the normative conventions and representative `traces.jsonl` output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane shapes, see sample scenarios such as `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple `gentoro.validation.error` events on the payload span).
+This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect the normative conventions and representative simulator output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane shapes, see sample scenarios such as `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple validation error events on the payload span).

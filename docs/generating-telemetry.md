@@ -85,14 +85,14 @@ By default the simulator uses **sample scenario definitions** bundled in `src/si
 make venv && make install
 
 # Run sample scenarios (built-in definitions; tenant from config/config.yaml)
-otelsim scenario --name phone_new_claim
+otelsim scenario --name new_claim_phone
 otelsim scenario --name request_blocked_by_policy
 
 # Use your own scenario folder
 otelsim scenario --name my_scenario --scenarios-dir /path/to/my/definitions
 
 # Show full span output
-otelsim scenario --name phone_new_claim --count 10 --show-full-spans
+otelsim scenario --name new_claim_phone --count 10 --show-full-spans
 ```
 
 ### Mixed Workload
@@ -121,7 +121,7 @@ Models a successful agent turn: user asks something, agent plans, calls a tool, 
 | 6    | `{prefix}.response.compose` | Response composition (direct child of root) |
 
 ```bash
-otelsim scenario --name phone_new_claim
+otelsim scenario --name new_claim_phone
 ```
 
 ### Tool Retry
@@ -133,7 +133,7 @@ Models a tool call that fails initially and succeeds after retry, with:
 - Retry-specific attributes (`retry.attempt`, `error.type`)
 
 ```bash
-otelsim scenario --name phone_new_claim --count 50 --show-full-spans
+otelsim scenario --name new_claim_phone --count 50 --show-full-spans
 ```
 
 ---
@@ -202,7 +202,7 @@ Along with randomness and statistical options, the simulator supports **realisti
 - **simulation_goal**: One of the goals above.
 - **realistic_overrides** (optional): e.g. `step_index_for_4xx`, `wrong_division_target`, `actual_steps`, `skip_steps`.
 
-Example scenarios in `definitions/`: `phone_new_claim`, `new_claim_phone` (data-plane happy path), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only), `phone_new_claim_multi_turn`.
+Example scenarios in `definitions/`: `new_claim_phone` (data-plane happy path), `new_claim_phone_multi_turn`, `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only).
 
 Control-plane examples:
 
@@ -263,7 +263,7 @@ All emitted values for **enum-like attributes** (e.g. `error.type`, `step.outcom
 
 ## Scenario File Structure
 
-Scenarios are YAML files. The simulator ships with **sample definitions** in `src/simulator/scenarios/definitions/` (e.g. `phone_new_claim.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`, `phone_new_claim_multi_turn.yaml`). A reference file `example_scenario.yaml` documents all configuration options; it is excluded from `list` and from mixed workload when using the built-in samples, but you can run it explicitly with `--name example_scenario`. You can add your own YAML in the sample folder or use a **custom folder** via `--scenarios-dir` (or `SCENARIOS_DIR` with make). Example:
+Scenarios are YAML files. The simulator ships with **sample definitions** in `src/simulator/scenarios/definitions/` (e.g. `new_claim_phone.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`, `new_claim_phone_multi_turn.yaml`). A reference file `example_scenario.yaml` documents all configuration options; it is excluded from `list` and from mixed workload when using the built-in samples, but you can run it explicitly with `--name example_scenario`. You can add your own YAML in the sample folder or use a **custom folder** via `--scenarios-dir` (or `SCENARIOS_DIR` with make). Example:
 
 ```yaml
 name: my_scenario
@@ -319,23 +319,23 @@ Sample scenario YAML uses the default `vendor.*` namespace; the loader normalize
 
 ### CLI Commands
 
-Global options (`--semconv`, `--endpoint`, `--service-name`) can appear before or after the subcommand.
+Global options (`--semconv`, `--endpoint`) can appear before or after the subcommand.
 
 ```bash
 # Run specific scenario
-otelsim scenario --name phone_new_claim
+otelsim scenario --name new_claim_phone
 
 # Show spans as they're generated
-otelsim scenario --name phone_new_claim --count 10 --show-spans
+otelsim scenario --name new_claim_phone --count 10 --show-spans
 
 # Show full span details (all attributes)
-otelsim scenario --name phone_new_claim --count 5 --show-full-spans
+otelsim scenario --name new_claim_phone --count 5 --show-full-spans
 
 # Run mixed workload (all scenarios from default or custom folder)
 otelsim run --count 500 --interval 200
 otelsim run --count 500 --scenarios-dir /path/to/definitions
 
-# Run only scenarios that have a given tag (e.g. control-plane or data-plane)
+# Run only scenarios that have a given tag
 otelsim run --count 100 --tags=control-plane
 otelsim run --count 100 --tags=data-plane,multi-turn
 ```
@@ -349,7 +349,7 @@ otelsim run --count 100 --tags=data-plane,multi-turn
 # Run in container (tenant from config/config.yaml in image)
 podman run --rm \
   -e OTLP_HTTP_ENDPOINT=http://data-plane:4318 \
-  your-image otelsim scenario --name phone_new_claim --count 200
+  your-image otelsim scenario --name new_claim_phone --count 200
 ```
 
 ### Make Target
@@ -417,4 +417,3 @@ See [Live Trace Visualization](./live-trace-visualization.md) for the full flow 
 - [Scenario Configuration Reference](./statistical-scenarios.md) - Complete YAML reference with distributions, error propagation, retries
 - [Live Trace Visualization](./live-trace-visualization.md) - View traces in Jaeger UI
 - [README](../README.md) - Quick start and CLI reference
-- [TROUBLESHOOTING](../TROUBLESHOOTING.md) - Common issues

@@ -64,7 +64,7 @@ Examples:
   otelsim run --count 100 --interval 200
 
   # Run specific scenario
-  otelsim scenario --name phone_new_claim
+  otelsim scenario --name new_claim_phone
 
   # Validate schema and show summary
   otelsim validate --show-schema

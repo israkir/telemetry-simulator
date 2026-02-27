@@ -59,7 +59,7 @@ The simulator ships with **sample scenario definitions** in `src/simulator/scena
 make list-scenarios
 
 # Run a sample scenario
-otelsim scenario --name phone_new_claim
+otelsim scenario --name new_claim_phone
 
 # Use a custom folder of scenario YAML files
 otelsim scenario --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
@@ -113,7 +113,7 @@ Set `VENDOR` to your vendor name (e.g. `acme`) so span names and vendor attribut
 
 ## YAML Scenarios
 
-**Sample definitions** are bundled in `src/simulator/scenarios/definitions/` (e.g. `phone_new_claim.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`, `phone_new_claim_multi_turn.yaml`). A reference scenario `example_scenario.yaml` documents all YAML options; it is excluded from `list` and mixed workload when using the built-in samples but can be run with `--name example_scenario`. You can run samples as-is, add your own YAML there, or use a **custom definitions folder** via `--scenarios-dir` (see CLI Reference). Example structure:
+**Sample definitions** are bundled in `src/simulator/scenarios/definitions/` (e.g. `new_claim_phone.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`, `new_claim_phone_multi_turn.yaml`). A reference scenario `example_scenario.yaml` documents all YAML options; it is excluded from `list` and mixed workload when using the built-in samples but can be run with `--name example_scenario`. You can run samples as-is, add your own YAML there, or use a **custom definitions folder** via `--scenarios-dir` (see CLI Reference). Example structure:
 
 ```yaml
 name: my_scenario
@@ -178,7 +178,7 @@ otelsim run --count 50 --tags=control-plane
 otelsim run --count 50 --tags=data-plane,multi-turn
 
 # Run YAML scenario (sample or custom definitions folder)
-otelsim scenario --name phone_new_claim
+otelsim scenario --name new_claim_phone
 otelsim scenario --name my_scenario --scenarios-dir /path/to/definitions
 
 # List scenarios (from sample or custom folder)
@@ -333,7 +333,7 @@ otelsim run
 
 # Or pass per run (any of these work):
 otelsim run --semconv /path/to/your-schema.yaml
-otelsim scenario --name phone_new_claim --semconv /path/to/your-schema.yaml
+otelsim scenario --name new_claim_phone --semconv /path/to/your-schema.yaml
 ```
 
 ### Virtual Environment Issues
@@ -347,6 +347,5 @@ make install
 ## See Also
 
 - [Generating Telemetry](docs/generating-telemetry.md) – Guide, realism/randomness/SemConv, and scenario examples
-- [TROUBLESHOOTING](TROUBLESHOOTING.md)
 
 When using this simulator inside another repo, provide your schema YAML path (`SEMCONV`, `--semconv`, or default `scenarios/conventions/semconv.yaml`) and set `VENDOR` to your project’s attribute namespace.
