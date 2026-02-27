@@ -143,6 +143,50 @@ class ScenarioRunner:
 
         self.scenario_loader = ScenarioLoader(scenarios_dir=scenarios_dir)
 
+    def _wrap_with_control_plane(self, hierarchy: TraceHierarchy) -> TraceHierarchy:
+        """
+        Wrap a data-plane A2A hierarchy with control-plane validation spans.
+
+        For hierarchies whose root is gentoro.a2a.orchestrate, this builds a
+        composite hierarchy:
+
+          gentoro.request.validation (SERVER, root)
+            ├── gentoro.a2a.orchestrate (SERVER, child) + its subtree
+            └── gentoro.response.validation (SERVER, child)
+
+        so that a single logical request produces one trace containing all three
+        span types sharing the same trace_id.
+        """
+        from ..generators.trace_generator import SpanType
+        from ..generators.trace_generator import SpanConfig, TraceHierarchy
+        from ..config import attr as config_attr  # type: ignore[import-not-found]
+        from .scenario_loader import _DEFAULT_LATENCY_MS  # type: ignore[import-not-found]
+
+        if hierarchy.root_config.span_type is not SpanType.A2A_ORCHESTRATE:
+            return hierarchy
+
+        req_cfg = SpanConfig(
+            span_type=SpanType.REQUEST_VALIDATION,
+            latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.REQUEST_VALIDATION, 40.0),
+            latency_variance=0.2,
+            error_rate=0.0,
+            attribute_overrides={
+                config_attr("request.outcome"): "allowed",
+            },
+        )
+        resp_cfg = SpanConfig(
+            span_type=SpanType.RESPONSE_VALIDATION,
+            latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.RESPONSE_VALIDATION, 40.0),
+            latency_variance=0.2,
+            error_rate=0.0,
+            attribute_overrides={
+                config_attr("response.outcome"): "allowed",
+            },
+        )
+        resp_hierarchy = TraceHierarchy(root_config=resp_cfg, children=[])
+
+        return TraceHierarchy(root_config=req_cfg, children=[hierarchy, resp_hierarchy])
+
     def run_scenario(
         self,
         scenario: Scenario | str,
@@ -192,13 +236,14 @@ class ScenarioRunner:
                 hierarchies = scenario.get_trace_hierarchies()
                 iteration_trace_ids = []
                 for hierarchy in hierarchies:
-                    trace_id = self.trace_generator.generate_trace(hierarchy, context)
+                    wrapped = self._wrap_with_control_plane(hierarchy)
+                    trace_id = self.trace_generator.generate_trace(wrapped, context)
                     iteration_trace_ids.append(trace_id)
                     trace_ids.append(trace_id)
                     if scenario.emit_metrics and self.metric_generator:
-                        self._emit_metrics_for_hierarchy(hierarchy, context)
+                        self._emit_metrics_for_hierarchy(wrapped, context)
                     if scenario.emit_logs and self.log_generator:
-                        self._emit_logs_for_hierarchy(hierarchy, context)
+                        self._emit_logs_for_hierarchy(wrapped, context)
 
             if progress_callback:
                 primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
@@ -248,7 +293,7 @@ class ScenarioRunner:
                 "Sample definitions are bundled in src/simulator/scenarios/definitions/."
             )
 
-        trace_ids = []
+        trace_ids: list[str] = []
 
         for i in range(count):
             scenario = random.choice(scenarios)
@@ -258,23 +303,34 @@ class ScenarioRunner:
             ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
             ctx_kwargs["turn_index"] = i % 10
             context = GenerationContext.create(**ctx_kwargs)
-            hierarchy = scenario.get_trace_hierarchy()
-            trace_id = self.trace_generator.generate_trace(hierarchy, context)
-            trace_ids.append(trace_id)
 
-            if scenario.emit_metrics and self.metric_generator:
-                self._emit_metrics_for_hierarchy(hierarchy, context)
+            hierarchies = scenario.get_trace_hierarchies()
+            iteration_trace_ids: list[str] = []
+            all_span_names: list[str] = []
 
-            if scenario.emit_logs and self.log_generator:
-                self._emit_logs_for_hierarchy(hierarchy, context)
+            for hierarchy in hierarchies:
+                wrapped = self._wrap_with_control_plane(hierarchy)
+                trace_id = self.trace_generator.generate_trace(wrapped, context)
+                iteration_trace_ids.append(trace_id)
+                trace_ids.append(trace_id)
+
+                if scenario.emit_metrics and self.metric_generator:
+                    self._emit_metrics_for_hierarchy(wrapped, context)
+
+                if self.log_generator and scenario.emit_logs:
+                    self._emit_logs_for_hierarchy(wrapped, context)
+
+                all_span_names.extend(wrapped.span_names())
+
+            primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
 
             if progress_callback:
                 progress_callback(
                     i + 1,
                     count,
-                    trace_id,
+                    primary_trace_id,
                     context.tenant_id,
-                    hierarchy.span_names(),
+                    all_span_names,
                 )
 
             if interval_ms > 0 and i < count - 1:

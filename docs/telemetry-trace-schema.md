@@ -77,7 +77,13 @@ Resource attributes identify the emitting service and environment (OTEL resource
 
 ## 3. Trace Hierarchy and Span Types
 
-A single trace represents one A2A orchestration request. Typical hierarchy:
+A single logical request is represented by **one trace_id** that is shared across:
+
+- **Incoming control-plane validation**: root `gentoro.request.validation` (SERVER) + child validation spans.
+- **Data-plane orchestration**: root `gentoro.a2a.orchestrate` (SERVER) + planner/tasks/LLM/tools/compose.
+- **Outgoing control-plane validation** (when a response is produced): root `gentoro.response.validation` (SERVER) + child policy span.
+
+Within the Data plane portion, a typical hierarchy is:
 
 ```
 gentoro.a2a.orchestrate (root, SERVER)
@@ -96,6 +102,10 @@ gentoro.a2a.orchestrate (root, SERVER)
 
 | Span Name | Kind | Parent (semconv) | Required identity |
 |-----------|------|------------------|-------------------|
+| `gentoro.request.validation` | SERVER | — (root) | `gentoro.span.class` = `request.validation` |
+| `gentoro.validation.payload` | INTERNAL | `gentoro.request.validation` | `gentoro.span.class` = `validation.payload` |
+| `gentoro.validation.policy` | INTERNAL | `gentoro.request.validation` or `gentoro.response.validation` | `gentoro.span.class` = `validation.policy` |
+| `gentoro.augmentation` | INTERNAL | `gentoro.request.validation` | `gentoro.span.class` = `augmentation` |
 | `gentoro.a2a.orchestrate` | SERVER | — (root) | `gentoro.span.class` = `a2a.orchestrate` |
 | `gentoro.planner` | INTERNAL | `gentoro.a2a.orchestrate` | `gentoro.span.class` = `planner` |
 | `gentoro.task.execute` | INTERNAL | `gentoro.planner` or `gentoro.a2a.orchestrate` | `gentoro.span.class` = `task.execute` |
@@ -104,6 +114,7 @@ gentoro.a2a.orchestrate (root, SERVER)
 | `gentoro.mcp.tool.execute` | CLIENT | `gentoro.llm.call` or `gentoro.task.execute` (type=tool_execution) | `gentoro.span.class` = `mcp.tool.execute` |
 | `gentoro.mcp.tool.execute.attempt` | CLIENT | `gentoro.mcp.tool.execute` | `gentoro.span.class` = `mcp.tool.execute.attempt` |
 | `gentoro.response.compose` | INTERNAL | `gentoro.a2a.orchestrate` | `gentoro.span.class` = `response.compose` |
+| `gentoro.response.validation` | SERVER | — (root) | `gentoro.span.class` = `response.validation` |
 
 **Status and outcome rules (semconv):**
 

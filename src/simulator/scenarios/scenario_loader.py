@@ -522,6 +522,8 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         SpanType.TOOLS_RECOMMEND: 50.0,
         SpanType.MCP_TOOL_EXECUTE: 150.0,
         SpanType.RESPONSE_COMPOSE: 60.0,
+        SpanType.REQUEST_VALIDATION: 40.0,
+        SpanType.RESPONSE_VALIDATION: 40.0,
     }
 
     data = load_yaml(CONFIG_PATH)
@@ -537,6 +539,8 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         "tools_recommend": SpanType.TOOLS_RECOMMEND,
         "mcp_tool_execute": SpanType.MCP_TOOL_EXECUTE,
         "response_compose": SpanType.RESPONSE_COMPOSE,
+        "request_validation": SpanType.REQUEST_VALIDATION,
+        "response_validation": SpanType.RESPONSE_VALIDATION,
     }
 
     latencies = dict(defaults)
@@ -918,6 +922,8 @@ _SPAN_SUFFIXES = [
     ("response.compose", SpanType.RESPONSE_COMPOSE),
     ("rag.retrieve", SpanType.RAG_RETRIEVE),
     ("a2a.call", SpanType.A2A_CALL),
+    ("request.validation", SpanType.REQUEST_VALIDATION),
+    ("response.validation", SpanType.RESPONSE_VALIDATION),
     ("cp.request", SpanType.CP_REQUEST),
 ]
 

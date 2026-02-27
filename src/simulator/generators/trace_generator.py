@@ -50,6 +50,8 @@ class SpanType(Enum):
     RESPONSE_COMPOSE = "response.compose"
     RAG_RETRIEVE = "rag.retrieve"
     A2A_CALL = "a2a.call"
+    REQUEST_VALIDATION = "request.validation"
+    RESPONSE_VALIDATION = "response.validation"
     CP_REQUEST = "cp.request"
 
 
@@ -64,6 +66,8 @@ _VENDOR_SPAN_SUFFIXES = {
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
     SpanType.LLM_TOOL_RESPONSE_BRIDGE,
     SpanType.RESPONSE_COMPOSE,
+    SpanType.REQUEST_VALIDATION,
+    SpanType.RESPONSE_VALIDATION,
 }
 
 
@@ -113,6 +117,8 @@ SPAN_KIND_MAP = {
     SpanType.RESPONSE_COMPOSE: SpanKind.INTERNAL,
     SpanType.RAG_RETRIEVE: SpanKind.INTERNAL,
     SpanType.A2A_CALL: SpanKind.CLIENT,
+    SpanType.REQUEST_VALIDATION: SpanKind.SERVER,
+    SpanType.RESPONSE_VALIDATION: SpanKind.SERVER,
     SpanType.CP_REQUEST: SpanKind.SERVER,
 }
 
@@ -130,6 +136,8 @@ _ERROR_TYPE_BY_SPAN_TYPE = {
     SpanType.RESPONSE_COMPOSE: "protocol_error",
     SpanType.RAG_RETRIEVE: "unavailable",
     SpanType.A2A_CALL: "unavailable",
+    SpanType.REQUEST_VALIDATION: "invalid_arguments",
+    SpanType.RESPONSE_VALIDATION: "invalid_arguments",
     SpanType.CP_REQUEST: "invalid_arguments",
 }
 
@@ -157,6 +165,12 @@ CONVENTION_ATTRIBUTES = {
         config_attr("span.class"): "response.compose",
         config_attr("response.format"): "a2a_json",
         config_attr("step.outcome"): "success",
+    },
+    SpanType.REQUEST_VALIDATION: {
+        config_attr("span.class"): "request.validation",
+    },
+    SpanType.RESPONSE_VALIDATION: {
+        config_attr("span.class"): "response.validation",
     },
 }
 
