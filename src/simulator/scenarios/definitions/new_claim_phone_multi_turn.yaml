@@ -1,0 +1,37 @@
+# Multi-turn conversation: one trace per turn, same session_id for all turns.
+# Uses data_plane.template so workflow, correct_flow, simulation_goal and control_plane binding
+# come from config (same as new_claim_phone). Context is key-based; all IDs resolved from config.
+
+name: new_claim_phone_multi_turn
+description: >
+  Multi-turn new-claim flow: 3 user/assistant turns per session; one trace per turn, same session_id.
+
+tags:
+  - data-plane
+  - multi-turn
+  
+mcp_server: phone
+repeat_count: 1
+interval_ms: 0
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  template: new_claim_happy
+
+# One trace per turn; same session_id for all turns. Each turn's user_input/llm_response
+# is set on that trace's spans as gen_ai.input.messages and gen_ai.output.messages (OTEL GenAI shape).
+conversation:
+  turns:
+    - user_input: "I want to start a claim for my phone."
+      llm_response: "I've started a claim (PH-8842). Describe what happened and I'll get you an appointment."
+    - user_input: "The screen is cracked after a drop."
+      llm_response: "Noted. Next repair slots: Wednesday 9am or Friday 2pm. Which do you prefer?"
+    - user_input: "Wednesday 9am please."
+      llm_response: "You're booked for Wednesday 9am. You'll get a confirmation by email."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

@@ -1,0 +1,27 @@
+# Policy engine throws exception, system is fail-closed → blocked (request_policy).
+# Root outcome=blocked, block.reason=request_policy, policy.fail_mode=closed; policy span status=ERROR with exception event.
+
+name: request_blocked_policy_fail_closed
+description: >
+  Control-plane request validation fails due to policy engine runtime exception, but the system is fail-closed:
+  root has gentoro.request.outcome=blocked, gentoro.block.reason=request_policy, gentoro.policy.fail_mode=closed; the
+  policy span has status=ERROR, gentoro.policy.decision=block, gentoro.policy.reason=engine_error, gentoro.policy.severity=high,
+  and an exception event (PolicyEngineTimeout).
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  template: blocked_request_policy_fail_closed
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+

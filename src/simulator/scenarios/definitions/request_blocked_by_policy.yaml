@@ -1,0 +1,24 @@
+# Control-plane blocks the request (request_policy). No data-plane or response validation.
+# Incoming request validation trace only. Minimal context: tenant + agent (no workflow/error_pattern).
+
+name: request_blocked_by_policy
+description: >
+  Control-plane policy blocks the request; no a2a.orchestrate or response.validation.
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  request_outcome: blocked
+  block_reason: request_policy
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001

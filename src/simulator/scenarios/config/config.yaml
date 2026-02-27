@@ -1,0 +1,618 @@
+# Shared scenarios configuration (ID formats, tenants, agents, MCP servers).
+# All IDs are defined here; scenarios reference by key only (tenant, agent, mcp_server).
+#
+# Trace / Session / Conversation (dependency rules):
+#   - session.id and gen_ai.conversation.id MUST be the same value for the same logical session.
+#   - All spans in a multi-turn interaction carry the same session_id (and conversation_id).
+#
+# Conventions:
+#   tenant.id, a2a.agent.target.id, mcp.server.uuid, mcp.tool.uuid MUST come from this config only.
+#   Scenarios specify keys (tenant, agent, mcp_server); the config resolver resolves to UUIDs.
+#
+# Adding new cases (no code refactor when):
+#   - Control-plane: add a new key under request_validation_templates (and optionally under
+#     request_scenarios). Template supports root/payload/policy/augmentation, error_rate,
+#     include_policy, include_augmentation, validation_errors, exception; all driven by this config.
+#   - Data-plane: add workflow to workflow_templates, entry to data_plane_templates, and a
+#     scenario YAML with data_plane.template. New workflows must use existing step names
+#     (planner, task, tools_recommend, new_claim/update_appointment/..., response_compose).
+#   - Code change needed only when: adding a new span type (e.g. new control-plane child or
+#     new data-plane step kind) or a new event/attribute kind not yet supported in code.
+
+id_formats:
+  session_id: "sess_toro_{hex:12}"
+  conversation_id: "sess_toro_{hex:12}"
+  request_id: "req_{hex:6}"
+  mcp_tool_call_id: "mcp_call_{hex:12}"
+
+happy_path_latencies_ms:
+  a2a_orchestrate: 1500.0
+  planner: 250.0
+  mcp_tool_execute: 150.0
+  response_compose: 60.0
+
+resource:
+  schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
+  attributes:
+    service.name: "gentoro-enterprise"
+    service.version: "1.0.0"
+    service.instance.id: "pod-7f9c6d4b8d-xyz12"
+    deployment.environment.name: "prod"
+    module: "data-plane"
+    component: "gateway-ext"
+    otel.source: "propagated"
+
+# -----------------------------------------------------------------------------
+# Tenants (by key). Scenarios reference context.tenant by key.
+# -----------------------------------------------------------------------------
+tenants:
+  toro:
+    id: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
+    display_name: "Toro Insurance"
+
+# -----------------------------------------------------------------------------
+# Agents (id must match a2a.agent.target.id). Scenarios reference context.agent by id.
+# Different agents can represent different divisions; scenario sets context.mcp_server.
+# -----------------------------------------------------------------------------
+agents:
+  - id: "toro-customer-assistant-001"
+
+# -----------------------------------------------------------------------------
+# MCP servers (by key). Scenarios reference context.mcp_server by key.
+# -----------------------------------------------------------------------------
+mcp_servers:
+  phone:
+    mcp_server_uuid: "11111111-1111-4eec-8001-000000000001"
+    description: "Mobile phone (loss, damage, breakdown, screen repair, replacement)"
+    tools:
+      - name: new_claim
+        tool_uuid: "11111111-1111-4eec-8001-000000000011"
+      - name: update_appointment
+        tool_uuid: "11111111-1111-4eec-8001-000000000012"
+      - name: claim_status
+        tool_uuid: "11111111-1111-4eec-8001-000000000013"
+      - name: cancel_claim
+        tool_uuid: "11111111-1111-4eec-8001-000000000014"
+      - name: upload_documents
+        tool_uuid: "11111111-1111-4eec-8001-000000000015"
+      - name: choose_insurance
+        tool_uuid: "11111111-1111-4eec-8001-000000000016"
+      - name: buy_insurance
+        tool_uuid: "11111111-1111-4eec-8001-000000000017"
+      - name: cancel_product
+        tool_uuid: "11111111-1111-4eec-8001-000000000018"
+      - name: pay
+        tool_uuid: "11111111-1111-4eec-8001-000000000019"
+  electronics:
+    mcp_server_uuid: "22222222-2222-4eec-8002-000000000002"
+    description: "Home electronics – TVs, smart lights, soundbars, streaming, speakers, gaming"
+    tools:
+      - name: new_claim
+        tool_uuid: "22222222-2222-4eec-8002-000000000021"
+      - name: update_appointment
+        tool_uuid: "22222222-2222-4eec-8002-000000000022"
+      - name: claim_status
+        tool_uuid: "22222222-2222-4eec-8002-000000000023"
+      - name: cancel_claim
+        tool_uuid: "22222222-2222-4eec-8002-000000000024"
+      - name: upload_documents
+        tool_uuid: "22222222-2222-4eec-8002-000000000025"
+      - name: choose_insurance
+        tool_uuid: "22222222-2222-4eec-8002-000000000026"
+      - name: buy_insurance
+        tool_uuid: "22222222-2222-4eec-8002-000000000027"
+      - name: cancel_product
+        tool_uuid: "22222222-2222-4eec-8002-000000000028"
+      - name: pay
+        tool_uuid: "22222222-2222-4eec-8002-000000000029"
+  appliances:
+    mcp_server_uuid: "33333333-3333-4eec-8003-000000000003"
+    description: "Home appliances – dishwashers, fridges, washers, dryers, ovens, microwaves"
+    tools:
+      - name: new_claim
+        tool_uuid: "33333333-3333-4eec-8003-000000000031"
+      - name: update_appointment
+        tool_uuid: "33333333-3333-4eec-8003-000000000032"
+      - name: claim_status
+        tool_uuid: "33333333-3333-4eec-8003-000000000033"
+      - name: cancel_claim
+        tool_uuid: "33333333-3333-4eec-8003-000000000034"
+      - name: upload_documents
+        tool_uuid: "33333333-3333-4eec-8003-000000000035"
+      - name: choose_insurance
+        tool_uuid: "33333333-3333-4eec-8003-000000000036"
+      - name: buy_insurance
+        tool_uuid: "33333333-3333-4eec-8003-000000000037"
+      - name: cancel_product
+        tool_uuid: "33333333-3333-4eec-8003-000000000038"
+      - name: pay
+        tool_uuid: "33333333-3333-4eec-8003-000000000039"
+
+# -----------------------------------------------------------------------------
+# Realistic scenario templates (simulation_goal -> error semantics, divisions)
+# -----------------------------------------------------------------------------
+realistic_scenarios:
+  divisions:
+    phone: phone
+    home_electronics: electronics
+    home_appliances: appliances
+
+  error_templates:
+    happy_path: {}
+    4xx_invalid_arguments:
+      error_type: invalid_arguments
+      http_status_codes: [400, 404, 422]
+    wrong_division:
+      error_type: tool_error
+    partial_workflow:
+      error_type: tool_error
+    ungrounded_response:
+      error_type: unavailable
+
+  workflow_templates:
+    new_claim: [planner, task, tools_recommend, new_claim, response_compose]
+    update_appointment: [planner, task, tools_recommend, update_appointment, response_compose]
+    pay: [planner, task, tools_recommend, pay, response_compose]
+
+# -----------------------------------------------------------------------------
+# Data-plane (a2a.orchestrate) templates. Scenario can reference data_plane.template
+# to get workflow + simulation_goal from config; no need to repeat correct_flow in YAML.
+# simulation_goal and error_pattern only apply when data-plane is emitted.
+# Optional control_plane_template: when set, scenarios using this data_plane template
+# use this request-validation template (e.g. allowed = no error/exception) unless the
+# scenario YAML overrides control_plane.template. Ensures data-plane scenarios are
+# bound to the correct control-plane flow without code change.
+# -----------------------------------------------------------------------------
+data_plane_templates:
+  new_claim_happy:
+    workflow: new_claim
+    simulation_goal: happy_path
+    control_plane_template: allowed
+  new_claim_4xx:
+    workflow: new_claim
+    simulation_goal: 4xx_invalid_arguments
+    control_plane_template: allowed
+  update_appointment_happy:
+    workflow: update_appointment
+    simulation_goal: happy_path
+    control_plane_template: allowed
+  pay_happy:
+    workflow: pay
+    simulation_goal: happy_path
+    control_plane_template: allowed
+
+# -----------------------------------------------------------------------------
+# Control-plane (semconv-aligned). Add new templates here; no code change needed.
+# Attribute keys use short names (request.outcome, block.reason, step.outcome, etc.);
+# prefix is applied at runtime. Values must match semconv enums (gentoro.request.outcome,
+# gentoro.block.reason, gentoro.policy.decision, gentoro.step.outcome.cp, etc.).
+# -----------------------------------------------------------------------------
+control_plane:
+  latencies_ms:
+    request_validation: 40
+    validation_payload: 20
+    validation_policy: 20
+    augmentation: 20
+    response_validation: 40
+
+  # Which traces to emit per request outcome (semconv: allowed | blocked | error).
+  trace_flow:
+    allowed: [incoming_validation, data_plane, response_validation]
+    blocked: [incoming_validation]
+    error: [incoming_validation]
+
+  # Optional: scenario name -> { template, description }. Loader exposes these as scenarios
+  # without a separate YAML; YAML in definitions/ overrides if present.
+  request_scenarios:
+    request_blocked_by_policy:
+      template: blocked_request_policy
+      description: "Control-plane policy blocks the request; no a2a.orchestrate or response.validation."
+    request_allowed_audit_flagged:
+      template: allowed_but_flagged
+      description: "Request allowed but flagged for audit (gentoro.request.audit.flag=true, allow_with_audit)."
+    request_blocked_rate_limited:
+      template: blocked_rate_limited
+      description: "Early block before policy (gentoro.block.reason=rate_limited); only root + payload spans."
+    request_blocked_invalid_payload:
+      template: blocked_invalid_payload
+      description: "Request blocked by payload validation (invalid_payload)."
+    request_blocked_invalid_payload_multi:
+      template: blocked_invalid_payload_multi
+      description: "Payload validation blocked with multiple gentoro.validation.error events."
+    request_blocked_policy_fail_closed:
+      template: blocked_request_policy_fail_closed
+      description: "Policy engine throws, fail-closed (block.reason=request_policy, policy.fail_mode=closed)."
+    request_blocked_invalid_context:
+      template: blocked_invalid_context
+      description: "Request blocked due to augmentation/context invalid (invalid_context)."
+    request_blocked_invalid_context_augment_exception:
+      template: blocked_invalid_context_augment_exception
+      description: "Augmentation fails with exception; request blocked (invalid_context), augmentation span ERROR."
+    request_error_policy_runtime:
+      template: error_policy_runtime
+      description: "Policy engine runtime exception; request.outcome=error, policy span ERROR with exception event."
+
+  # Request validation hierarchy templates. Key = template id. Merged with _defaults (deep merge).
+  # Scenario uses control_plane.request_outcome + control_plane.block_reason to resolve
+  # template id, or control_plane.template for explicit id.
+  request_validation_templates:
+    _defaults:
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 0
+    allowed:
+      root:
+        request.outcome: allowed
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: pass
+        policy.engine: dlp
+        policy.decision: allow
+      augmentation:
+        step.outcome: pass
+        augment.conversation_id.action: propagated
+        augment.request_id.action: created
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: attached
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 0
+
+    # Policy allows but flags → request allowed + audit flag set (allow_with_audit).
+    allowed_but_flagged:
+      root:
+        request.outcome: allowed
+        request.audit.flag: true
+        request.audit.source: policy
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: pass
+        policy.engine: abac
+        policy.decision: allow_with_audit
+        policy.rule.id: abac_207
+        policy.reason: unusual_geo
+        policy.severity: medium
+      augmentation:
+        step.outcome: pass
+        augment.conversation_id.action: propagated
+        augment.request_id.action: created
+        augment.enduser_id.action: propagated
+        augment.target_agent_id.action: attached
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 0
+
+    # Rate limited early → request blocked; no policy/augmentation spans (step didn't run).
+    blocked_rate_limited:
+      root:
+        request.outcome: blocked
+        block.reason: rate_limited
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      include_policy: false
+      include_augmentation: false
+      error_rate:
+        root: 0
+        payload: 0
+
+    blocked_invalid_payload:
+      root:
+        request.outcome: blocked
+        block.reason: invalid_payload
+      payload:
+        step.outcome: fail
+        validation.result: invalid
+      policy:
+        step.outcome: skip
+        policy.engine: dlp
+        policy.decision: allow
+      augmentation:
+        step.outcome: skip
+        augment.conversation_id.action: missing
+        augment.request_id.action: missing
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: missing
+      error_rate:
+        root: 0
+        payload: 1
+        policy: 0
+        augmentation: 0
+
+    # Payload validation fails with multiple errors → blocked (invalid_payload); only root + payload spans.
+    blocked_invalid_payload_multi:
+      root:
+        request.outcome: blocked
+        block.reason: invalid_payload
+      payload:
+        step.outcome: fail
+        validation.result: invalid
+        validation_errors:
+          - path: "$.messages"
+            rule: minItems
+            code: too_few_items
+          - path: "$.model"
+            rule: enum
+            code: invalid_enum
+          - path: "$.messages[0].role"
+            rule: enum
+            code: invalid_enum
+      include_policy: false
+      include_augmentation: false
+      error_rate:
+        root: 0
+        payload: 0
+
+    blocked_request_policy:
+      root:
+        request.outcome: blocked
+        block.reason: request_policy
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: block
+        policy.engine: dlp
+        policy.decision: block
+      augmentation:
+        step.outcome: skip
+        augment.conversation_id.action: missing
+        augment.request_id.action: missing
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: missing
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 0
+
+    # Policy engine runtime exception, fail-closed → request blocked (request_policy).
+    # Root outcome=blocked, block.reason=request_policy, policy span status=ERROR with exception event;
+    # root remains status UNSET (intentional block) and gentoro.policy.fail_mode=closed.
+    blocked_request_policy_fail_closed:
+      root:
+        request.outcome: blocked
+        block.reason: request_policy
+        policy.fail_mode: closed
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: fail
+        policy.engine: dlp
+        policy.decision: block
+        policy.reason: engine_error
+        policy.severity: high
+        exception:
+          type: PolicyEngineTimeout
+          message: policy_engine_timeout
+      augmentation:
+        step.outcome: skip
+        augment.conversation_id.action: missing
+        augment.request_id.action: missing
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: missing
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 1
+        augmentation: 0
+
+    blocked_invalid_context:
+      root:
+        request.outcome: blocked
+        block.reason: invalid_context
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: pass
+        policy.engine: dlp
+        policy.decision: allow
+      augmentation:
+        step.outcome: fail
+        augment.conversation_id.action: missing
+        augment.request_id.action: missing
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: missing
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 1
+
+    # Augmentation fails (exception) → request blocked (invalid_context); augmentation span has exception event.
+    blocked_invalid_context_augment_exception:
+      root:
+        request.outcome: blocked
+        block.reason: invalid_context
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: pass
+        policy.engine: dlp
+        policy.decision: allow
+      augmentation:
+        step.outcome: fail
+        block.reason: not_found
+        augment.conversation_id.action: propagated
+        augment.request_id.action: created
+        augment.enduser_id.action: propagated
+        augment.target_agent_id.action: missing
+        exception:
+          type: AugmentationBindError
+          message: augmentation_failed
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 1
+
+    error:
+      root:
+        request.outcome: error
+      payload:
+        step.outcome: fail
+        validation.result: invalid
+      policy:
+        step.outcome: fail
+        policy.engine: dlp
+        policy.decision: block
+      augmentation:
+        step.outcome: fail
+        augment.conversation_id.action: missing
+        augment.request_id.action: missing
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: missing
+      error_rate:
+        root: 1
+        payload: 1
+        policy: 1
+        augmentation: 1
+
+    # Policy engine runtime exception → request outcome error (payload pass, policy fail + exception event).
+    error_policy_runtime:
+      root:
+        request.outcome: error
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: fail
+        policy.engine: dlp
+        policy.decision: allow
+        exception:
+          type: PolicyEngineTimeout
+          message: policy_engine_timeout
+      augmentation:
+        step.outcome: skip
+        augment.conversation_id.action: missing
+        augment.request_id.action: missing
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: missing
+      error_rate:
+        root: 1
+        payload: 0
+        policy: 1
+        augmentation: 0
+
+  # Response validation templates (outgoing). Key = template id.
+  response_validation_templates:
+    allowed:
+      root:
+        response.outcome: allowed
+      policy:
+        step.outcome: pass
+        policy.engine: dlp
+        policy.decision: allow
+      error_rate:
+        root: 0
+        policy: 0
+
+# -----------------------------------------------------------------------------
+# Conversation samples (workflow -> samples for gen_ai.input/output when no turns)
+# -----------------------------------------------------------------------------
+conversation_samples:
+  new_claim:
+    samples:
+      - user_input: "I dropped my phone, how do I start a claim?"
+        llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+      - user_input: "My TV won't turn on. I want to make a claim."
+        llm_response: "I've created a claim for your TV (EV-2291). What happened? I can then show you available repair slots."
+      - user_input: "My dishwasher is leaking. Can someone come out?"
+        llm_response: "I've opened a claim for your dishwasher (HA-7733). The next available visit is Thursday 10am–2pm. Should I schedule that?"
+      - user_input: "Start a claim for my phone. My address is <ADDRESS> and policy number is <POLICY_NUMBER>."
+        llm_response: "I've started a claim for your phone at <ADDRESS> under policy <POLICY_NUMBER>. Your claim ID is PH-9900; I'll now find appointment options for you."
+      - user_input: "I need to file a claim for a cracked screen."
+        llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+      - user_input: "Can I make a claim for my laptop? It won't boot."
+        llm_response: "Home electronics claims are handled separately. I've started a claim for your laptop (EV-4400). Do you have your receipt or proof of purchase?"
+      - user_input: "Start a claim. My claim ID is 8842."
+        llm_response: "I couldn't find that claim. Please use the full claim ID (e.g. PH-8842 or EV-2291) so I can look it up."
+      - user_input: "New claim for phone, date of loss 13/31/2024."
+        llm_response: "That date isn't valid. Please give the date of loss in a format I can use (e.g. 15 March 2024 or 2024-03-15)."
+
+  update_appointment:
+    samples:
+      - user_input: "I need to move my phone repair to next week. Claim PH-8842."
+        llm_response: "For claim PH-8842, next week I have Mon 9am, Wed 2pm, Fri 11am. Which do you want?"
+      - user_input: "Reschedule my TV repair—claim EV-2291."
+        llm_response: "For EV-2291 I have Tue 10am, Thu 3pm. Which slot?"
+      - user_input: "Can you move my dishwasher repair to the following week?"
+        llm_response: "I've rescheduled your HA-7733 visit to Tuesday 10am–2pm next week. You'll get a confirmation by email."
+
+  claim_status:
+    status_enum: [processing, completed, appointment_scheduled, technician_on_route]
+    samples:
+      - user_input: "What's the status of my phone claim PH-8842?"
+        llm_response: "Claim PH-8842: appointment scheduled for Thursday 10am. Status: technician on-route to scheduled appointment."
+      - user_input: "Is my dishwasher claim HA-7733 done?"
+        llm_response: "Claim HA-7733 is still processing. The technician visit is scheduled for Thursday 10am–2pm."
+      - user_input: "Where's my TV repair at? Claim EV-2291."
+        llm_response: "EV-2291 is completed. The technician visit was done on Tuesday; you should have had a confirmation."
+      - user_input: "Status of claim PH-9900 please."
+        llm_response: "PH-9900 is in review. We'll update you within 2 business days."
+
+  cancel_claim:
+    samples:
+      - user_input: "Cancel my phone claim PH-8842."
+        llm_response: "I've cancelled claim PH-8842. You'll get a confirmation email."
+      - user_input: "I don't need the TV repair anymore. Claim EV-2291."
+        llm_response: "Claim EV-2291 has been cancelled."
+
+  upload_documents:
+    samples:
+      - user_input: "I want to upload photos for my phone claim PH-8842."
+        llm_response: "You can upload photos for PH-8842 here: [link]. Or describe what you have and I'll attach them to the claim."
+      - user_input: "Add the receipt for my fridge repair to claim HA-5521."
+        llm_response: "I've linked the receipt to claim HA-5521 (Home appliances). Anything else to upload?"
+      - user_input: "Upload the accident photos for claim PH-8842."
+        llm_response: "I've attached your photos to claim PH-8842."
+
+  choose_insurance:
+    samples:
+      - user_input: "What does phone cover cost vs adding my TV?"
+        llm_response: "Phone-only: £8/mo. Phone + TV (Home electronics): £14/mo. I can also quote for appliances if you want."
+      - user_input: "Quote for covering my new gaming console."
+        llm_response: "For your console under Home electronics: Standard £6/mo, Premium £10/mo. Which plan do you want?"
+
+  buy_insurance:
+    samples:
+      - user_input: "I'll take the phone + TV bundle at £14."
+        llm_response: "Done. Your order ID is PH-EV-4412. You're covered for phone and TV. Policy details are in the app."
+      - user_input: "Add the dishwasher plan."
+        llm_response: "Your Home appliances order for the dishwasher is confirmed. Order ID HA-9901."
+
+  cancel_product:
+    samples:
+      - user_input: "Cancel my phone policy. Order PH-7712."
+        llm_response: "I've cancelled the product for order PH-7712. Your phone cover will end at the next billing date."
+      - user_input: "I want to cancel my fridge cover. Order HA-9901."
+        llm_response: "Order HA-9901 (fridge cover) is cancelled. No further charges."
+
+  pay:
+    samples:
+      - user_input: "What do I owe and how do I pay? Order PH-7712."
+        llm_response: "For order PH-7712 you have £24 due. Pay now with card, or I can send a link to your email."
+      - user_input: "Pay the balance on my TV order EV-3300."
+        llm_response: "EV-3300 has £12 due. Here is your secure payment link: <SECURE_PAYMENT_LINK>."
+      - user_input: "I want to pay my outstanding balance."
+        llm_response: "You have £36 due across 2 orders. I can send a single payment link to your email, or you can pay per order in the app."
+
+  default:
+    samples:
+      - user_input: "What can you help me with?"
+        llm_response: "I can help with claims (new claim, status, reschedule, cancel), document uploads, insurance quotes, and payments. What do you need?"
+      - user_input: "I need help with my policy."
+        llm_response: "I can look up your policy, start or check claims, and help with payments. Tell me what you'd like to do."

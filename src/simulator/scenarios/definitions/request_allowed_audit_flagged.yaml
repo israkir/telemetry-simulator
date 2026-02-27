@@ -1,0 +1,26 @@
+# Policy allows but flags → request allowed + audit flag set.
+# Incoming request validation: outcome=allowed, audit.flag=true, audit.source=policy;
+# policy span decision=allow_with_audit with rule/reason/severity (e.g. unusual_geo, medium).
+
+name: request_allowed_audit_flagged
+description: >
+  Control-plane policy permits the request but flags for audit; root has gentoro.request.outcome=allowed,
+  gentoro.request.audit.flag=true, gentoro.request.audit.source=policy; policy span has
+  gentoro.policy.decision=allow_with_audit and optional rule.id, reason, severity.
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  template: allowed_but_flagged
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001

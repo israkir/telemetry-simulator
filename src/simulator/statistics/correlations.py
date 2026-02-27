@@ -14,15 +14,13 @@ from .distributions import CategoricalDistribution
 
 
 class ErrorType(Enum):
-    """Common error types in telemetry."""
+    """Error types aligned with conventions/semconv.yaml (error.type allowed_values)."""
 
     TIMEOUT = "timeout"
-    VALIDATION = "validation"
-    UPSTREAM_5XX = "upstream_5xx"
-    RATE_LIMIT = "rate_limit"
-    AUTH_FAILURE = "auth_failure"
-    NOT_FOUND = "not_found"
-    INTERNAL = "internal_error"
+    UNAVAILABLE = "unavailable"
+    INVALID_ARGUMENTS = "invalid_arguments"
+    TOOL_ERROR = "tool_error"
+    PROTOCOL_ERROR = "protocol_error"
 
 
 @dataclass
@@ -35,7 +33,7 @@ class RetryConfig:
     backoff_jitter: float = 0.2
     success_rate_per_attempt: list[float] = field(default_factory=lambda: [0.0, 0.7, 0.85, 0.95])
     retryable_errors: list[ErrorType] = field(
-        default_factory=lambda: [ErrorType.TIMEOUT, ErrorType.UPSTREAM_5XX, ErrorType.RATE_LIMIT]
+        default_factory=lambda: [ErrorType.TIMEOUT, ErrorType.UNAVAILABLE]
     )
 
     def get_backoff_ms(self, attempt: int) -> float:
@@ -79,7 +77,7 @@ class ErrorPropagation:
         if self.error_type_distribution is None:
             self.error_type_distribution = CategoricalDistribution(
                 categories=[e.value for e in ErrorType],
-                weights=[0.3, 0.15, 0.25, 0.1, 0.05, 0.05, 0.1],
+                weights=[0.25, 0.25, 0.2, 0.2, 0.1],
             )
 
     def should_error(self, parent_errored: bool = False, sibling_errored: bool = False) -> bool:
@@ -102,9 +100,9 @@ class ErrorPropagation:
         return random.random() < self.base_rate
 
     def sample_error_type(self) -> str:
-        """Sample an error type based on configured distribution."""
+        """Sample an error type based on configured distribution (SemConv-aligned)."""
         if self.error_type_distribution is None:
-            return ErrorType.INTERNAL.value
+            return ErrorType.UNAVAILABLE.value
         return str(self.error_type_distribution.sample())
 
     @classmethod
@@ -229,7 +227,7 @@ class RetrySequence:
 
             backoff_ms = 0.0
             if not success and attempt_num < self.config.max_attempts:
-                error_enum = ErrorType(error_type) if error_type else ErrorType.INTERNAL
+                error_enum = ErrorType(error_type) if error_type else ErrorType.UNAVAILABLE
                 if self.config.should_retry(error_enum, attempt_num):
                     backoff_ms = self.config.get_backoff_ms(attempt_num)
                     cumulative_ms += backoff_ms
@@ -270,12 +268,14 @@ class RetrySequence:
                 success_rate_per_attempt=retry_config.get(
                     "success_rate_per_attempt", [0.0, 0.7, 0.85, 0.95]
                 ),
-                retryable_errors=[
-                    ErrorType(e)
-                    for e in retry_config.get(
-                        "retryable_errors", ["timeout", "upstream_5xx", "rate_limit"]
-                    )
-                ],
+                retryable_errors=(
+                    [
+                        ErrorType(e)
+                        for e in retry_config.get("retryable_errors", ["timeout", "unavailable"])
+                        if e in [x.value for x in ErrorType]
+                    ]
+                    or [ErrorType.TIMEOUT, ErrorType.UNAVAILABLE]
+                ),
             ),
             error_propagation=ErrorPropagation.from_config(error_config),
         )

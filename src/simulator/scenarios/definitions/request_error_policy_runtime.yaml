@@ -1,0 +1,24 @@
+# Policy engine runtime exception → request outcome error.
+# Incoming request validation only: root outcome=error, payload pass, policy fail with exception event.
+# Uses config template error_policy_runtime (policy.exception.type/message in config).
+
+name: request_error_policy_runtime
+description: >
+  Control-plane request validation fails with policy engine runtime exception; request.outcome=error, policy span status=ERROR and exception event (PolicyEngineTimeout).
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  template: error_policy_runtime
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
