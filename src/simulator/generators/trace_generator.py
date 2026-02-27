@@ -26,10 +26,9 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.trace import SpanKind, Status, StatusCode, Tracer
 
-from ..config import SEMCONV_ERROR_TYPE_VALUES
+from ..config import SEMCONV_ERROR_TYPE_VALUES, resource_schema_url
 from ..config import attr as config_attr
 from ..config import resource_attributes as config_resource_attributes
-from ..config import resource_schema_url
 from ..config import span_name as config_span_name
 from ..defaults import get_default_tenant_ids
 from ..schemas.attribute_generator import AttributeGenerator, GenerationContext
@@ -106,7 +105,11 @@ def _record_span_error(
         or overrides.get(config_attr("error.type"))
         or _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "unavailable")
     )
-    error_type = raw if raw in SEMCONV_ERROR_TYPE_VALUES else _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "unavailable")
+    error_type = (
+        raw
+        if raw in SEMCONV_ERROR_TYPE_VALUES
+        else _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "unavailable")
+    )
     span.set_attribute("error.type", error_type)
     # Low-cardinality error category (validation | policy | runtime) for control-/data-plane errors.
     raw_category = (
@@ -246,6 +249,8 @@ class SpanConfig:
     # Optional: when span is in error, record exception event with this type/message (e.g. from control-plane template).
     exception_type: str | None = None
     exception_message: str | None = None
+    # Optional: for VALIDATION_PAYLOAD fail, emit gentoro.validation.error events (list of {path, rule, code}).
+    validation_errors: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -443,7 +448,9 @@ class TraceGenerator:
                 outcome = (overrides.get(config_attr("a2a.outcome")) or "success").lower()
                 if outcome == "error":
                     _record_span_error(
-                        span, config.span_type, overrides,
+                        span,
+                        config.span_type,
+                        overrides,
                         exception_type=getattr(config, "exception_type", None),
                         exception_message=getattr(config, "exception_message", None),
                     )
@@ -454,7 +461,9 @@ class TraceGenerator:
                 outcome = (overrides.get(config_attr("request.outcome")) or "allowed").lower()
                 if outcome == "error":
                     _record_span_error(
-                        span, config.span_type, overrides,
+                        span,
+                        config.span_type,
+                        overrides,
                         exception_type=getattr(config, "exception_type", None),
                         exception_message=getattr(config, "exception_message", None),
                     )
@@ -462,14 +471,20 @@ class TraceGenerator:
                 outcome = (overrides.get(config_attr("response.outcome")) or "allowed").lower()
                 if outcome == "error":
                     _record_span_error(
-                        span, config.span_type, overrides,
+                        span,
+                        config.span_type,
+                        overrides,
                         exception_type=getattr(config, "exception_type", None),
                         exception_message=getattr(config, "exception_message", None),
                     )
-            elif config.span_type == SpanType.RESPONSE_COMPOSE and (is_error or tool_result is False):
+            elif config.span_type == SpanType.RESPONSE_COMPOSE and (
+                is_error or tool_result is False
+            ):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
-                    span, config.span_type, overrides,
+                    span,
+                    config.span_type,
+                    overrides,
                     error_type_override="protocol_error",
                     exception_type=getattr(config, "exception_type", None),
                     exception_message=getattr(config, "exception_message", None),
@@ -477,20 +492,56 @@ class TraceGenerator:
             elif config.span_type == SpanType.TASK_EXECUTE and (is_error or tool_result is False):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
-                    span, config.span_type, overrides,
+                    span,
+                    config.span_type,
+                    overrides,
                     exception_type=getattr(config, "exception_type", None),
                     exception_message=getattr(config, "exception_message", None),
                 )
-            elif config.span_type == SpanType.TOOLS_RECOMMEND and (is_error or tool_result is False):
+            elif config.span_type == SpanType.TOOLS_RECOMMEND and (
+                is_error or tool_result is False
+            ):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
-                    span, config.span_type, overrides,
+                    span,
+                    config.span_type,
+                    overrides,
                     exception_type=getattr(config, "exception_type", None),
                     exception_message=getattr(config, "exception_message", None),
                 )
+            elif config.span_type == SpanType.VALIDATION_PAYLOAD and getattr(
+                config, "validation_errors", None
+            ):
+                # Payload validation failed with one or more validation.error events (no exception event).
+                validation_errors = config.validation_errors or []
+                error_type = overrides.get(
+                    config_attr("error.type")
+                ) or _ERROR_TYPE_BY_SPAN_TYPE.get(SpanType.VALIDATION_PAYLOAD, "invalid_arguments")
+                if error_type not in SEMCONV_ERROR_TYPE_VALUES:
+                    error_type = "invalid_arguments"
+                span.set_attribute("error.type", error_type)
+                if _ERROR_CATEGORY_BY_SPAN_TYPE.get(SpanType.VALIDATION_PAYLOAD):
+                    span.set_attribute(
+                        config_attr("error.category"),
+                        _ERROR_CATEGORY_BY_SPAN_TYPE[SpanType.VALIDATION_PAYLOAD],
+                    )
+                span.set_status(Status(StatusCode.ERROR, "Validation failed"))
+                event_name = config_attr("validation.error")
+                for ev in validation_errors:
+                    attrs = {}
+                    if ev.get("path") is not None:
+                        attrs[config_attr("validation.error.path")] = str(ev["path"])
+                    if ev.get("rule") is not None:
+                        attrs[config_attr("validation.error.rule")] = str(ev["rule"])
+                    if ev.get("code") is not None:
+                        attrs[config_attr("validation.error.code")] = str(ev["code"])
+                    if attrs:
+                        span.add_event(event_name, attrs)
             elif is_error or tool_result is False:
                 _record_span_error(
-                    span, config.span_type, overrides,
+                    span,
+                    config.span_type,
+                    overrides,
                     exception_type=getattr(config, "exception_type", None),
                     exception_message=getattr(config, "exception_message", None),
                 )
@@ -570,7 +621,9 @@ class TraceGenerator:
                     }
                     event_attrs = {
                         config_attr("agent.tool_selection.input.raw"): user_input_text or "",
-                        config_attr("agent.tool_selection.tool.plan"): json.dumps(tool_plan_payload),
+                        config_attr("agent.tool_selection.tool.plan"): json.dumps(
+                            tool_plan_payload
+                        ),
                     }
                     span.add_event(config_attr("agent.tool_selection"), event_attrs)
                 except Exception:

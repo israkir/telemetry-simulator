@@ -202,7 +202,15 @@ Along with randomness and statistical options, the simulator supports **realisti
 - **simulation_goal**: One of the goals above.
 - **realistic_overrides** (optional): e.g. `step_index_for_4xx`, `wrong_division_target`, `actual_steps`, `skip_steps`.
 
-Example scenarios in `definitions/`: `phone_new_claim`, `phone_new_claim_happy` (data-plane happy path), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_error_policy_runtime`, `request_error_policy_unavailable` (control-plane-only), `phone_new_claim_multi_turn`.
+Example scenarios in `definitions/`: `phone_new_claim`, `phone_new_claim_happy` (data-plane happy path), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only), `phone_new_claim_multi_turn`.
+
+Control-plane examples:
+
+- `request_allowed_audit_flagged`: request allowed but flagged for audit (`gentoro.request.audit.flag=true`, `gentoro.policy.decision=allow_with_audit`).
+- `request_blocked_rate_limited`: early block before policy (`gentoro.block.reason=rate_limited`; only root + payload spans).
+- `request_blocked_invalid_payload_multi`: payload validation blocked with multiple `gentoro.validation.error` events on the payload span.
+- `request_blocked_policy_fail_closed`: policy engine throws, but system is fail-closed (`gentoro.block.reason=request_policy`, `gentoro.policy.fail_mode=closed`; policy span ERROR with exception event).
+- `request_blocked_invalid_context_augment_exception`: augmentation fails with exception → request blocked (`gentoro.block.reason=invalid_context`; augmentation span ERROR with AugmentationBindError event).
 
 ---
 

@@ -12,7 +12,9 @@ from ..config import CONFIG_PATH, load_yaml
 from ..scenarios.dependency_rules import RuleCheck, validate_span_rules
 
 
-def _load_allowed_ids(config_path: Path | None = None) -> tuple[set[str], set[str], set[str], set[str]]:
+def _load_allowed_ids(
+    config_path: Path | None = None,
+) -> tuple[set[str], set[str], set[str], set[str]]:
     """Load tenant, agent, mcp server, mcp tool UUIDs from config."""
     path = config_path or CONFIG_PATH
     data = load_yaml(path)
@@ -75,8 +77,8 @@ def validate_trace_dependencies(
     allowed_server_uuids: set[str] = set()
     allowed_tool_uuids: set[str] = set()
     if check_config_ids:
-        allowed_tenant_ids, allowed_agent_ids, allowed_server_uuids, allowed_tool_uuids = _load_allowed_ids(
-            config_path
+        allowed_tenant_ids, allowed_agent_ids, allowed_server_uuids, allowed_tool_uuids = (
+            _load_allowed_ids(config_path)
         )
 
     for span in spans:

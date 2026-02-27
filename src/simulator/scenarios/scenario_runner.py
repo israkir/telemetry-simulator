@@ -17,7 +17,8 @@ from opentelemetry.sdk._logs.export import LogExporter
 from opentelemetry.sdk.metrics.export import MetricExporter
 from opentelemetry.sdk.trace.export import SpanExporter
 
-from ..config import CONFIG_PATH, attr as config_attr, load_yaml
+from ..config import CONFIG_PATH, load_yaml
+from ..config import attr as config_attr
 from ..generators.log_generator import LogGenerator
 from ..generators.metric_generator import MetricGenerator
 from ..generators.trace_generator import TraceGenerator, TraceHierarchy
@@ -43,7 +44,9 @@ def _sample_to_otel_messages(user_input: str, llm_response: str) -> tuple[list[d
     return input_msgs, output_msgs
 
 
-def _get_conversation_from_config(workflow: str | None) -> tuple[list[dict] | None, list[dict] | None]:
+def _get_conversation_from_config(
+    workflow: str | None,
+) -> tuple[list[dict] | None, list[dict] | None]:
     """
     If workflow matches conversation_samples in config, return (input_messages, output_messages).
     Falls back to "default" when workflow has no samples. Otherwise return (None, None).
@@ -187,7 +190,9 @@ class ScenarioRunner:
             tenant_id = random.choices(tenants, weights=weights)[0]
             ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
             # One session_id per logical session (iteration); all turns in this iteration share it.
-            session_id = ctx_kwargs.get("session_id") or GenerationContext.create(**ctx_kwargs).session_id
+            session_id = (
+                ctx_kwargs.get("session_id") or GenerationContext.create(**ctx_kwargs).session_id
+            )
             id_gen = getattr(scenario, "id_generator", None)
 
             if use_multi_turn:
@@ -318,10 +323,10 @@ class ScenarioRunner:
             tag_set = {t.strip().lower() for t in tags if t and isinstance(t, str)}
             if tag_set:
                 scenarios = [
-                    s for s in scenarios
-                    if getattr(s, "tags", None) and any(
-                        (x or "").strip().lower() in tag_set for x in s.tags
-                    )
+                    s
+                    for s in scenarios
+                    if getattr(s, "tags", None)
+                    and any((x or "").strip().lower() in tag_set for x in s.tags)
                 ]
         if not scenarios:
             dir_path = self.scenario_loader.scenarios_dir

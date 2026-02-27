@@ -484,4 +484,4 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 
 ---
 
-This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect both the normative conventions and representative `traces.jsonl` output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors.
+This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect both the normative conventions and representative `traces.jsonl` output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane shapes, see sample scenarios such as `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple `gentoro.validation.error` events on the payload span).

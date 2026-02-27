@@ -19,7 +19,6 @@ from typing import Any
 from ..config import ATTR_PREFIX, CONFIG_PATH, load_yaml
 from ..config import attr as config_attr
 from ..generators.trace_generator import (
-    SpanConfig,
     SpanType,
     TraceHierarchy,
 )
@@ -80,7 +79,11 @@ class RealisticScenarioConfig:
             tools_raw = server.get("tools") or []
             tools = []
             for t in tools_raw:
-                if isinstance(t, dict) and isinstance(t.get("name"), str) and isinstance(t.get("tool_uuid"), str):
+                if (
+                    isinstance(t, dict)
+                    and isinstance(t.get("name"), str)
+                    and isinstance(t.get("tool_uuid"), str)
+                ):
                     tools.append({"name": t["name"], "tool_uuid": t["tool_uuid"]})
             mcp_servers_by_key[key] = {"mcp_server_uuid": uuid_val, "tools": tools}
 
@@ -177,7 +180,9 @@ def _apply_wrong_division(
         target_index = max(0, min(int(target_index), len(mcp_list) - 1))
     mcp_h = mcp_list[target_index]
     # Use tool name from the span we're modifying (same tool name, wrong server).
-    tool_name = (mcp_h.root_config.attribute_overrides or {}).get("gen_ai.tool.name") or correct_tool_name
+    tool_name = (mcp_h.root_config.attribute_overrides or {}).get(
+        "gen_ai.tool.name"
+    ) or correct_tool_name
     wrong_server = config.mcp_servers_by_key.get(wrong_key)
     if not wrong_server:
         return
@@ -204,7 +209,9 @@ def _apply_wrong_division(
             attempt_overrides[config_attr("mcp.tool.uuid")] = wrong_tool_uuid
         mcp_h.children[0].root_config.attribute_overrides = attempt_overrides
     # Optionally mark this tool call as failed (wrong division often returns error)
-    template = config.error_templates.get("wrong_division") or ErrorTemplate(error_type="tool_error")
+    template = config.error_templates.get("wrong_division") or ErrorTemplate(
+        error_type="tool_error"
+    )
     if mcp_h.children:
         mcp_h.children[0].root_config.error_rate = 1.0
         att = mcp_h.children[0].root_config.attribute_overrides
@@ -305,11 +312,15 @@ def apply_realistic_scenario(
         return
 
     if goal == "ungrounded_response":
-        template = config.error_templates.get("ungrounded_response") or ErrorTemplate(error_type="unavailable")
+        template = config.error_templates.get("ungrounded_response") or ErrorTemplate(
+            error_type="unavailable"
+        )
         _apply_ungrounded_response(hierarchy, template, attr_prefix)
         return
 
     if goal == "partial_workflow":
-        template = config.error_templates.get("partial_workflow") or ErrorTemplate(error_type="tool_error")
+        template = config.error_templates.get("partial_workflow") or ErrorTemplate(
+            error_type="tool_error"
+        )
         _apply_partial_workflow(hierarchy, template, attr_prefix)
         return

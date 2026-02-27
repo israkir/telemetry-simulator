@@ -243,7 +243,13 @@ def _parse_and_resolve_context(
             server_uuid = m.get("server_uuid")
             if not isinstance(server_uuid, str):
                 continue
-            tools = [MCPToolRef(name=t["name"], uuid=t["tool_uuid"]) for t in (m.get("tools") or []) if isinstance(t, dict) and isinstance(t.get("name"), str) and isinstance(t.get("tool_uuid"), str)]
+            tools = [
+                MCPToolRef(name=t["name"], uuid=t["tool_uuid"])
+                for t in (m.get("tools") or [])
+                if isinstance(t, dict)
+                and isinstance(t.get("name"), str)
+                and isinstance(t.get("tool_uuid"), str)
+            ]
             mcp_list.append(MCPServerRef(server_uuid=server_uuid, tools=tools))
         agents.append(AgentRef(uuid=agent_uuid, mcp=mcp_list))
 
@@ -695,7 +701,9 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
     if not steps and context.correct_flow and context.correct_flow.steps:
         steps = context.correct_flow.steps
     if not steps:
-        raise ValueError("context.correct_flow.steps or context.actual_steps required to build hierarchy from context")
+        raise ValueError(
+            "context.correct_flow.steps or context.actual_steps required to build hierarchy from context"
+        )
 
     root_config = SpanConfig(
         span_type=SpanType.A2A_ORCHESTRATE,
@@ -1108,10 +1116,13 @@ class ScenarioLoader:
         simulation_goal_from_template: str | None = None
         if scenario_context:
             dp = data.get("data_plane")
-            if isinstance(dp, dict) and dp.get("template"):
-                scenario_context, simulation_goal_from_template = _apply_data_plane_template(
-                    scenario_context, dp.get("template"), CONFIG_PATH
-                )
+            if isinstance(dp, dict):
+                template_raw = dp.get("template")
+                if isinstance(template_raw, str) and template_raw.strip():
+                    template_name = template_raw.strip()
+                    scenario_context, simulation_goal_from_template = _apply_data_plane_template(
+                        scenario_context, template_name, CONFIG_PATH
+                    )
 
         root_for_detect = data.get("root")
         is_statistical = self._detect_statistical(
@@ -1137,7 +1148,9 @@ class ScenarioLoader:
         # Format A: [{ user_input: "...", llm_response: "..." }, ...]
         # Format B: [{ role: user|assistant, text: "..." }, ...] (consecutive user/assistant pairs).
         conversation_turns: list[dict[str, str]] | None = None
-        conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = None
+        conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = (
+            None
+        )
         conv_raw = data.get("conversation")
         if isinstance(conv_raw, dict):
             turns_raw = conv_raw.get("turns")
@@ -1153,7 +1166,10 @@ class ScenarioLoader:
                             {"role": "user", "content": [{"type": "text", "text": user_input}]},
                         ]
                         output_msgs = [
-                            {"role": "assistant", "content": [{"type": "text", "text": llm_response}]},
+                            {
+                                "role": "assistant",
+                                "content": [{"type": "text", "text": llm_response}],
+                            },
                         ]
                         turn_pairs.append((input_msgs, output_msgs))
                 if turn_pairs:
@@ -1180,10 +1196,16 @@ class ScenarioLoader:
                             u, a = cleaned[i], cleaned[i + 1]
                             if u.get("role") == "user" and a.get("role") == "assistant":
                                 input_msgs = [
-                                    {"role": "user", "content": [{"type": "text", "text": u["text"]}]},
+                                    {
+                                        "role": "user",
+                                        "content": [{"type": "text", "text": u["text"]}],
+                                    },
                                 ]
                                 output_msgs = [
-                                    {"role": "assistant", "content": [{"type": "text", "text": a["text"]}]},
+                                    {
+                                        "role": "assistant",
+                                        "content": [{"type": "text", "text": a["text"]}],
+                                    },
                                 ]
                                 turn_pairs.append((input_msgs, output_msgs))
                                 i += 2
@@ -1204,7 +1226,11 @@ class ScenarioLoader:
         cp_raw = data.get("control_plane")
         if isinstance(cp_raw, dict):
             outcome = cp_raw.get("request_outcome")
-            if isinstance(outcome, str) and outcome.strip().lower() in ("allowed", "blocked", "error"):
+            if isinstance(outcome, str) and outcome.strip().lower() in (
+                "allowed",
+                "blocked",
+                "error",
+            ):
                 control_plane_request_outcome = outcome.strip().lower()
             if control_plane_request_outcome == "blocked":
                 reason = cp_raw.get("block_reason")
@@ -1229,9 +1255,15 @@ class ScenarioLoader:
             skip_steps = realistic_overrides.get("skip_steps")
             if isinstance(actual_steps_list, list) and actual_steps_list:
                 scenario_context.actual_steps = [str(s) for s in actual_steps_list]
-            elif isinstance(skip_steps, list) and scenario_context.correct_flow and scenario_context.correct_flow.steps:
+            elif (
+                isinstance(skip_steps, list)
+                and scenario_context.correct_flow
+                and scenario_context.correct_flow.steps
+            ):
                 steps_copy = list(scenario_context.correct_flow.steps)
-                for idx in sorted((int(i) for i in skip_steps if isinstance(i, (int, float))), reverse=True):
+                for idx in sorted(
+                    (int(i) for i in skip_steps if isinstance(i, (int, float))), reverse=True
+                ):
                     if 0 <= idx < len(steps_copy):
                         steps_copy.pop(idx)
                 scenario_context.actual_steps = steps_copy

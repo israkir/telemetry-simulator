@@ -17,9 +17,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from ..config import SEMCONV_ERROR_TYPE_VALUES, SEMCONV_STEP_OUTCOME_VALUES
+from ..config import SEMCONV_STEP_OUTCOME_VALUES, schema_version_attr
 from ..config import attr as config_attr
-from ..config import schema_version_attr
 from ..defaults import get_default_tenant_ids
 from .schema_parser import AttributeDefinition, TelemetrySchema
 
@@ -93,7 +92,10 @@ def _sample_llm_output_messages() -> list[dict[str, Any]]:
         {
             "role": "assistant",
             "content": [
-                {"type": "text", "text": "Your claim CLM-2024-0042 is in review. Expected completion within 5 business days."},
+                {
+                    "type": "text",
+                    "text": "Your claim CLM-2024-0042 is in review. Expected completion within 5 business days.",
+                },
             ],
         },
     ]
@@ -107,9 +109,20 @@ _REDACTION_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"https?://[^\s<>]+"), "<LINK>"),
     (re.compile(r"\b(?:PH|EV|HA|CLM)-[A-Z0-9-]{4,}\b", re.I), "<CLAIM_ID>"),
     (re.compile(r"\bpolicy\s*(?:number|#)?\s*[\w\d-]{6,}\b", re.I), "<POLICY_NUMBER>"),
-    (re.compile(r"\b\d{1,5}\s+[\w\s]{3,40}(?:Street|St|Road|Rd|Avenue|Ave|Lane|Drive|Dr|Way|Boulevard|Blvd)\b", re.I), "<ADDRESS>"),
+    (
+        re.compile(
+            r"\b\d{1,5}\s+[\w\s]{3,40}(?:Street|St|Road|Rd|Avenue|Ave|Lane|Drive|Dr|Way|Boulevard|Blvd)\b",
+            re.I,
+        ),
+        "<ADDRESS>",
+    ),
     (re.compile(r"\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b", re.I), "<POSTCODE>"),
-    (re.compile(r"(?:\+\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}[-.\s]?\d{0,6}\b"), "<PHONE>"),
+    (
+        re.compile(
+            r"(?:\+\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}[-.\s]?\d{0,6}\b"
+        ),
+        "<PHONE>",
+    ),
 ]
 
 
@@ -133,10 +146,14 @@ def _redact_messages(messages: list[dict[str, Any]], level: str) -> list[dict[st
         for block in msg.get("content") or []:
             if isinstance(block, dict) and block.get("type") == "text":
                 text = block.get("text")
-                copy["content"].append({
-                    "type": "text",
-                    "text": _redact_sensitive_text(str(text) if text is not None else "", level),
-                })
+                copy["content"].append(
+                    {
+                        "type": "text",
+                        "text": _redact_sensitive_text(
+                            str(text) if text is not None else "", level
+                        ),
+                    }
+                )
             else:
                 copy["content"].append(dict(block) if isinstance(block, dict) else block)
         out.append(copy)
@@ -146,11 +163,21 @@ def _redact_messages(messages: list[dict[str, Any]], level: str) -> list[dict[st
 def _sample_llm_redacted(structure: str) -> list[dict[str, Any]]:
     """Fallback when no context messages: sample with placeholders (sensitive parts only), not full wipe."""
     if structure == "input":
-        return [{"role": "user", "content": [{"type": "text", "text": "What is the status of my claim?"}]}]
+        return [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "What is the status of my claim?"}],
+            }
+        ]
     return [
         {
             "role": "assistant",
-            "content": [{"type": "text", "text": "Your claim <CLAIM_ID> is in review. Expected completion within 5 business days."}],
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Your claim <CLAIM_ID> is in review. Expected completion within 5 business days.",
+                }
+            ],
         },
     ]
 
@@ -223,7 +250,9 @@ class AttributeGenerator:
                 else:
                     continue
             attrs[attr_name] = value
-        span_overrides = {k: v for k, v in overrides.items() if k != _RESOURCE_ONLY_ATTR and v is not None}
+        span_overrides = {
+            k: v for k, v in overrides.items() if k != _RESOURCE_ONLY_ATTR and v is not None
+        }
         attrs.update(span_overrides)
         # Session and conversation are first-class: all spans in the same logical interaction must carry
         # the same session id. gen_ai.conversation.id SHOULD equal session.id for the same conversation (OTEL).
@@ -303,11 +332,15 @@ class AttributeGenerator:
         # Redacted variants: same structure as input/output, but only PII/sensitive parts replaced with placeholders.
         if "input.redacted" in name or name.endswith("gen_ai.input.redacted"):
             if context.redaction_applied != "none" and context.llm_input_messages:
-                return json.dumps(_redact_messages(context.llm_input_messages, context.redaction_applied))
+                return json.dumps(
+                    _redact_messages(context.llm_input_messages, context.redaction_applied)
+                )
             return json.dumps(_sample_llm_redacted("input"))
         if "output.redacted" in name or name.endswith("gen_ai.output.redacted"):
             if context.redaction_applied != "none" and context.llm_output_messages:
-                return json.dumps(_redact_messages(context.llm_output_messages, context.redaction_applied))
+                return json.dumps(
+                    _redact_messages(context.llm_output_messages, context.redaction_applied)
+                )
             return json.dumps(_sample_llm_redacted("output"))
 
         if "hash" in name:

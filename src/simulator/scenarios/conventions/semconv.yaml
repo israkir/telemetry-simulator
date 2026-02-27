@@ -561,18 +561,19 @@ control_plane_validation_model:
       fully_allowed: "gentoro.request.outcome = allowed"
       allowed_but_flagged: "gentoro.request.outcome = allowed; gentoro.request.audit.flag = true"
       blocked_payload: "gentoro.request.outcome = blocked; gentoro.block.reason = invalid_payload"
+      blocked_rate_limited: "gentoro.request.outcome = blocked; gentoro.block.reason = rate_limited"
       blocked_policy: "gentoro.request.outcome = blocked; gentoro.block.reason = request_policy"
       blocked_augmentation: "gentoro.request.outcome = blocked; gentoro.block.reason = invalid_context"
       runtime_failure: "gentoro.request.outcome = error; status.code = ERROR"
     payload_failure_rules:
       payload_span_must: "gentoro.validation.result = invalid; gentoro.step.outcome = fail; status.code = ERROR"
-      events: "Emit gentoro.validation.error event(s) with gentoro.validation.error.path, gentoro.validation.error.rule, gentoro.validation.error.code"
+      events: "Emit one or more gentoro.validation.error event(s) with gentoro.validation.error.path, gentoro.validation.error.rule, gentoro.validation.error.code"
     policy_flagging_rules:
       when_allow_with_audit: "Policy span MUST gentoro.policy.decision = allow_with_audit, gentoro.step.outcome = pass; Root MUST gentoro.request.audit.flag = true; Root SHOULD gentoro.request.audit.source = policy"
 
     validation_error_event:
       name: "gentoro.validation.error"
-      when: "Payload validation fails; emit one event per validation issue"
+      when: "Payload validation fails; emit one event per validation issue (multiple events per span are allowed)"
       required_attributes: [gentoro.validation.error.path, gentoro.validation.error.rule, gentoro.validation.error.code]
 
   outgoing_response_validation:

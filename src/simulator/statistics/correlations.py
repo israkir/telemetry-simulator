@@ -269,7 +269,11 @@ class RetrySequence:
                     "success_rate_per_attempt", [0.0, 0.7, 0.85, 0.95]
                 ),
                 retryable_errors=(
-                    [ErrorType(e) for e in retry_config.get("retryable_errors", ["timeout", "unavailable"]) if e in [x.value for x in ErrorType]]
+                    [
+                        ErrorType(e)
+                        for e in retry_config.get("retryable_errors", ["timeout", "unavailable"])
+                        if e in [x.value for x in ErrorType]
+                    ]
                     or [ErrorType.TIMEOUT, ErrorType.UNAVAILABLE]
                 ),
             ),

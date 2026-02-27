@@ -238,6 +238,20 @@ control_plane:
         policy: 0
         augmentation: 0
 
+    # Rate limited early → request blocked; no policy/augmentation spans (step didn't run).
+    blocked_rate_limited:
+      root:
+        request.outcome: blocked
+        block.reason: rate_limited
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      include_policy: false
+      include_augmentation: false
+      error_rate:
+        root: 0
+        payload: 0
+
     blocked_invalid_payload:
       root:
         request.outcome: blocked
@@ -260,6 +274,30 @@ control_plane:
         payload: 1
         policy: 0
         augmentation: 0
+
+    # Payload validation fails with multiple errors → blocked (invalid_payload); only root + payload spans.
+    blocked_invalid_payload_multi:
+      root:
+        request.outcome: blocked
+        block.reason: invalid_payload
+      payload:
+        step.outcome: fail
+        validation.result: invalid
+        validation_errors:
+          - path: "$.messages"
+            rule: minItems
+            code: too_few_items
+          - path: "$.model"
+            rule: enum
+            code: invalid_enum
+          - path: "$.messages[0].role"
+            rule: enum
+            code: invalid_enum
+      include_policy: false
+      include_augmentation: false
+      error_rate:
+        root: 0
+        payload: 0
 
     blocked_request_policy:
       root:
@@ -284,6 +322,38 @@ control_plane:
         policy: 0
         augmentation: 0
 
+    # Policy engine runtime exception, fail-closed → request blocked (request_policy).
+    # Root outcome=blocked, block.reason=request_policy, policy span status=ERROR with exception event;
+    # root remains status UNSET (intentional block) and gentoro.policy.fail_mode=closed.
+    blocked_request_policy_fail_closed:
+      root:
+        request.outcome: blocked
+        block.reason: request_policy
+        policy.fail_mode: closed
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: fail
+        policy.engine: dlp
+        policy.decision: block
+        policy.reason: engine_error
+        policy.severity: high
+        exception:
+          type: PolicyEngineTimeout
+          message: policy_engine_timeout
+      augmentation:
+        step.outcome: skip
+        augment.conversation_id.action: missing
+        augment.request_id.action: missing
+        augment.enduser_id.action: missing
+        augment.target_agent_id.action: missing
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 1
+        augmentation: 0
+
     blocked_invalid_context:
       root:
         request.outcome: blocked
@@ -301,6 +371,34 @@ control_plane:
         augment.request_id.action: missing
         augment.enduser_id.action: missing
         augment.target_agent_id.action: missing
+      error_rate:
+        root: 0
+        payload: 0
+        policy: 0
+        augmentation: 1
+
+    # Augmentation fails (exception) → request blocked (invalid_context); augmentation span has exception event.
+    blocked_invalid_context_augment_exception:
+      root:
+        request.outcome: blocked
+        block.reason: invalid_context
+      payload:
+        step.outcome: pass
+        validation.result: valid
+      policy:
+        step.outcome: pass
+        policy.engine: dlp
+        policy.decision: allow
+      augmentation:
+        step.outcome: fail
+        block.reason: not_found
+        augment.conversation_id.action: propagated
+        augment.request_id.action: created
+        augment.enduser_id.action: propagated
+        augment.target_agent_id.action: missing
+        exception:
+          type: AugmentationBindError
+          message: augmentation_failed
       error_rate:
         root: 0
         payload: 0

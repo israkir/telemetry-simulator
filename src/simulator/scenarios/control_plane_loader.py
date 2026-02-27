@@ -11,7 +11,8 @@ is applied at build time from config.attr().
 from pathlib import Path
 from typing import Any
 
-from ..config import CONFIG_PATH, attr as config_attr, load_yaml
+from ..config import CONFIG_PATH, load_yaml
+from ..config import attr as config_attr
 from ..generators.trace_generator import (
     SpanConfig,
     SpanType,
@@ -75,7 +76,9 @@ def outcome_from_template_id(template_id: str) -> str:
     return "allowed"
 
 
-def get_trace_flow(request_outcome: str, template_id: str | None = None, config_path: Path | None = None) -> list[str]:
+def get_trace_flow(
+    request_outcome: str, template_id: str | None = None, config_path: Path | None = None
+) -> list[str]:
     """Return list of trace kinds to emit. Uses template_id to infer outcome when provided (e.g. blocked_request_policy -> blocked)."""
     outcome = (request_outcome or "allowed").strip().lower()
     if template_id:
@@ -83,7 +86,11 @@ def get_trace_flow(request_outcome: str, template_id: str | None = None, config_
     cp = _load_control_plane_config(config_path)
     flow = cp.get("trace_flow")
     if not isinstance(flow, dict):
-        return ["incoming_validation", "data_plane", "response_validation"] if outcome == "allowed" else ["incoming_validation"]
+        return (
+            ["incoming_validation", "data_plane", "response_validation"]
+            if outcome == "allowed"
+            else ["incoming_validation"]
+        )
     traces = flow.get(outcome)
     if isinstance(traces, list):
         return [str(t) for t in traces]
@@ -141,17 +148,32 @@ def build_request_validation_hierarchy_from_template(
         attribute_overrides=root_attrs,
     )
 
-    payload_attrs = _prefix_attrs(t.get("payload") or {})
+    payload_raw = t.get("payload") or {}
+    if not isinstance(payload_raw, dict):
+        payload_raw = {}
+    payload_attrs = _prefix_attrs(
+        {k: v for k, v in payload_raw.items() if k != "validation_errors" and v is not None}
+    )
+    validation_errors = payload_raw.get("validation_errors")
+    if not isinstance(validation_errors, list):
+        validation_errors = None
     payload_cfg = SpanConfig(
         span_type=SpanType.VALIDATION_PAYLOAD,
         latency_mean_ms=float(payload_lat),
         latency_variance=0.2,
         error_rate=float(err.get("payload", 0)),
         attribute_overrides=payload_attrs,
+        validation_errors=validation_errors,
     )
 
     policy_raw = t.get("policy") or {}
-    policy_attrs = _prefix_attrs({k: v for k, v in (policy_raw if isinstance(policy_raw, dict) else {}).items() if k != "exception"})
+    policy_attrs = _prefix_attrs(
+        {
+            k: v
+            for k, v in (policy_raw if isinstance(policy_raw, dict) else {}).items()
+            if k != "exception"
+        }
+    )
     exc = policy_raw.get("exception") if isinstance(policy_raw, dict) else None
     exc_type = str(exc.get("type")) if isinstance(exc, dict) and exc.get("type") else None
     exc_msg = str(exc.get("message")) if isinstance(exc, dict) and exc.get("message") else None
@@ -170,23 +192,35 @@ def build_request_validation_hierarchy_from_template(
         exception_message=exc_msg,
     )
 
-    augment_attrs = _prefix_attrs(t.get("augmentation") or {})
+    augment_raw = t.get("augmentation") or {}
+    if not isinstance(augment_raw, dict):
+        augment_raw = {}
+    augment_attrs = _prefix_attrs(
+        {k: v for k, v in augment_raw.items() if k != "exception" and v is not None}
+    )
+    aug_exc = augment_raw.get("exception") if isinstance(augment_raw, dict) else None
+    aug_exc_type = str(aug_exc.get("type")) if isinstance(aug_exc, dict) and aug_exc.get("type") else None
+    aug_exc_msg = str(aug_exc.get("message")) if isinstance(aug_exc, dict) and aug_exc.get("message") else None
     augment_cfg = SpanConfig(
         span_type=SpanType.AUGMENTATION,
         latency_mean_ms=float(augment_lat),
         latency_variance=0.2,
         error_rate=float(err.get("augmentation", 0)),
         attribute_overrides=augment_attrs,
+        exception_type=aug_exc_type,
+        exception_message=aug_exc_msg,
     )
 
-    return TraceHierarchy(
-        root_config=root_cfg,
-        children=[
-            TraceHierarchy(root_config=payload_cfg, children=[]),
-            TraceHierarchy(root_config=policy_cfg, children=[]),
-            TraceHierarchy(root_config=augment_cfg, children=[]),
-        ],
-    )
+    # Optional: omit policy and/or augmentation spans (e.g. rate_limited before policy runs).
+    include_policy = t.get("include_policy", True)
+    include_augmentation = t.get("include_augmentation", True)
+    children: list[TraceHierarchy] = [TraceHierarchy(root_config=payload_cfg, children=[])]
+    if include_policy:
+        children.append(TraceHierarchy(root_config=policy_cfg, children=[]))
+    if include_augmentation:
+        children.append(TraceHierarchy(root_config=augment_cfg, children=[]))
+
+    return TraceHierarchy(root_config=root_cfg, children=children)
 
 
 def build_response_validation_hierarchy_from_template(

@@ -100,7 +100,6 @@ def check_config_driven_attributes(
     server_attr = config_attr("mcp.server.uuid")
     tool_attr = config_attr("mcp.tool.uuid")
 
-    missing = []
     invalid = []
 
     tid = span_attrs.get(tenant_attr)

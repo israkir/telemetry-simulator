@@ -54,7 +54,9 @@ def _get_agent_id(agents: list[Any], agent_id: str) -> str:
     raise ConfigResolutionError(f"Unknown agent id: {agent_id}")
 
 
-def _get_mcp_server_ref(mcp_servers: dict[str, Any], mcp_server_key: str) -> tuple[str, list[dict[str, str]]]:
+def _get_mcp_server_ref(
+    mcp_servers: dict[str, Any], mcp_server_key: str
+) -> tuple[str, list[dict[str, str]]]:
     key = (mcp_server_key or "").strip().lower()
     if not key:
         raise ConfigResolutionError("context.mcp_server is required")
@@ -63,11 +65,17 @@ def _get_mcp_server_ref(mcp_servers: dict[str, Any], mcp_server_key: str) -> tup
         raise ConfigResolutionError(f"Unknown mcp_server key: {mcp_server_key}")
     uuid_val = server.get("mcp_server_uuid")
     if not isinstance(uuid_val, str) or not uuid_val.strip():
-        raise ConfigResolutionError(f"MCP server '{mcp_server_key}' has no mcp_server_uuid in config")
+        raise ConfigResolutionError(
+            f"MCP server '{mcp_server_key}' has no mcp_server_uuid in config"
+        )
     tools_raw = server.get("tools") or []
     tools: list[dict[str, str]] = []
     for t in tools_raw:
-        if isinstance(t, dict) and isinstance(t.get("name"), str) and isinstance(t.get("tool_uuid"), str):
+        if (
+            isinstance(t, dict)
+            and isinstance(t.get("name"), str)
+            and isinstance(t.get("tool_uuid"), str)
+        ):
             tools.append({"name": t["name"], "tool_uuid": t["tool_uuid"]})
     return uuid_val.strip(), tools
 
@@ -130,7 +138,8 @@ def resolve_context(
 
 def get_default_tenant_id(config_path: Path | None = None) -> str:
     """Return the first tenant id from config (delegates to config.get_default_tenant_id)."""
-    from ..config import CONFIG_PATH, get_default_tenant_id as _config_default_tenant_id
+    from ..config import CONFIG_PATH
+    from ..config import get_default_tenant_id as _config_default_tenant_id
 
     try:
         return _config_default_tenant_id(config_path or CONFIG_PATH)

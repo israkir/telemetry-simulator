@@ -70,7 +70,9 @@ SEMCONV_RESPONSE_FORMAT_VALUES = ("a2a_json", "a2a_stream")
 _CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "config" / "config.yaml"
 CONFIG_PATH = _CONFIG_PATH
 # Default semantic-conventions path when SEMCONV / --semconv not set.
-DEFAULT_SEMCONV_PATH = Path(__file__).resolve().parent / "scenarios" / "conventions" / "semconv.yaml"
+DEFAULT_SEMCONV_PATH = (
+    Path(__file__).resolve().parent / "scenarios" / "conventions" / "semconv.yaml"
+)
 
 # Keys in resource.attributes that are prefix-relative (expanded with attr() when loading from YAML).
 _PREFIX_RELATIVE_KEYS = frozenset({"module", "component", "otel.source"})

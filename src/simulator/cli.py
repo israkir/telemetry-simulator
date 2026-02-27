@@ -261,6 +261,7 @@ def cmd_run(args: argparse.Namespace):
     print(f"   Endpoint: {args.endpoint}")
     print(f"   Count: {args.count}")
     print(f"   Interval: {args.interval}ms")
+    tags_list: list[str] | None = None
     if getattr(args, "tags", None) and isinstance(args.tags, str):
         tags_list = [t.strip() for t in args.tags.split(",") if t.strip()]
         if tags_list:
@@ -314,9 +315,6 @@ def cmd_run(args: argparse.Namespace):
             scenarios_dir=getattr(args, "scenarios_dir", None),
         )
 
-        tags_list: list[str] | None = None
-        if getattr(args, "tags", None) and isinstance(args.tags, str):
-            tags_list = [t.strip() for t in args.tags.split(",") if t.strip()]
         trace_ids = runner.run_mixed_workload(
             count=args.count,
             interval_ms=args.interval,
