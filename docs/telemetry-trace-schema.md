@@ -13,9 +13,9 @@ This document describes the structure of the telemetry trace data in `traces.jso
 | Enum values | `semconv.yaml` → `enums` under each model | Normative where specified. |
 | Status and outcome rules | `semconv.yaml` → `status_schema`, `failure_rules`, `error_recording` | Root/task/compose status and outcome interaction. |
 
-**Simulator / `traces.jsonl` deviations** (known differences from semconv; document reflects both convention and current file):
+**Simulator / `traces.jsonl` notes** (differences to be aware of when validating data against semconv):
 
-- **Span class attribute**: Semconv defines **`gentoro.span.class`** as the canonical attribute for span identity (e.g. `a2a.orchestrate`, `planner`, `task.execute`). The simulator may also emit **`vendor.span.class`** with the same values; consumers should treat `gentoro.span.class` as authoritative when present.
+- **Span class attribute**: Semconv defines **`gentoro.span.class`** as the canonical attribute for span identity (e.g. `a2a.orchestrate`, `planner`, `task.execute`). When running with Gentoro semantics, spans SHOULD carry `gentoro.span.class` in line with the schema.
 - **`deployment.environment.name`**: Semconv allowed values are `development`, `staging`, `production`. The simulator may use `prod` as shorthand; map to `production` for analytics if needed.
 - **`gentoro.component`**: Semconv allowed values are `orchestrator`, `planning`, `retrieval`, `llm`, `mcp_client`, `tool_recommender`. The simulator may use `gateway-ext`; treat as an orchestrator/gateway component for grouping.
 
@@ -126,7 +126,7 @@ gentoro.a2a.orchestrate (root, SERVER)
 
 ## 4. Attributes Schema
 
-Attributes are span-specific and aligned with semconv. **REQUIRED** = MUST be present; **RECOMMENDED** = SHOULD when applicable. The canonical span identity attribute is **`gentoro.span.class`**; `vendor.span.class` may appear in traces with the same values.
+Attributes are span-specific and aligned with semconv. **REQUIRED** = MUST be present; **RECOMMENDED** = SHOULD when applicable. The canonical span identity attribute is **`gentoro.span.class`**.
 
 ### 4.1 Common / Session (multiple span types)
 
@@ -134,10 +134,9 @@ Attributes are span-specific and aligned with semconv. **REQUIRED** = MUST be pr
 |-----------|------|---------|-------------|
 | `gentoro.session.id` | string | REQUIRED (first-class) | Session identifier; A2A contextId or CP-generated. |
 | `gen_ai.conversation.id` | string | RECOMMENDED | Conversation ID (OTEL); SHOULD equal session when same conversation. |
-| `gentoro.span.class` | string | REQUIRED (per span type) | Canonical span class: `a2a.orchestrate`, `planner`, `task.execute`, `llm.call`, `tools.recommend`, `mcp.tool.execute`, `mcp.tool.execute.attempt`, `response.compose`. |
-| `vendor.span.class` | string | — | May duplicate `gentoro.span.class` in simulator output; use `gentoro.span.class` when present. |
-| `gentoro.step.outcome` | string | REQUIRED (where applicable) | Enum: `success` \| `fail` \| `skipped` (task/planner/compose/LLM/tools/MCP). |
-| `vendor.step.outcome` | string | — | May duplicate step outcome in simulator. |
+| `gentoro.span.class` | string | REQUIRED (per span type) | Canonical span class for orchestration, LLM, tools, MCP, and control-plane validation spans (e.g. `a2a.orchestrate`, `planner`, `task.execute`, `llm.call`, `tools.recommend`, `mcp.tool.execute`, `mcp.tool.execute.attempt`, `response.compose`, `request.validation`, `validation.payload`, `validation.policy`, `augmentation`, `response.validation`). |
+| `gentoro.step.outcome` | string | REQUIRED (where applicable) | Data-plane spans use `success` \| `fail` \| `skipped`; control-plane validation spans use `pass` \| `fail` \| `block` \| `skip` per the control-plane validation model. |
+| `gentoro.error.category` | string | OPTIONAL (on failure) | Enum: `validation` \| `policy` \| `runtime`; low-cardinality category describing the error source for failed steps. |
 
 ### 4.2 gentoro.a2a.orchestrate
 
@@ -222,7 +221,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 
 **Diagnostic event on this span**:
 
-- **Event name**: `gentoro.agent.tool_selection` (always emitted for `gentoro.tools.recommend` spans).
+- **Event name**: `gentoro.agent.tool_selection` (Gentoro schema).
 - **Event attributes**:
   - `gentoro.agent.tool_selection.input.raw` — raw user input message text considered during tool selection (for this simulator, the first `user` text message; may be truncated by downstream processors if needed).
   - `gentoro.agent.tool_selection.tool.plan` — JSON-encoded `tool_plan` structure describing the selected tools (bounded; simulator uses a single-entry plan with the full user input as both `trigger_summary` and `trigger_quote`, and `missing_info: null`).
@@ -262,7 +261,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 | `gentoro.response.format` | string | REQUIRED | Enum: `a2a_json` \| `a2a_stream`. |
 | `gentoro.step.outcome` | string | REQUIRED | Enum: `success` \| `fail`. |
 | `error.type` | string | SHOULD (if failed) | e.g. serialization_error. |
-| `vendor.response.format` | string | — | May duplicate response format in simulator. |
+
 
 ---
 
@@ -287,8 +286,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "gentoro.redaction.applied": "none",
     "gentoro.a2a.outcome": "success",
     "gentoro.enduser.pseudo.id": "usr_sha256:0e5b1315ddcd8f7a",
-    "gentoro.a2a.agent.target.id": "toro-customer-assistant-001",
-    "vendor.span.class": "a2a.orchestrate"
+    "gentoro.a2a.agent.target.id": "toro-customer-assistant-001"
   },
   "kind": "SERVER",
   "resource": {
@@ -326,8 +324,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "gentoro.planner.fallback.used": false,
     "gentoro.step.outcome": "success",
     "gentoro.session.id": "sess_toro_61ae8beca0c1",
-    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1",
-    "vendor.span.class": "planner"
+    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1"
   },
   "kind": "INTERNAL",
   "resource": { "...": "..." }
@@ -360,9 +357,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "gen_ai.tool.call.id": "call_mszuSIzqtI65i1wAUOE8w5H4",
     "gentoro.step.outcome": "success",
     "gentoro.session.id": "sess_toro_61ae8beca0c1",
-    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1",
-    "vendor.span.class": "llm.call",
-    "vendor.step.outcome": "success"
+    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1"
   },
   "kind": "CLIENT",
   "resource": { "...": "..." }
@@ -387,9 +382,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "gentoro.task.retry.count": 1,
     "gentoro.task.fallback.used": true,
     "gentoro.session.id": "sess_toro_61ae8beca0c1",
-    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1",
-    "vendor.span.class": "task.execute",
-    "vendor.step.outcome": "success"
+    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1"
   },
   "kind": "INTERNAL",
   "resource": { "...": "..." }
@@ -417,8 +410,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "gen_ai.tool.call.id": "call_mszuSIzqtI65i1wAUOE8w5H4",
     "error.type": "unavailable",
     "gentoro.session.id": "sess_toro_61ae8beca0c1",
-    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1",
-    "vendor.span.class": "mcp.tool.execute"
+    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1"
   },
   "kind": "CLIENT",
   "resource": { "...": "..." }
@@ -441,8 +433,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "error.type": "invalid_arguments",
     "gentoro.retry.reason": "rate_limited",
     "gentoro.session.id": "sess_toro_61ae8beca0c1",
-    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1",
-    "vendor.span.class": "mcp.tool.execute.attempt"
+    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1"
   },
   "kind": "CLIENT",
   "resource": { "...": "..." }
@@ -465,10 +456,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "gentoro.response.format": "a2a_json",
     "gentoro.step.outcome": "success",
     "gentoro.session.id": "sess_toro_61ae8beca0c1",
-    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1",
-    "vendor.span.class": "response.compose",
-    "vendor.response.format": "a2a_json",
-    "vendor.step.outcome": "success"
+    "gen_ai.conversation.id": "sess_toro_61ae8beca0c1"
   },
   "kind": "INTERNAL",
   "resource": { "...": "..." }
@@ -488,11 +476,4 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 
 ---
 
-## 7. File Statistics (traces.jsonl)
-
-- **Lines**: 401 (401 spans).
-- **Span types**: 8 (all data-plane A2A spans per semconv: `gentoro.a2a.orchestrate`, `gentoro.planner`, `gentoro.task.execute`, `gentoro.llm.call`, `gentoro.tools.recommend`, `gentoro.mcp.tool.execute`, `gentoro.mcp.tool.execute.attempt`, `gentoro.response.compose`).
-- **Span kinds**: `SERVER` (root only), `CLIENT` (LLM and MCP), `INTERNAL` (planner, task execute, tools recommend, response compose).
-- **Status codes observed**: `OK`, `UNSET` (root typically uses `UNSET`; use `ERROR` on failure per semconv).
-
-This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect both the normative conventions and the current `traces.jsonl` output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors.
+This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect both the normative conventions and representative `traces.jsonl` output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors.
