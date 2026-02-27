@@ -468,6 +468,11 @@ data_plane_a2a_observability:
     gentoro.tools.recommended:
       description: "Tool recommendation summary (recommended). Truncate tool list."
       attributes: ["gentoro.tools.list (array of tool names; truncate)", "gentoro.tools.count (int)"]
+    gentoro.agent.tool_selection:
+      description: "LLM tool selection plan (optional, bounded). Captures the input and structured plan used to choose tools; avoid dumping full prompts when redaction is enabled."
+      attributes:
+        - "gentoro.agent.tool_selection.input.raw (string; may be redacted/truncated)"
+        - "gentoro.agent.tool_selection.tool.plan (JSON string; bounded tool_plan structure)"
 
   enums:
     gentoro.a2a.outcome: ["success", "partial", "error"]
@@ -1971,6 +1976,18 @@ diagnostic_event_attributes:
     required: false
     category: first_class
     description: "Number of tools recommended (event gentoro.tools.recommended)."
+
+  gentoro.agent.tool_selection.input.raw:
+    type: string
+    required: false
+    category: metadata
+    description: "Raw user input or context considered during tool selection (may be redacted or truncated)."
+
+  gentoro.agent.tool_selection.tool.plan:
+    type: string
+    required: false
+    category: metadata
+    description: "JSON-encoded tool selection plan (tool_plan array) for event gentoro.agent.tool_selection; keep bounded."
 
 # -----------------------------------------------------------------------------
 # Control-plane validation (gateway-ext — gentoro.request.validation and child spans)

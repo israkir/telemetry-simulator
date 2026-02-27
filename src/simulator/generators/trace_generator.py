@@ -12,6 +12,7 @@ Example tree:
   └── {prefix}.response.compose (INTERNAL)
 """
 
+import json
 import random
 import time
 import uuid
@@ -374,6 +375,73 @@ class TraceGenerator:
                 _record_span_error(span, config.span_type, overrides)
             else:
                 span.set_status(Status(StatusCode.OK))
+
+            # Diagnostic event: gentoro.agent.tool_selection on gentoro.tools.recommend spans.
+            # Captures the raw user input and a bounded JSON tool_plan structure.
+            if config.span_type == SpanType.TOOLS_RECOMMEND:
+                try:
+                    user_input_text: str | None = None
+                    tool_name: str = ""
+                    # Use the OTEL GenAI tool name when available for this logical recommendation.
+                    try:
+                        span_tool_name = span.attributes.get("gen_ai.tool.name")  # type: ignore[attr-defined]
+                        if isinstance(span_tool_name, str):
+                            tool_name = span_tool_name
+                    except Exception:
+                        tool_name = ""
+
+                    # Prefer the actual gen_ai.input.messages attribute on the span, which the
+                    # AttributeGenerator serializes as JSON, and fall back to context.llm_input_messages.
+                    raw_input_attr = span.attributes.get("gen_ai.input.messages")  # type: ignore[attr-defined]
+                    messages_source = None
+                    if isinstance(raw_input_attr, str):
+                        try:
+                            decoded = json.loads(raw_input_attr)
+                            if isinstance(decoded, list):
+                                messages_source = decoded
+                        except Exception:
+                            messages_source = None
+                    if messages_source is None:
+                        messages_source = getattr(context, "llm_input_messages", None)
+
+                    msgs = messages_source
+                    if isinstance(msgs, list) and msgs:
+                        first = msgs[0]
+                        if isinstance(first, dict):
+                            for block in first.get("content") or []:
+                                if isinstance(block, dict) and block.get("type") == "text":
+                                    text_val = block.get("text")
+                                    if isinstance(text_val, str) and text_val.strip():
+                                        user_input_text = text_val.strip()
+                                        break
+                            # Fallbacks for simpler GenAI message shapes (no content[] wrapper).
+                            if user_input_text is None:
+                                direct_text = first.get("text")
+                                if isinstance(direct_text, str) and direct_text.strip():
+                                    user_input_text = direct_text.strip()
+                            if user_input_text is None:
+                                msg_field = first.get("message")
+                                if isinstance(msg_field, str) and msg_field.strip():
+                                    user_input_text = msg_field.strip()
+                    tool_plan_payload = {
+                        "tool_plan": [
+                            {
+                                "tool_name": tool_name or "unknown.tool",
+                                "trigger_summary": user_input_text or "",
+                                "trigger_quote": user_input_text or "",
+                                "missing_info": None,
+                                "confidence": round(random.uniform(0.8, 0.95), 3),
+                            }
+                        ]
+                    }
+                    event_attrs = {
+                        config_attr("agent.tool_selection.input.raw"): user_input_text or "",
+                        config_attr("agent.tool_selection.tool.plan"): json.dumps(tool_plan_payload),
+                    }
+                    span.add_event("gentoro.agent.tool_selection", event_attrs)
+                except Exception:
+                    # Events are best-effort; failures here must not break trace generation.
+                    pass
 
             for child_hierarchy in hierarchy.children:
                 self._generate_span_recursive(child_hierarchy, context, span)

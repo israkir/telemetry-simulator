@@ -872,6 +872,15 @@ def _apply_context_to_hierarchy(
                 attempt_overrides = dict(attempt_cfg.attribute_overrides or {})
                 attempt_overrides[config_attr("mcp.tool.call.id")] = call_id
                 attempt_cfg.attribute_overrides = attempt_overrides
+        elif cfg.span_type == SpanType.TOOLS_RECOMMEND:
+            # For tool recommendation spans, propagate the primary MCP tool name when available
+            # so downstream diagnostics (e.g. gentoro.agent.tool_selection) can align tool_name
+            # with gen_ai.tool.name used on the subsequent MCP tool execution.
+            overrides = dict(cfg.attribute_overrides or {})
+            primary_tool_name = tools_by_index[0].name if tools_by_index else ""
+            if primary_tool_name:
+                overrides["gen_ai.tool.name"] = primary_tool_name
+            cfg.attribute_overrides = overrides
         for child in h.children:
             walk(child)
 
