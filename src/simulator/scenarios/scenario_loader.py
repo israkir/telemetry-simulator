@@ -266,30 +266,24 @@ def _parse_and_resolve_context(
     )
 
 
-def _apply_data_plane_template(
+def _apply_data_plane_from_scenario(
     context: ScenarioContext,
-    template_name: str,
+    data_plane: dict[str, Any],
     config_path: Path,
 ) -> tuple[ScenarioContext, str | None, str | None]:
     """
-    Enrich context from config data_plane_templates (workflow + correct_flow) and return simulation_goal
-    and optional control_plane_template. When the data-plane template sets control_plane_template,
-    scenarios using it will use that request-validation template unless they override control_plane.template.
-    Returns (context, simulation_goal, control_plane_template). If template not found, returns (context, None, None).
+    Enrich context from the scenario's data_plane block (workflow, simulation_goal, control_plane_template).
+    Workflow step list (correct_flow) is resolved from config workflow_templates; scenario defines which
+    workflow and goal to use. Returns (context, simulation_goal, control_plane_template).
     """
     from ..config import load_yaml
 
+    workflow = data_plane.get("workflow")
+    if not isinstance(workflow, str) or not workflow.strip():
+        return context, None, None
+    workflow = workflow.strip()
     data = load_yaml(config_path)
     if not isinstance(data, dict):
-        return context, None, None
-    templates = data.get("data_plane_templates")
-    if not isinstance(templates, dict):
-        return context, None, None
-    template = templates.get((template_name or "").strip())
-    if not isinstance(template, dict):
-        return context, None, None
-    workflow = template.get("workflow")
-    if not isinstance(workflow, str):
         return context, None, None
     rs = data.get("realistic_scenarios")
     workflow_templates = rs.get("workflow_templates") if isinstance(rs, dict) else None
@@ -299,10 +293,12 @@ def _apply_data_plane_template(
     if not isinstance(steps, list):
         return context, None, None
     correct_flow = FlowConfig(steps=[str(s) for s in steps])
-    simulation_goal = template.get("simulation_goal")
+    simulation_goal = data_plane.get("simulation_goal")
     if simulation_goal is not None and not isinstance(simulation_goal, str):
         simulation_goal = None
-    cp_template = template.get("control_plane_template")
+    if simulation_goal and not (simulation_goal := simulation_goal.strip()):
+        simulation_goal = None
+    cp_template = data_plane.get("control_plane_template")
     if cp_template is not None and not isinstance(cp_template, str):
         cp_template = None
     if cp_template and not (cp_template := cp_template.strip()):
@@ -510,6 +506,9 @@ class Scenario:
     interval_ms: float
     interval_deviation_ms: float
     root_step: ScenarioStep
+    # Relative weight when sampling this scenario in mixed workloads (run --tags=...).
+    # Higher values -> picked more often. Default 1.0.
+    workload_weight: float = 1.0
     emit_metrics: bool = True
     emit_logs: bool = True
     is_statistical: bool = False
@@ -519,6 +518,9 @@ class Scenario:
     simulation_goal: str | None = None
     # MCP server context (e.g. phone, electronics, appliances); identifies which mcp_servers entry.
     mcp_server: str | None = None
+    # Expected MCP server and tools (from scenario definition); for docs and validation. Keys only; UUIDs from config.
+    expected_mcp_server: str | None = None
+    expected_tools: list[str] | None = None
     # Optional multi-turn conversation: raw role/text or user_input/llm_response (reference).
     conversation_turns: list[dict[str, str]] | None = None
     # Per-turn (input_messages, output_messages) for one span per interaction; same session_id for all.
@@ -565,7 +567,11 @@ class Scenario:
             _apply_realistic_scenario_if_needed(self, hierarchy)
             return [hierarchy]
         # Control-plane-only: no data-plane hierarchy to emit
-        from .control_plane_loader import get_request_validation_template_id, get_trace_flow
+        from .control_plane_loader import (
+            get_default_data_plane_workflow_steps,
+            get_request_validation_template_id,
+            get_trace_flow,
+        )
 
         flow = get_trace_flow(
             self.control_plane_request_outcome or "allowed",
@@ -581,6 +587,32 @@ class Scenario:
             hierarchies = self.root_step.to_retry_hierarchies()
         else:
             hierarchies = [self.root_step.to_hierarchy()]
+
+        # When trace_flow includes data_plane but scenario has no correct_flow, root_step
+        # yields a single orchestrate root with no children. Use default full hierarchy
+        # so orchestrate contains full child spans (planner, task, tools, response_compose).
+        if (
+            "data_plane" in flow
+            and len(hierarchies) == 1
+            and hierarchies[0].root_config.span_type is SpanType.A2A_ORCHESTRATE
+            and not hierarchies[0].children
+            and self.context is not None
+        ):
+            default_steps = get_default_data_plane_workflow_steps()
+            merged_context = ScenarioContext(
+                tenant_uuid=self.context.tenant_uuid,
+                agents=self.context.agents,
+                workflow=None,
+                correct_flow=FlowConfig(steps=default_steps),
+                error_pattern=getattr(self.context, "error_pattern", "happy_path") or "happy_path",
+                error_config=getattr(self.context, "error_config", None),
+                redaction_applied=getattr(self.context, "redaction_applied", "none") or "none",
+                actual_steps=None,
+            )
+            hierarchy = _hierarchy_from_context(merged_context)
+            _apply_context_to_hierarchy(hierarchy, merged_context, self.id_generator)
+            return [hierarchy]
+
         if self.context:
             for h in hierarchies:
                 _apply_context_to_hierarchy(h, self.context, self.id_generator)
@@ -722,6 +754,12 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
     )
     children: list[TraceHierarchy] = []
     steps = list(steps)
+    # Derive tool step names in order (e.g. new_claim, update_appointment) so LLM/tool spans
+    # can align gen_ai.tool.name with the workflow instead of using schema-generated placeholders.
+    tool_step_names = [
+        (s or "").strip() for s in steps if (s or "").strip().lower() not in _NON_TOOL_STEP_NAMES
+    ]
+    primary_tool_name = tool_step_names[0] if tool_step_names else ""
     i = 0
     while i < len(steps):
         step = steps[i]
@@ -765,13 +803,16 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 config_attr("step.outcome"): "success",
                 config_attr("task.type"): "llm_call",
             }
+            llm_overrides: dict[str, Any] = {config_attr("step.outcome"): "success"}
+            if primary_tool_name:
+                llm_overrides["gen_ai.tool.name"] = primary_tool_name
             llm_call_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.LLM_CALL,
                     latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.LLM_CALL],
                     latency_variance=0.2,
                     error_rate=0.0,
-                    attribute_overrides={config_attr("step.outcome"): "success"},
+                    attribute_overrides=llm_overrides,
                 ),
                 children=[],
             )
@@ -840,6 +881,34 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             i += 1
 
     return TraceHierarchy(root_config=root_config, children=children)
+
+
+# Step names that are structural (not MCP tool steps). Used to derive tool step names from workflow.
+_NON_TOOL_STEP_NAMES = frozenset(
+    s.lower()
+    for s in (
+        "planner",
+        "planning",
+        "task",
+        "task_execute",
+        "task.execute",
+        "tools_recommend",
+        "tools.recommend",
+        "response_compose",
+        "response",
+    )
+)
+
+
+def _tool_step_names_from_flow(correct_flow: FlowConfig | None) -> list[str]:
+    """Return tool step names in workflow order (from correct_flow.steps), for matching MCP spans to tools by name."""
+    if not correct_flow or not correct_flow.steps:
+        return []
+    return [
+        (s or "").strip()
+        for s in correct_flow.steps
+        if (s or "").strip().lower() not in _NON_TOOL_STEP_NAMES
+    ]
 
 
 def _collect_mcp_hierarchies_in_order(hierarchy: TraceHierarchy) -> list[TraceHierarchy]:
@@ -945,6 +1014,9 @@ def _apply_context_to_hierarchy(
     if agent.mcp:
         tools_by_index = agent.mcp[0].tools
     server_uuid = agent.mcp[0].server_uuid if agent.mcp else ""
+    # Tool step names in workflow order (from config/template); used to set correct mcp.server.uuid / mcp.tool.uuid per span.
+    tool_step_names = _tool_step_names_from_flow(context.correct_flow)
+    tools_by_name = {t.name: t for t in tools_by_index}
     mcp_index = [0]
 
     def walk(h: TraceHierarchy) -> None:
@@ -958,8 +1030,12 @@ def _apply_context_to_hierarchy(
             overrides[config_attr("mcp.server.uuid")] = server_uuid
             overrides[config_attr("mcp.tool.call.id")] = call_id
             idx = mcp_index[0]
-            if idx < len(tools_by_index):
-                tool = tools_by_index[idx]
+            # Resolve tool by workflow step name so each MCP span gets the correct server/tool UUID (e.g. update_appointment vs new_claim).
+            step_name = tool_step_names[idx] if idx < len(tool_step_names) else None
+            tool = (tools_by_name.get(step_name) if step_name else None) or (
+                tools_by_index[idx] if idx < len(tools_by_index) else None
+            )
+            if tool:
                 overrides["gen_ai.tool.name"] = tool.name
                 overrides[config_attr("mcp.tool.uuid")] = tool.uuid
             mcp_index[0] += 1
@@ -970,11 +1046,11 @@ def _apply_context_to_hierarchy(
                 attempt_overrides[config_attr("mcp.tool.call.id")] = call_id
                 attempt_cfg.attribute_overrides = attempt_overrides
         elif cfg.span_type == SpanType.TOOLS_RECOMMEND:
-            # For tool recommendation spans, propagate the primary MCP tool name when available
-            # so downstream diagnostics (e.g. {prefix}.agent.tool_selection) can align tool_name
-            # with gen_ai.tool.name used on the subsequent MCP tool execution.
+            # Align primary tool name with first tool step in workflow so tools_recommend and MCP tool execute match.
             overrides = dict(cfg.attribute_overrides or {})
-            primary_tool_name = tools_by_index[0].name if tools_by_index else ""
+            primary_tool_name = (tool_step_names[0] if tool_step_names else "") or (
+                tools_by_index[0].name if tools_by_index else ""
+            )
             if primary_tool_name:
                 overrides["gen_ai.tool.name"] = primary_tool_name
             cfg.attribute_overrides = overrides
@@ -1035,10 +1111,16 @@ EXAMPLE_SCENARIO_NAME = "example_scenario"
 
 def _control_plane_scenario_data(name: str, entry: dict[str, Any]) -> dict[str, Any]:
     """Build minimal scenario dict for control_plane.request_scenarios registry (no YAML file)."""
+    raw_weight = entry.get("workload_weight", 1.0)
+    try:
+        workload_weight = float(raw_weight)
+    except (TypeError, ValueError):
+        workload_weight = 1.0
     return {
         "name": name,
         "description": entry.get("description", ""),
         "tags": ["control-plane"],
+        "workload_weight": workload_weight,
         "control_plane": {"template": entry["template"]},
         "context": {"tenant": "toro", "agent": "toro-customer-assistant-001"},
         "mcp_server": "phone",
@@ -1156,20 +1238,17 @@ class ScenarioLoader:
         else:
             tenant_dist = {get_default_tenant_id(CONFIG_PATH): 1.0}
 
-        # Optional data_plane.template: workflow + correct_flow + simulation_goal + control_plane_template from config.
-        simulation_goal_from_template: str | None = None
+        # Data-plane defined in scenario: workflow (step list from config), simulation_goal, control_plane_template.
+        simulation_goal_from_dp: str | None = None
         control_plane_template_from_dp: str | None = None
         if scenario_context:
             dp = data.get("data_plane")
-            if isinstance(dp, dict):
-                template_raw = dp.get("template")
-                if isinstance(template_raw, str) and template_raw.strip():
-                    template_name = template_raw.strip()
-                    (
-                        scenario_context,
-                        simulation_goal_from_template,
-                        control_plane_template_from_dp,
-                    ) = _apply_data_plane_template(scenario_context, template_name, CONFIG_PATH)
+            if isinstance(dp, dict) and isinstance(dp.get("workflow"), str):
+                (
+                    scenario_context,
+                    simulation_goal_from_dp,
+                    control_plane_template_from_dp,
+                ) = _apply_data_plane_from_scenario(scenario_context, dp, CONFIG_PATH)
 
         root_for_detect = data.get("root")
         is_statistical = self._detect_statistical(
@@ -1179,8 +1258,8 @@ class ScenarioLoader:
         simulation_goal = data.get("simulation_goal")
         if simulation_goal is not None and not isinstance(simulation_goal, str):
             simulation_goal = None
-        if simulation_goal is None and simulation_goal_from_template is not None:
-            simulation_goal = simulation_goal_from_template
+        if simulation_goal is None and simulation_goal_from_dp is not None:
+            simulation_goal = simulation_goal_from_dp
         mcp_server = data.get("mcp_server")
         if mcp_server is not None and not isinstance(mcp_server, str):
             mcp_server = None
@@ -1190,6 +1269,12 @@ class ScenarioLoader:
             redaction_applied = scenario_context.redaction_applied
         if not isinstance(redaction_applied, str):
             redaction_applied = "none"
+
+        raw_weight = data.get("workload_weight", 1.0)
+        try:
+            workload_weight = float(raw_weight)
+        except (TypeError, ValueError):
+            workload_weight = 1.0
 
         # Optional multi-turn conversation: one span per interaction (user input → LLM response).
         # Format A: [{ user_input: "...", llm_response: "..." }, ...]
@@ -1291,8 +1376,8 @@ class ScenarioLoader:
                 control_plane_policy_exception_override = {
                     k: str(v) for k, v in pe.items() if k in ("type", "message") and v is not None
                 }
-        # When scenario uses data_plane.template and did not set control_plane.template, use the
-        # control_plane_template from the data-plane template (e.g. allowed = no error/exception).
+        # When scenario uses data_plane.workflow and did not set control_plane.template, use the
+        # control_plane_template from the scenario's data_plane block (e.g. allowed = no error/exception).
         if control_plane_template is None and control_plane_template_from_dp is not None:
             control_plane_template = control_plane_template_from_dp
 
@@ -1327,6 +1412,23 @@ class ScenarioLoader:
         else:
             tags = []
 
+        # Expected MCP server and tools: defined in scenario; config only maps keys → UUIDs.
+        expected_mcp_server: str | None = None
+        expected_tools: list[str] | None = None
+        expected_raw = data.get("expected")
+        if isinstance(expected_raw, dict):
+            em = expected_raw.get("mcp_server")
+            expected_mcp_server = (
+                em.strip() if isinstance(em, str) and em.strip() else None
+            ) or None
+            tools_raw = expected_raw.get("tools")
+            if isinstance(tools_raw, list):
+                expected_tools = [
+                    str(t).strip() for t in tools_raw if t is not None and str(t).strip()
+                ]
+            elif isinstance(tools_raw, str) and tools_raw.strip():
+                expected_tools = [tools_raw.strip()]
+
         return Scenario(
             name=data.get("name", "unnamed"),
             description=data.get("description", ""),
@@ -1335,6 +1437,7 @@ class ScenarioLoader:
             repeat_count=data.get("repeat_count", 1),
             interval_ms=data.get("interval_ms", 500),
             interval_deviation_ms=float(data.get("interval_deviation_ms", 0)),
+            workload_weight=workload_weight,
             root_step=root_step,
             emit_metrics=data.get("emit_metrics", True),
             emit_logs=data.get("emit_logs", True),
@@ -1343,6 +1446,8 @@ class ScenarioLoader:
             id_generator=self.get_id_generator(),
             simulation_goal=simulation_goal,
             mcp_server=mcp_server,
+            expected_mcp_server=expected_mcp_server,
+            expected_tools=expected_tools or None,
             conversation_turns=conversation_turns,
             conversation_turn_pairs=conversation_turn_pairs,
             redaction_applied=redaction_applied or "none",

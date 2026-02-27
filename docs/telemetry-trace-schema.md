@@ -162,11 +162,6 @@ In the simulator, **session and conversation IDs** are generated as follows: for
 |-----------|------|---------|-------------|
 | `gentoro.span.class` | string | REQUIRED | Value: `planner`. |
 | `gentoro.step.outcome` | string | REQUIRED | Enum: `success` \| `fail`. |
-| `gentoro.planner.output.task.count` | number | REQUIRED | Number of tasks produced. |
-| `gentoro.planner.output.entity.count` | number | REQUIRED | Number of entities. |
-| `gentoro.planner.strategy` | string | RECOMMENDED | Enum: `rules` \| `model` \| `hybrid`. |
-| `gentoro.planner.output.format` | string | RECOMMENDED | Enum: `task_list` \| `task_graph` \| `task_tree`. |
-| `gentoro.planner.fallback.used` | boolean | RECOMMENDED | Whether fallback was used. |
 | `error.type` | string | SHOULD (if failed) | Low-cardinality error identifier. |
 
 ### 4.4 gentoro.task.execute
@@ -321,11 +316,6 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
   "end_time": 1772195175429025000,
   "status": { "status_code": "OK", "description": null },
   "attributes": {
-    "gentoro.planner.output.task.count": 6,
-    "gentoro.planner.output.entity.count": 0,
-    "gentoro.planner.strategy": "model",
-    "gentoro.planner.output.format": "task_list",
-    "gentoro.planner.fallback.used": false,
     "gentoro.step.outcome": "success",
     "gentoro.session.id": "sess_toro_61ae8beca0c1",
     "gen_ai.conversation.id": "sess_toro_61ae8beca0c1"

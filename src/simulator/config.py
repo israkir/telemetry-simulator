@@ -5,8 +5,8 @@ Allows projects to use the simulator with their own attribute namespace by setti
 VENDOR (e.g. "acme" for acme.session.id, acme.turn.status, etc.).
 Default prefix is "vendor"; override with VENDOR for your project.
 
-Resource attributes and resource.schemaUrl are loaded only from config/config.yaml
-(scenarios/config/config.yaml; resource.attributes, resource.schema_url); env vars are not used for these.
+Resource attributes and resource.schemaUrl are loaded from config/resource.yaml
+(scenarios/config/resource.yaml); env vars are not used for these.
 """
 
 import os
@@ -69,6 +69,7 @@ SEMCONV_RESPONSE_FORMAT_VALUES = ("a2a_json", "a2a_stream")
 
 _CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "config" / "config.yaml"
 CONFIG_PATH = _CONFIG_PATH
+_RESOURCE_CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "config" / "resource.yaml"
 # Default semantic-conventions path when SEMCONV / --semconv not set.
 DEFAULT_SEMCONV_PATH = (
     Path(__file__).resolve().parent / "scenarios" / "conventions" / "semconv.yaml"
@@ -92,35 +93,47 @@ def load_yaml(path: Path, default: Any = None) -> Any:
     return data if isinstance(data, dict) else default
 
 
-def _load_resource_config() -> tuple[str, dict[str, str]]:
-    """Load resource.schema_url and resource.attributes from config/config.yaml. Returns (schema_url, attributes)."""
-    default_url = "https://example.com/otel/schema/1.0.0"
-    default_attrs: dict[str, str] = {}
-    data = load_yaml(_CONFIG_PATH)
-    if not data:
-        return default_url, default_attrs
-    resource = data.get("resource")
-    if not isinstance(resource, dict):
-        return default_url, default_attrs
-    schema_url = resource.get("schema_url")
-    if isinstance(schema_url, str) and schema_url.strip():
-        default_url = schema_url.strip()
-    raw = resource.get("attributes")
-    if not isinstance(raw, dict):
-        return default_url, default_attrs
+def _expand_resource_attributes(raw: dict[str, str]) -> dict[str, str]:
+    """Expand prefix-relative keys (module, component, otel.source) and return full attribute dict."""
+    result: dict[str, str] = {}
     for k, v in raw.items():
         if isinstance(v, str) and k not in _PREFIX_RELATIVE_KEYS:
-            default_attrs[k] = v
-    # Expand prefix-relative keys so they are stored under full attribute names
+            result[k] = v
     for rel_key in _PREFIX_RELATIVE_KEYS:
         if rel_key in raw and isinstance(raw[rel_key], str):
-            default_attrs[attr(rel_key)] = raw[rel_key]
-    return default_url, default_attrs
+            result[attr(rel_key)] = raw[rel_key]
+    return result
+
+
+def _load_resource_config() -> tuple[str, dict[str, str], dict[str, str]]:
+    """Load resource from config/resource.yaml. Returns (schema_url, control_plane_attrs, data_plane_attrs)."""
+    default_url = "https://example.com/otel/schema/1.0.0"
+    empty_attrs: dict[str, str] = {}
+    data = load_yaml(_RESOURCE_CONFIG_PATH)
+    if not isinstance(data, dict):
+        return default_url, empty_attrs.copy(), empty_attrs.copy()
+    # Expected shape: control_plane and data_plane sections
+    if "control_plane" not in data or "data_plane" not in data:
+        return default_url, empty_attrs.copy(), empty_attrs.copy()
+    schema_url = data.get("schema_url") if isinstance(data.get("schema_url"), str) else default_url
+    if isinstance(schema_url, str) and schema_url.strip():
+        default_url = schema_url.strip()
+    cp_block = data.get("control_plane")
+    dp_block = data.get("data_plane")
+    cp_raw = cp_block.get("attributes") if isinstance(cp_block, dict) else None
+    dp_raw = dp_block.get("attributes") if isinstance(dp_block, dict) else None
+    cp_attrs = (
+        _expand_resource_attributes(cp_raw) if isinstance(cp_raw, dict) else empty_attrs.copy()
+    )
+    dp_attrs = (
+        _expand_resource_attributes(dp_raw) if isinstance(dp_raw, dict) else empty_attrs.copy()
+    )
+    return default_url, cp_attrs, dp_attrs
 
 
 def resource_schema_url() -> str:
-    """Schema URL for the OTEL resource (resource.schemaUrl). From config/config.yaml only."""
-    yaml_url, _ = _load_resource_config()
+    """Schema URL for the OTEL resource (resource.schemaUrl). From config/resource.yaml."""
+    yaml_url, _, _ = _load_resource_config()
     return yaml_url
 
 
@@ -144,16 +157,35 @@ def get_default_tenant_id(config_path: Path | None = None) -> str:
     raise ValueError("Config has no tenants; at least one tenant is required")
 
 
-def resource_attributes(tenant_id: str) -> dict[str, str]:
+# Data-plane component values (resource attribute); per semconv allowed_values.
+DATA_PLANE_COMPONENT_VALUES = (
+    "orchestrator",
+    "planning",
+    "retrieval",
+    "llm",
+    "mcp_client",
+    "tool_recommender",
+)
+
+
+def resource_attributes(
+    tenant_id: str,
+    component: str | None = None,
+) -> dict[str, str]:
     """
     Build resource attributes per OTEL resource spec.
 
-    Values are loaded only from config/config.yaml (resource.attributes).
+    Control-plane spans: use control_plane config (component=None).
+    Data-plane spans: use data_plane config and set prefix.component to the given value.
+    Values are loaded from config/resource.yaml (control_plane / data_plane sections).
     prefix.tenant.id is set from the given tenant_id (scenario context).
     """
-    _, yaml_attrs = _load_resource_config()
-    attrs: dict[str, str] = dict(yaml_attrs)
+    _, cp_attrs, dp_attrs = _load_resource_config()
+    base = dp_attrs if component is not None else cp_attrs
+    attrs: dict[str, str] = dict(base)
     attrs[attr("tenant.id")] = tenant_id
+    if component is not None:
+        attrs[attr("component")] = component
     # Normalize otel.source to allowed values only
     otel_src = attrs.get(attr("otel.source"), "propagated")
     if otel_src not in ("internal", "propagated"):

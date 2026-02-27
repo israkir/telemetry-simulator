@@ -1,6 +1,12 @@
 """
 Generate complete trace hierarchies aligned with vendor-prefixed OTEL semantic conventions.
 
+Multi-turn semantics:
+  - Each request reaching the control-plane is one incoming request: trace_id is generated
+    at CP and shared (e.g. cp.incoming_trace_id, cp.outgoing_trace_id).
+  - A new request in the same session: again incoming, different trace_id, same session_id
+    (caller passes same context.session_id for all turns in that session).
+
 Example tree:
   {prefix}.a2a.orchestrate (SERVER)
   ├── {prefix}.planner (INTERNAL)
@@ -23,10 +29,26 @@ from typing import Any
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
-from opentelemetry.trace import SpanKind, Status, StatusCode, Tracer
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    SpanExporter,
+    SpanExportResult,
+)
+from opentelemetry.trace import (
+    NonRecordingSpan,
+    SpanContext,
+    SpanKind,
+    Status,
+    StatusCode,
+    TraceFlags,
+    Tracer,
+)
 
-from ..config import SEMCONV_ERROR_TYPE_VALUES, resource_schema_url
+from ..config import (
+    DATA_PLANE_COMPONENT_VALUES,
+    SEMCONV_ERROR_TYPE_VALUES,
+    resource_schema_url,
+)
 from ..config import attr as config_attr
 from ..config import resource_attributes as config_resource_attributes
 from ..config import span_name as config_span_name
@@ -81,6 +103,17 @@ def get_span_name(span_type: SpanType) -> str:
     if span_type in _VENDOR_SPAN_SUFFIXES:
         return config_span_name(span_type.value)
     return span_type.value
+
+
+def _context_from_trace_and_span(trace_id_hex: str, span_id_hex: str) -> Any:
+    """Build an OpenTelemetry context with the given trace_id and span_id as the current span (for use as parent)."""
+    span_context = SpanContext(
+        trace_id=int(trace_id_hex, 16),
+        span_id=int(span_id_hex, 16),
+        is_remote=False,
+        trace_flags=TraceFlags(0x01),
+    )
+    return trace.set_span_in_context(NonRecordingSpan(span_context))
 
 
 def _record_span_error(
@@ -236,6 +269,26 @@ _CP_SPAN_CLASS_VALUES = {
     SpanType.AUGMENTATION: "augmentation",
 }
 
+# Data-plane: resource attribute prefix.component per span type (semconv gentoro.component).
+# Control-plane span types are not in this map; they use the default resource from config.
+_DATA_PLANE_COMPONENT_BY_SPAN_TYPE: dict[SpanType, str] = {
+    SpanType.A2A_ORCHESTRATE: "orchestrator",
+    SpanType.PLANNER: "planning",
+    SpanType.TASK_EXECUTE: "orchestrator",
+    SpanType.RAG_RETRIEVE: "retrieval",
+    SpanType.LLM_CALL: "llm",
+    SpanType.LLM_TOOL_RESPONSE_BRIDGE: "llm",
+    SpanType.TOOLS_RECOMMEND: "tool_recommender",
+    SpanType.MCP_TOOL_EXECUTE: "mcp_client",
+    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: "mcp_client",
+    SpanType.RESPONSE_COMPOSE: "orchestrator",
+}
+
+
+def _get_component_for_span_type(span_type: SpanType) -> str | None:
+    """Return data-plane component for resource attribute, or None for control-plane (use config default)."""
+    return _DATA_PLANE_COMPONENT_BY_SPAN_TYPE.get(span_type)
+
 
 @dataclass
 class SpanConfig:
@@ -364,6 +417,29 @@ class _PrintSpanProcessor:
         return True
 
 
+class _RefCountingSpanExporter(SpanExporter):
+    """Wraps a SpanExporter so shutdown() is only forwarded once after all refs have called shutdown.
+    Used when the same logical exporter is shared by multiple BatchSpanProcessors (one per provider).
+    """
+
+    def __init__(self, exporter: SpanExporter, shared_ref_count: list[int]):
+        self._exporter = exporter
+        self._ref_count = shared_ref_count
+        self._lock: Any = __import__("threading").Lock()
+
+    def export(self, spans: Any) -> SpanExportResult:
+        return self._exporter.export(spans)
+
+    def shutdown(self) -> None:
+        with self._lock:
+            self._ref_count[0] -= 1
+            if self._ref_count[0] <= 0:
+                self._exporter.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return self._exporter.force_flush(timeout_millis)
+
+
 class TraceGenerator:
     """Generate complete traces with hierarchical spans."""
 
@@ -381,30 +457,88 @@ class TraceGenerator:
         self.attr_generator = AttributeGenerator(self.schema)
 
         tenant_id = get_default_tenant_ids()[0]
-        attrs = dict(config_resource_attributes(tenant_id))
-        attrs["service.name"] = service_name
-        attrs["service.version"] = service_version
-        resource = Resource.create(attrs, schema_url=resource_schema_url())
+        self._tracers: dict[str | None, Tracer] = {}
+        self._providers: list[TracerProvider] = []
 
-        self.provider = TracerProvider(resource=resource)
+        def make_resource(component: str | None) -> Resource:
+            attrs = dict(config_resource_attributes(tenant_id, component=component))
+            attrs["service.name"] = service_name
+            attrs["service.version"] = service_version
+            return Resource.create(attrs, schema_url=resource_schema_url())
+
+        # Share one exporter across N BatchSpanProcessors; only shut it down after all have shut down.
+        num_providers = 1 + len(DATA_PLANE_COMPONENT_VALUES)
+        ref_count: list[int] = [num_providers]
+
+        # Default provider/tracer for control-plane (no component override)
+        default_provider = TracerProvider(resource=make_resource(None))
         if show_full_spans:
-            self.provider.add_span_processor(_PrintSpanProcessor())  # type: ignore[arg-type]
-        self.provider.add_span_processor(BatchSpanProcessor(exporter))
-        trace.set_tracer_provider(self.provider)
+            default_provider.add_span_processor(_PrintSpanProcessor())  # type: ignore[arg-type]
+        default_provider.add_span_processor(
+            BatchSpanProcessor(_RefCountingSpanExporter(exporter, ref_count))
+        )
+        self._providers.append(default_provider)
+        self._tracers[None] = default_provider.get_tracer(__name__)
+        trace.set_tracer_provider(default_provider)
 
-        self.tracer = trace.get_tracer(__name__)
+        # One provider/tracer per data-plane component so resource attr prefix.component is correct
+        for comp in DATA_PLANE_COMPONENT_VALUES:
+            prov = TracerProvider(resource=make_resource(comp))
+            prov.add_span_processor(
+                BatchSpanProcessor(_RefCountingSpanExporter(exporter, ref_count))
+            )
+            self._providers.append(prov)
+            self._tracers[comp] = prov.get_tracer(__name__)
+
+        self.tracer = self._tracers[None]
         self.span_builder = SpanBuilder(self.schema, self.attr_generator, self.tracer)
+
+    def _get_tracer(self, component: str | None) -> Tracer:
+        """Return tracer for the given data-plane component, or default for control-plane."""
+        return self._tracers.get(component, self._tracers[None])
 
     def generate_trace(
         self,
         hierarchy: TraceHierarchy,
         context: GenerationContext | None = None,
     ) -> str:
-        """Generate a complete trace from hierarchy definition."""
+        """Generate a complete trace from hierarchy definition.
+
+        Multi-turn semantics: each call models one request reaching the control-plane
+        (incoming request). A new trace_id is generated for each call. The caller must
+        pass the same context.session_id for all requests in the same session so that
+        spans carry the same session id across turns.
+        """
         if context is None:
             context = GenerationContext.create()
 
-        trace_id = self._generate_span_recursive(hierarchy, context, None)
+        trace_id, _ = self._generate_span_recursive(hierarchy, context, None, None)
+        return trace_id
+
+    def generate_unified_request_trace(
+        self,
+        incoming_hierarchy: TraceHierarchy,
+        data_plane_hierarchy: TraceHierarchy,
+        outgoing_hierarchy: TraceHierarchy,
+        context: GenerationContext,
+    ) -> str:
+        """Generate one trace for one request: incoming at control-plane -> data-plane -> response validation.
+
+        One request reaching control-plane is modeled as one incoming trace: trace_id is
+        generated when the request hits the control-plane and shared (e.g. cp.incoming_trace_id,
+        cp.outgoing_trace_id). For multi-turn: each new request to control-plane must be a
+        separate call, yielding a different trace_id; use the same context.session_id for
+        all calls that belong to the same session.
+        """
+        trace_id, span_id_req = self._generate_span_recursive(
+            incoming_hierarchy, context, None, None
+        )
+        ctx_after_request = _context_from_trace_and_span(trace_id, span_id_req)
+        _, span_id_orchestrate = self._generate_span_recursive(
+            data_plane_hierarchy, context, None, ctx_after_request
+        )
+        ctx_after_orchestrate = _context_from_trace_and_span(trace_id, span_id_orchestrate)
+        self._generate_span_recursive(outgoing_hierarchy, context, None, ctx_after_orchestrate)
         return trace_id
 
     def _generate_span_recursive(
@@ -412,8 +546,9 @@ class TraceGenerator:
         hierarchy: TraceHierarchy,
         context: GenerationContext,
         parent_span: Any,
-    ) -> str:
-        """Recursively generate spans in the hierarchy."""
+        parent_context: Any | None = None,
+    ) -> tuple[str, str]:
+        """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex)."""
         config = hierarchy.root_config
         span_name = get_span_name(config.span_type)
         span_kind = SPAN_KIND_MAP.get(config.span_type, SpanKind.INTERNAL)
@@ -421,18 +556,25 @@ class TraceGenerator:
         latency_ms = self.span_builder.generate_latency(config)
 
         overrides = config.attribute_overrides or {}
+        component = _get_component_for_span_type(config.span_type)
+        tracer = self._get_tracer(component)
         current_trace_id = ""
-        with self.tracer.start_as_current_span(
-            span_name,
-            kind=span_kind,
-            attributes=self.span_builder.get_attributes(
+        current_span_id = ""
+        kwargs: dict[str, Any] = {
+            "kind": span_kind,
+            "attributes": self.span_builder.get_attributes(
                 config.span_type,
                 context,
                 overrides,
             ),
-        ) as span:
+        }
+        if parent_context is not None:
+            kwargs["context"] = parent_context
+        with tracer.start_as_current_span(span_name, **kwargs) as span:
             current_trace_id = format(span.get_span_context().trace_id, "032x")
+            current_span_id = format(span.get_span_context().span_id, "016x")
 
+            # Incoming request at control-plane: trace_id is generated here and shared afterwards.
             if config.span_type == SpanType.CP_REQUEST:
                 span.set_attribute(config_attr("cp.incoming_trace_id"), current_trace_id)
                 if overrides.get(config_attr("cp.status.code")) in [
@@ -631,12 +773,20 @@ class TraceGenerator:
                     pass
 
             for child_hierarchy in hierarchy.children:
-                self._generate_span_recursive(child_hierarchy, context, span)
+                self._generate_span_recursive(child_hierarchy, context, span, None)
 
             time.sleep(latency_ms / 1000.0 * 0.01)
 
-        return current_trace_id
+        return current_trace_id, current_span_id
 
     def shutdown(self):
-        """Shutdown the trace provider."""
-        self.provider.shutdown()
+        """Shutdown all tracer providers. Flush all before any shutdown so OTLP
+        receives every batch (control-plane and data-plane) when using multiple providers.
+        """
+        for prov in self._providers:
+            try:
+                prov.force_flush(5000)
+            except Exception:
+                pass
+        for prov in self._providers:
+            prov.shutdown()

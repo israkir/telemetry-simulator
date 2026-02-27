@@ -8,7 +8,8 @@ description: >
 
 tags:
   - control-plane
-  
+
+workload_weight: 0.5
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50

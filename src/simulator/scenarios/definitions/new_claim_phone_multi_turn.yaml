@@ -1,6 +1,6 @@
 # Multi-turn conversation: one trace per turn, same session_id for all turns.
-# Uses data_plane.template so workflow, correct_flow, simulation_goal and control_plane binding
-# come from config (same as new_claim_phone). Context is key-based; all IDs resolved from config.
+# Data-plane (workflow, simulation_goal, control_plane_template) defined here; config supplies step names.
+# Context is key-based; all IDs resolved from config.
 
 name: new_claim_phone_multi_turn
 description: >
@@ -9,7 +9,9 @@ description: >
 tags:
   - data-plane
   - multi-turn
-  
+
+workload_weight: 3.0
+
 mcp_server: phone
 repeat_count: 1
 interval_ms: 0
@@ -18,7 +20,9 @@ emit_logs: false
 redaction_applied: none
 
 data_plane:
-  template: new_claim_happy
+  workflow: new_claim
+  simulation_goal: happy_path
+  control_plane_template: allowed
 
 # One trace per turn; same session_id for all turns. Each turn's user_input/llm_response
 # is set on that trace's spans as gen_ai.input.messages and gen_ai.output.messages (OTEL GenAI shape).

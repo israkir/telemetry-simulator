@@ -343,7 +343,11 @@ def cmd_run(args: argparse.Namespace):
             print()
             max_show = 10
             to_show = trace_ids if len(trace_ids) <= max_show else trace_ids[:max_show]
-            label = "Trace IDs:" if len(trace_ids) <= max_show else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            label = (
+                "Trace IDs:"
+                if len(trace_ids) <= max_show
+                else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            )
             print(label)
             for trace_id in to_show:
                 print(f"   {trace_id}")
@@ -452,7 +456,11 @@ def cmd_scenario(args: argparse.Namespace):
         ):
             max_show = 10
             to_show = trace_ids if len(trace_ids) <= max_show else trace_ids[:max_show]
-            label = "Trace IDs:" if len(trace_ids) <= max_show else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            label = (
+                "Trace IDs:"
+                if len(trace_ids) <= max_show
+                else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            )
             print(label)
             for tid in to_show:
                 print(f"   {tid}")
