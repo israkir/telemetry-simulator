@@ -163,7 +163,7 @@ You can add new scenarios by **adding YAML files only** (no code changes):
 2. **Control-plane-only (e.g. blocked/error) scenarios** – Set `control_plane.request_outcome` and `control_plane.block_reason`, or `control_plane.template`. Use **minimal context**: `context.tenant` and `context.agent` only (no `mcp_server`, `workflow`, `correct_flow`, or `error_pattern`). Only the incoming request-validation trace is emitted; no data-plane or response-validation. To use a template but override the policy-span exception (e.g. for a variant), set `control_plane.policy_exception: { type: "...", message: "..." }` in the scenario YAML; the template’s default exception is overridden by these values.
 3. **New control-plane outcome/template** – Add entries under `control_plane.request_validation_templates` and, if needed, `control_plane.trace_flow` in `config/config.yaml`. Attribute values should follow `scenarios/conventions/semconv.yaml`.
 4. **New data-plane template** – Add an entry under `data_plane_templates` in `config/config.yaml` with `workflow` (key into `workflow_templates`) and optional `simulation_goal`; then reference it in a scenario with `data_plane.template: <name>`.
-5. **Tags** – In scenario YAML, set `tags: [control-plane]`, `tags: [data-plane, happy-path]`, etc. Then run a subset of scenarios with `otelsim run --tags=control-plane` or `--tags=data-plane,multi-turn` (scenarios that have *at least one* of the given tags are included).
+5. **Tags** – In scenario YAML, set `tags: [control-plane]`, `tags: [data-plane, happy-path]`, etc. Then run a subset of scenarios with `otelsim run --tags=control-plane` or `--tags=data-plane,multi-turn` (scenarios that have *at least one* of the given tags are included). Use `--each-once` to run each (tagged) scenario exactly once instead of `--count` random picks.
 
 The simulator resolves tenant/agent/MCP IDs from config and builds control-plane and data-plane behavior from config templates, so new scenarios and behaviors are driven by config and scenario YAML.
 
@@ -176,6 +176,8 @@ otelsim run --count 100 --interval 500
 # Run only scenarios with a given tag (e.g. control-plane or data-plane)
 otelsim run --count 50 --tags=control-plane
 otelsim run --count 50 --tags=data-plane,multi-turn
+otelsim run --each-once                       # each scenario once
+otelsim run --tags=control-plane --each-once  # each tagged scenario once
 
 # Run YAML scenario (sample or custom definitions folder)
 otelsim scenario --name new_claim_phone
@@ -226,6 +228,7 @@ All spans/metrics/logs are emitted with resource attributes per the OTEL resourc
 | `--show-full-spans` | False | Print full span content (name, ids, kind, status, all attributes) for every span |
 | `--scenarios-dir` | *(built-in samples)* | Folder with scenario YAML files (for `run`, `scenario`, `list`) |
 | `--tags` | None | Comma-separated tags; only run scenarios that have at least one of these tags (e.g. `--tags=control-plane`, `--tags=data-plane,multi-turn`) |
+| `--each-once` | False | Run each (tagged) scenario exactly once instead of `--count` random picks; combine with `--tags` to run only tagged scenarios once |
 
 ## Schema Validation
 

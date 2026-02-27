@@ -170,6 +170,11 @@ Examples:
         metavar="TAG[,TAG...]",
         help="Only run scenarios that have at least one of these tags (e.g. --tags=control-plane or --tags=control-plane,data-plane)",
     )
+    run_parser.add_argument(
+        "--each-once",
+        action="store_true",
+        help="Run each (tagged) scenario exactly once instead of --count random picks",
+    )
 
     scenario_parser = subparsers.add_parser("scenario", help="Run YAML-defined scenario")
     scenario_parser.add_argument("--endpoint", type=str, help=argparse.SUPPRESS)
@@ -259,7 +264,11 @@ def cmd_run(args: argparse.Namespace):
     """Run mixed workload generation."""
     print("Starting mixed workload telemetry generation...")
     print(f"   Endpoint: {args.endpoint}")
-    print(f"   Count: {args.count}")
+    each_once = getattr(args, "each_once", False)
+    if each_once:
+        print("   Mode: each (tagged) scenario once")
+    else:
+        print(f"   Count: {args.count}")
     print(f"   Interval: {args.interval}ms")
     tags_list: list[str] | None = None
     if getattr(args, "tags", None) and isinstance(args.tags, str):
@@ -320,6 +329,7 @@ def cmd_run(args: argparse.Namespace):
             interval_ms=args.interval,
             progress_callback=progress_callback,
             tags=tags_list,
+            each_once=each_once,
         )
 
         runner.shutdown()
@@ -337,7 +347,7 @@ def cmd_run(args: argparse.Namespace):
             print(label)
             for trace_id in to_show:
                 print(f"   {trace_id}")
-            logical_requests = args.count
+            logical_requests = 0 if each_once else args.count
             if logical_requests and len(trace_ids) != logical_requests:
                 per_request = len(trace_ids) / float(logical_requests)
                 print(

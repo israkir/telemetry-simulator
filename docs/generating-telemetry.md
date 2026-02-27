@@ -63,7 +63,7 @@ The simulator is driven by **`src/simulator/scenarios/config/config.yaml`**. Wha
 | **control_plane** | `trace_flow`, `request_validation_templates` (and optional `_defaults` for shared error_rate etc.), `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
 | **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns`. |
 
-Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-path`, `multi-turn`). Use `otelsim run --tags=...` to run only scenarios that have at least one of the given tags.
+Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-path`, `multi-turn`). Use `otelsim run --tags=...` to run only scenarios that have at least one of the given tags. Use `--each-once` to run each (tagged) scenario exactly once instead of `--count` random picks (e.g. `otelsim run --each-once` or `otelsim run --tags=control-plane --each-once`).
 
 ---
 
@@ -334,6 +334,10 @@ otelsim run --count 500 --scenarios-dir /path/to/definitions
 # Run only scenarios that have a given tag
 otelsim run --count 100 --tags=control-plane
 otelsim run --count 100 --tags=data-plane,multi-turn
+
+# Run each (tagged) scenario exactly once (no random picks)
+otelsim run --each-once
+otelsim run --tags=control-plane --each-once
 ```
 
 ### Container

@@ -329,9 +329,11 @@ class ScenarioRunner:
         interval_ms: float = 200,
         progress_callback: Callable[[int, int, str, str, list[str]], None] | None = None,
         tags: list[str] | None = None,
+        each_once: bool = False,
     ) -> list[str]:
         """Run a mixed workload by picking at random from YAML-defined scenarios.
         If tags is non-empty, only scenarios that have at least one of these tags are included.
+        If each_once is True, run each (filtered) scenario exactly once instead of count random picks.
         """
         scenarios = self.scenario_loader.load_all()
         if tags:
@@ -357,35 +359,41 @@ class ScenarioRunner:
             )
 
         trace_ids: list[str] = []
+        total = len(scenarios) if each_once else count
 
-        for i in range(count):
-            scenario = random.choice(scenarios)
+        def run_one_request(scenario: Scenario, index: int) -> None:
             tenants = list(scenario.tenant_distribution.keys())
             weights = list(scenario.tenant_distribution.values())
             tenant_id = random.choices(tenants, weights=weights)[0]
             ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
-            ctx_kwargs["turn_index"] = i % 10
+            ctx_kwargs["turn_index"] = index % 10
             context = GenerationContext.create(**ctx_kwargs)
-
             trace_flow, hierarchies, has_data_plane = self._get_trace_flow_and_hierarchies(scenario)
             iteration_trace_ids, all_span_names = self._emit_traces_for_request(
                 scenario, context, trace_flow, hierarchies, has_data_plane
             )
             trace_ids.extend(iteration_trace_ids)
-
             primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
-
             if progress_callback:
                 progress_callback(
-                    i + 1,
-                    count,
+                    index + 1,
+                    total,
                     primary_trace_id,
                     context.tenant_id,
                     all_span_names,
                 )
 
-            if interval_ms > 0 and i < count - 1:
-                time.sleep(interval_ms / 1000.0)
+        if each_once:
+            for i, scenario in enumerate(scenarios):
+                run_one_request(scenario, i)
+                if interval_ms > 0 and i < total - 1:
+                    time.sleep(interval_ms / 1000.0)
+        else:
+            for i in range(count):
+                scenario = random.choice(scenarios)
+                run_one_request(scenario, i)
+                if interval_ms > 0 and i < count - 1:
+                    time.sleep(interval_ms / 1000.0)
 
         return trace_ids
 
