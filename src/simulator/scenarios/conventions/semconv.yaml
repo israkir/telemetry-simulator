@@ -29,18 +29,18 @@ schema_version: "1.0.0"
 
 # =============================================================================
 # LINEAGE: CONTROL-PLANE <-> DATA-PLANE (cross-deployment join)
-# The control-plane may live outside the data-plane (separate deployment). When
-# trace context is propagated, all components share a single trace_id per request;
-# otherwise, joining is done by gentoro.session.id and stored/correlated trace IDs.
+# The control-plane lives outside the data-plane (separate deployment). Each
+# emits its own trace_id for a given logical request; correlation is via
+# gentoro.session.id and stored/correlated trace IDs.
 # =============================================================================
 lineage:
   control_plane:
-    description: "CP and DP may run in different deployments/processes but participate in a single logical trace per request by sharing the same trace_id."
+    description: "CP and DP run in different deployments/processes and emit separate traces for a single logical request."
     control_plane_trace_id:
-      rule: "Control-plane incoming and outgoing validation spans (gentoro.request.validation, gentoro.response.validation) SHOULD use the same trace_id as the associated Data plane orchestration when trace context propagation is available."
-      note: "When propagation is not possible, CP MAY start a new trace and record correlated trace_ids (e.g. gentoro.cp.incoming_trace_id, gentoro.cp.outgoing_trace_id, gentoro.dp.trace_id) for lineage."
+      rule: "Control-plane incoming and outgoing validation spans (gentoro.request.validation, gentoro.response.validation) use their own trace_id per request."
+      note: "CP trace_ids (cp_incoming_trace_id, cp_outgoing_trace_id) are stored alongside dp_trace_id for lineage and audit."
     data_plane_trace_id:
-      rule: "Data-plane spans (gentoro.a2a.orchestrate and children) SHOULD share the same trace_id as control-plane validation spans for a given logical request."
+      rule: "Data-plane spans (gentoro.a2a.orchestrate and children) use a separate trace_id per request (dp_trace_id)."
     join_by:
       a2a: "gentoro.session.id = contextId from request when present (else CP-generated). Retrieve from request; replicate and share downstream."
       effect: "Session/txn views (txn_session_state_agg_v1) aggregate correlated_trace_ids and session_id; when multiple trace_ids exist due to propagation gaps, they are joined by gentoro.session.id and stored trace IDs."
@@ -504,7 +504,7 @@ control_plane_validation_model:
 
   flow_guarantees:
     one_response_max: "Each incoming request results in at most one outgoing response (accepted → one response validation trace; rejected/blocked → no response validation trace)."
-    shared_trace_id: "Incoming request validation (gentoro.request.validation), Data plane orchestration (gentoro.a2a.orchestrate), and outgoing response validation (gentoro.response.validation) SHOULD share the same trace_id for a single logical request."
+    separate_traces: "Incoming request validation (gentoro.request.validation), Data plane orchestration (gentoro.a2a.orchestrate), and outgoing response validation (gentoro.response.validation) are represented as separate traces for a single logical request."
 
   design_principles:
     otel_first: "Use status.code and error_recording (error.type + exception event) for runtime failures."

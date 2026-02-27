@@ -524,6 +524,9 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         SpanType.RESPONSE_COMPOSE: 60.0,
         SpanType.REQUEST_VALIDATION: 40.0,
         SpanType.RESPONSE_VALIDATION: 40.0,
+        SpanType.VALIDATION_PAYLOAD: 20.0,
+        SpanType.VALIDATION_POLICY: 20.0,
+        SpanType.AUGMENTATION: 20.0,
     }
 
     data = load_yaml(CONFIG_PATH)
@@ -541,6 +544,9 @@ def _load_happy_path_latencies() -> dict[SpanType, float]:
         "response_compose": SpanType.RESPONSE_COMPOSE,
         "request_validation": SpanType.REQUEST_VALIDATION,
         "response_validation": SpanType.RESPONSE_VALIDATION,
+        "validation_payload": SpanType.VALIDATION_PAYLOAD,
+        "validation_policy": SpanType.VALIDATION_POLICY,
+        "augmentation": SpanType.AUGMENTATION,
     }
 
     latencies = dict(defaults)
@@ -878,7 +884,7 @@ def _apply_context_to_hierarchy(
                 attempt_cfg.attribute_overrides = attempt_overrides
         elif cfg.span_type == SpanType.TOOLS_RECOMMEND:
             # For tool recommendation spans, propagate the primary MCP tool name when available
-            # so downstream diagnostics (e.g. gentoro.agent.tool_selection) can align tool_name
+            # so downstream diagnostics (e.g. {prefix}.agent.tool_selection) can align tool_name
             # with gen_ai.tool.name used on the subsequent MCP tool execution.
             overrides = dict(cfg.attribute_overrides or {})
             primary_tool_name = tools_by_index[0].name if tools_by_index else ""
@@ -924,6 +930,9 @@ _SPAN_SUFFIXES = [
     ("a2a.call", SpanType.A2A_CALL),
     ("request.validation", SpanType.REQUEST_VALIDATION),
     ("response.validation", SpanType.RESPONSE_VALIDATION),
+    ("validation.payload", SpanType.VALIDATION_PAYLOAD),
+    ("validation.policy", SpanType.VALIDATION_POLICY),
+    ("augmentation", SpanType.AUGMENTATION),
     ("cp.request", SpanType.CP_REQUEST),
 ]
 

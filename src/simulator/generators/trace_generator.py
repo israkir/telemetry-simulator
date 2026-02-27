@@ -50,6 +50,9 @@ class SpanType(Enum):
     RESPONSE_COMPOSE = "response.compose"
     RAG_RETRIEVE = "rag.retrieve"
     A2A_CALL = "a2a.call"
+    VALIDATION_PAYLOAD = "validation.payload"
+    VALIDATION_POLICY = "validation.policy"
+    AUGMENTATION = "augmentation"
     REQUEST_VALIDATION = "request.validation"
     RESPONSE_VALIDATION = "response.validation"
     CP_REQUEST = "cp.request"
@@ -66,6 +69,9 @@ _VENDOR_SPAN_SUFFIXES = {
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
     SpanType.LLM_TOOL_RESPONSE_BRIDGE,
     SpanType.RESPONSE_COMPOSE,
+    SpanType.VALIDATION_PAYLOAD,
+    SpanType.VALIDATION_POLICY,
+    SpanType.AUGMENTATION,
     SpanType.REQUEST_VALIDATION,
     SpanType.RESPONSE_VALIDATION,
 }
@@ -99,6 +105,14 @@ def _record_span_error(
     )
     error_type = raw if raw in SEMCONV_ERROR_TYPE_VALUES else _ERROR_TYPE_BY_SPAN_TYPE.get(span_type, "unavailable")
     span.set_attribute("error.type", error_type)
+    # Low-cardinality error category (validation | policy | runtime) for control-/data-plane errors.
+    raw_category = (
+        overrides.get("gentoro.error.category")
+        or overrides.get(config_attr("error.category"))
+        or _ERROR_CATEGORY_BY_SPAN_TYPE.get(span_type)
+    )
+    if raw_category:
+        span.set_attribute(config_attr("error.category"), raw_category)
     span.set_status(Status(StatusCode.ERROR, message))
     exc = RuntimeError(message)
     if hasattr(span, "record_exception"):
@@ -117,6 +131,9 @@ SPAN_KIND_MAP = {
     SpanType.RESPONSE_COMPOSE: SpanKind.INTERNAL,
     SpanType.RAG_RETRIEVE: SpanKind.INTERNAL,
     SpanType.A2A_CALL: SpanKind.CLIENT,
+    SpanType.VALIDATION_PAYLOAD: SpanKind.INTERNAL,
+    SpanType.VALIDATION_POLICY: SpanKind.INTERNAL,
+    SpanType.AUGMENTATION: SpanKind.INTERNAL,
     SpanType.REQUEST_VALIDATION: SpanKind.SERVER,
     SpanType.RESPONSE_VALIDATION: SpanKind.SERVER,
     SpanType.CP_REQUEST: SpanKind.SERVER,
@@ -136,9 +153,35 @@ _ERROR_TYPE_BY_SPAN_TYPE = {
     SpanType.RESPONSE_COMPOSE: "protocol_error",
     SpanType.RAG_RETRIEVE: "unavailable",
     SpanType.A2A_CALL: "unavailable",
+    SpanType.VALIDATION_PAYLOAD: "invalid_arguments",
+    SpanType.VALIDATION_POLICY: "invalid_arguments",
+    SpanType.AUGMENTATION: "unavailable",
     SpanType.REQUEST_VALIDATION: "invalid_arguments",
     SpanType.RESPONSE_VALIDATION: "invalid_arguments",
     SpanType.CP_REQUEST: "invalid_arguments",
+}
+
+# Error category (validation | policy | runtime) for classification when spans fail.
+_ERROR_CATEGORY_BY_SPAN_TYPE: dict[SpanType, str] = {
+    # Control-plane validation
+    SpanType.REQUEST_VALIDATION: "validation",
+    SpanType.VALIDATION_PAYLOAD: "validation",
+    SpanType.VALIDATION_POLICY: "policy",
+    SpanType.AUGMENTATION: "runtime",
+    SpanType.RESPONSE_VALIDATION: "policy",
+    # Data-plane orchestration and RAG/LLM/tooling
+    SpanType.A2A_ORCHESTRATE: "runtime",
+    SpanType.PLANNER: "runtime",
+    SpanType.TASK_EXECUTE: "runtime",
+    SpanType.LLM_CALL: "runtime",
+    SpanType.TOOLS_RECOMMEND: "runtime",
+    SpanType.MCP_TOOL_EXECUTE: "runtime",
+    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: "runtime",
+    SpanType.LLM_TOOL_RESPONSE_BRIDGE: "runtime",
+    SpanType.RESPONSE_COMPOSE: "runtime",
+    SpanType.RAG_RETRIEVE: "runtime",
+    SpanType.A2A_CALL: "runtime",
+    SpanType.CP_REQUEST: "validation",
 }
 
 # Convention-required attributes per vendor span type.
@@ -166,12 +209,20 @@ CONVENTION_ATTRIBUTES = {
         config_attr("response.format"): "a2a_json",
         config_attr("step.outcome"): "success",
     },
-    SpanType.REQUEST_VALIDATION: {
-        config_attr("span.class"): "request.validation",
-    },
-    SpanType.RESPONSE_VALIDATION: {
-        config_attr("span.class"): "response.validation",
-    },
+    # Control-plane: span.class set at runtime only (_CP_SPAN_CLASS_VALUES) so CLI --vendor is applied.
+    SpanType.VALIDATION_PAYLOAD: {},
+    SpanType.VALIDATION_POLICY: {},
+    SpanType.AUGMENTATION: {},
+    SpanType.REQUEST_VALIDATION: {},
+    SpanType.RESPONSE_VALIDATION: {},
+}
+# Control-plane span class values; key resolved at runtime via config_attr() so --vendor is applied.
+_CP_SPAN_CLASS_VALUES = {
+    SpanType.REQUEST_VALIDATION: "request.validation",
+    SpanType.RESPONSE_VALIDATION: "response.validation",
+    SpanType.VALIDATION_PAYLOAD: "validation.payload",
+    SpanType.VALIDATION_POLICY: "validation.policy",
+    SpanType.AUGMENTATION: "augmentation",
 }
 
 
@@ -249,6 +300,15 @@ class SpanBuilder:
         if convention:
             for k, v in convention.items():
                 attrs.setdefault(k, v)
+        # Control-plane: set span.class at runtime so CLI --vendor (prefix) is applied.
+        if span_type in _CP_SPAN_CLASS_VALUES:
+            attrs[config_attr("span.class")] = _CP_SPAN_CLASS_VALUES[span_type]
+        # Control-plane roots: ensure tenant id, request id, enduser pseudo id (configured prefix).
+        if span_type in (SpanType.REQUEST_VALIDATION, SpanType.RESPONSE_VALIDATION):
+            attrs[config_attr("tenant.id")] = context.tenant_id
+        if span_type == SpanType.REQUEST_VALIDATION:
+            attrs[config_attr("request.id")] = context.request_id
+            attrs[config_attr("enduser.pseudo.id")] = getattr(context, "user_id", None) or ""
         # vendor.a2a.orchestrate root: only root-level attrs (no response.format, no route).
         # vendor.response.compose: only compose attrs (no a2a.outcome, a2a.agent.target.id).
         if span_type == SpanType.A2A_ORCHESTRATE:
@@ -373,6 +433,16 @@ class TraceGenerator:
                 if outcome == "error":
                     _record_span_error(span, config.span_type, overrides)
                 # success / partial: leave status UNSET (do not set OK)
+            # Control-plane request / response validation roots: status.code UNSET on
+            # allowed/blocked; ERROR on runtime/system failure (outcome=error).
+            elif config.span_type == SpanType.REQUEST_VALIDATION:
+                outcome = (overrides.get(config_attr("request.outcome")) or "allowed").lower()
+                if outcome == "error":
+                    _record_span_error(span, config.span_type, overrides)
+            elif config.span_type == SpanType.RESPONSE_VALIDATION:
+                outcome = (overrides.get(config_attr("response.outcome")) or "allowed").lower()
+                if outcome == "error":
+                    _record_span_error(span, config.span_type, overrides)
             elif config.span_type == SpanType.RESPONSE_COMPOSE and (is_error or tool_result is False):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
@@ -388,9 +458,22 @@ class TraceGenerator:
             elif is_error or tool_result is False:
                 _record_span_error(span, config.span_type, overrides)
             else:
-                span.set_status(Status(StatusCode.OK))
+                # Control-plane validation spans (root + children) use UNSET for
+                # allowed/blocked outcomes; do not force OK.
+                cp_span_types = {
+                    SpanType.REQUEST_VALIDATION,
+                    SpanType.RESPONSE_VALIDATION,
+                    SpanType.VALIDATION_PAYLOAD,
+                    SpanType.VALIDATION_POLICY,
+                    SpanType.AUGMENTATION,
+                }
+                if config.span_type in cp_span_types:
+                    pass
+                # For other spans, mark successful completion explicitly.
+                else:
+                    span.set_status(Status(StatusCode.OK))
 
-            # Diagnostic event: gentoro.agent.tool_selection on gentoro.tools.recommend spans.
+            # Diagnostic event: {prefix}.agent.tool_selection on tools.recommend spans.
             # Captures the raw user input and a bounded JSON tool_plan structure.
             if config.span_type == SpanType.TOOLS_RECOMMEND:
                 try:
@@ -452,7 +535,7 @@ class TraceGenerator:
                         config_attr("agent.tool_selection.input.raw"): user_input_text or "",
                         config_attr("agent.tool_selection.tool.plan"): json.dumps(tool_plan_payload),
                     }
-                    span.add_event("gentoro.agent.tool_selection", event_attrs)
+                    span.add_event(config_attr("agent.tool_selection"), event_attrs)
                 except Exception:
                     # Events are best-effort; failures here must not break trace generation.
                     pass

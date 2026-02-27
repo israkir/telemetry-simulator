@@ -315,6 +315,14 @@ def cmd_run(args: argparse.Namespace):
             print("Sample trace IDs:")
             for trace_id in trace_ids[:5]:
                 print(f"   {trace_id}")
+            logical_requests = args.count
+            if logical_requests and len(trace_ids) != logical_requests:
+                per_request = len(trace_ids) / float(logical_requests)
+                print(
+                    f"   \nNote: Each logical request currently emits separate traces for "
+                    f"control-plane request validation, data-plane orchestration, and "
+                    f"response validation (≈{per_request:.1f} traces/request)."
+                )
 
     except KeyboardInterrupt:
         print("\nGeneration interrupted")
@@ -396,6 +404,13 @@ def cmd_scenario(args: argparse.Namespace):
             print("Sample trace IDs:")
             for tid in trace_ids[:5]:
                 print(f"   {tid}")
+            if scenario.repeat_count and len(trace_ids) != scenario.repeat_count:
+                per_request = len(trace_ids) / float(scenario.repeat_count)
+                print(
+                    f"   Note: Each logical request currently emits separate traces for "
+                    f"control-plane request validation, data-plane orchestration, and "
+                    f"response validation (≈{per_request:.1f} traces/request)."
+                )
 
     except KeyboardInterrupt:
         print("\nGeneration interrupted")

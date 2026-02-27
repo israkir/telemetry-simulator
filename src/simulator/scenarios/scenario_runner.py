@@ -143,29 +143,22 @@ class ScenarioRunner:
 
         self.scenario_loader = ScenarioLoader(scenarios_dir=scenarios_dir)
 
-    def _wrap_with_control_plane(self, hierarchy: TraceHierarchy) -> TraceHierarchy:
+    def _build_incoming_request_validation_hierarchy(self) -> TraceHierarchy:
         """
-        Wrap a data-plane A2A hierarchy with control-plane validation spans.
+        Build a control-plane incoming request validation hierarchy for the
+        "allowed" happy path (spec §9.1).
 
-        For hierarchies whose root is gentoro.a2a.orchestrate, this builds a
-        composite hierarchy:
-
-          gentoro.request.validation (SERVER, root)
-            ├── gentoro.a2a.orchestrate (SERVER, child) + its subtree
-            └── gentoro.response.validation (SERVER, child)
-
-        so that a single logical request produces one trace containing all three
-        span types sharing the same trace_id.
+        Structure:
+          {prefix}.request.validation (root, SERVER)
+            ├── {prefix}.validation.payload  (INTERNAL)
+            ├── {prefix}.validation.policy   (INTERNAL)
+            └── {prefix}.augmentation        (INTERNAL)
         """
-        from ..generators.trace_generator import SpanType
-        from ..generators.trace_generator import SpanConfig, TraceHierarchy
+        from ..generators.trace_generator import SpanType, SpanConfig, TraceHierarchy
         from ..config import attr as config_attr  # type: ignore[import-not-found]
         from .scenario_loader import _DEFAULT_LATENCY_MS  # type: ignore[import-not-found]
 
-        if hierarchy.root_config.span_type is not SpanType.A2A_ORCHESTRATE:
-            return hierarchy
-
-        req_cfg = SpanConfig(
+        root_cfg = SpanConfig(
             span_type=SpanType.REQUEST_VALIDATION,
             latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.REQUEST_VALIDATION, 40.0),
             latency_variance=0.2,
@@ -174,7 +167,61 @@ class ScenarioRunner:
                 config_attr("request.outcome"): "allowed",
             },
         )
-        resp_cfg = SpanConfig(
+        payload_cfg = SpanConfig(
+            span_type=SpanType.VALIDATION_PAYLOAD,
+            latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.VALIDATION_PAYLOAD, 20.0),
+            latency_variance=0.2,
+            error_rate=0.0,
+            attribute_overrides={
+                config_attr("step.outcome"): "pass",
+                config_attr("validation.result"): "valid",
+            },
+        )
+        policy_cfg = SpanConfig(
+            span_type=SpanType.VALIDATION_POLICY,
+            latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.VALIDATION_POLICY, 20.0),
+            latency_variance=0.2,
+            error_rate=0.0,
+            attribute_overrides={
+                config_attr("step.outcome"): "pass",
+                config_attr("policy.engine"): "dlp",
+                config_attr("policy.decision"): "allow",
+            },
+        )
+        augment_cfg = SpanConfig(
+            span_type=SpanType.AUGMENTATION,
+            latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.AUGMENTATION, 20.0),
+            latency_variance=0.2,
+            error_rate=0.0,
+            attribute_overrides={
+                config_attr("step.outcome"): "pass",
+                config_attr("augment.conversation_id.action"): "propagated",
+                config_attr("augment.request_id.action"): "created",
+                config_attr("augment.enduser_id.action"): "missing",
+                config_attr("augment.target_agent_id.action"): "attached",
+            },
+        )
+
+        payload_h = TraceHierarchy(root_config=payload_cfg, children=[])
+        policy_h = TraceHierarchy(root_config=policy_cfg, children=[])
+        augment_h = TraceHierarchy(root_config=augment_cfg, children=[])
+
+        return TraceHierarchy(root_config=root_cfg, children=[payload_h, policy_h, augment_h])
+
+    def _build_outgoing_response_validation_hierarchy(self) -> TraceHierarchy:
+        """
+        Build a control-plane outgoing response validation hierarchy for the
+        "allowed" happy path (spec §6.1).
+
+        Structure:
+          {prefix}.response.validation (root, SERVER)
+            └── {prefix}.validation.policy (INTERNAL)
+        """
+        from ..generators.trace_generator import SpanType, SpanConfig, TraceHierarchy
+        from ..config import attr as config_attr  # type: ignore[import-not-found]
+        from .scenario_loader import _DEFAULT_LATENCY_MS  # type: ignore[import-not-found]
+
+        root_cfg = SpanConfig(
             span_type=SpanType.RESPONSE_VALIDATION,
             latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.RESPONSE_VALIDATION, 40.0),
             latency_variance=0.2,
@@ -183,9 +230,20 @@ class ScenarioRunner:
                 config_attr("response.outcome"): "allowed",
             },
         )
-        resp_hierarchy = TraceHierarchy(root_config=resp_cfg, children=[])
+        policy_cfg = SpanConfig(
+            span_type=SpanType.VALIDATION_POLICY,
+            latency_mean_ms=_DEFAULT_LATENCY_MS.get(SpanType.VALIDATION_POLICY, 20.0),
+            latency_variance=0.2,
+            error_rate=0.0,
+            attribute_overrides={
+                config_attr("step.outcome"): "pass",
+                config_attr("policy.engine"): "dlp",
+                config_attr("policy.decision"): "allow",
+            },
+        )
 
-        return TraceHierarchy(root_config=req_cfg, children=[hierarchy, resp_hierarchy])
+        policy_h = TraceHierarchy(root_config=policy_cfg, children=[])
+        return TraceHierarchy(root_config=root_cfg, children=[policy_h])
 
     def run_scenario(
         self,
@@ -235,15 +293,41 @@ class ScenarioRunner:
                 context = GenerationContext.create(**ctx_kwargs)
                 hierarchies = scenario.get_trace_hierarchies()
                 iteration_trace_ids = []
-                for hierarchy in hierarchies:
-                    wrapped = self._wrap_with_control_plane(hierarchy)
-                    trace_id = self.trace_generator.generate_trace(wrapped, context)
-                    iteration_trace_ids.append(trace_id)
-                    trace_ids.append(trace_id)
+
+                # Emit incoming and outgoing validation traces (control-plane)
+                # when the scenario includes an A2A orchestration trace.
+                from ..generators.trace_generator import SpanType  # local import to avoid cycles
+
+                has_a2a = any(h.root_config.span_type is SpanType.A2A_ORCHESTRATE for h in hierarchies)
+
+                if has_a2a:
+                    incoming_h = self._build_incoming_request_validation_hierarchy()
+                    incoming_trace_id = self.trace_generator.generate_trace(incoming_h, context)
+                    iteration_trace_ids.append(incoming_trace_id)
+                    trace_ids.append(incoming_trace_id)
                     if scenario.emit_metrics and self.metric_generator:
-                        self._emit_metrics_for_hierarchy(wrapped, context)
+                        self._emit_metrics_for_hierarchy(incoming_h, context)
                     if scenario.emit_logs and self.log_generator:
-                        self._emit_logs_for_hierarchy(wrapped, context)
+                        self._emit_logs_for_hierarchy(incoming_h, context)
+
+                for hierarchy in hierarchies:
+                    dp_trace_id = self.trace_generator.generate_trace(hierarchy, context)
+                    iteration_trace_ids.append(dp_trace_id)
+                    trace_ids.append(dp_trace_id)
+                    if scenario.emit_metrics and self.metric_generator:
+                        self._emit_metrics_for_hierarchy(hierarchy, context)
+                    if scenario.emit_logs and self.log_generator:
+                        self._emit_logs_for_hierarchy(hierarchy, context)
+
+                if has_a2a:
+                    outgoing_h = self._build_outgoing_response_validation_hierarchy()
+                    outgoing_trace_id = self.trace_generator.generate_trace(outgoing_h, context)
+                    iteration_trace_ids.append(outgoing_trace_id)
+                    trace_ids.append(outgoing_trace_id)
+                    if scenario.emit_metrics and self.metric_generator:
+                        self._emit_metrics_for_hierarchy(outgoing_h, context)
+                    if scenario.emit_logs and self.log_generator:
+                        self._emit_logs_for_hierarchy(outgoing_h, context)
 
             if progress_callback:
                 primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
@@ -308,19 +392,46 @@ class ScenarioRunner:
             iteration_trace_ids: list[str] = []
             all_span_names: list[str] = []
 
+            from ..generators.trace_generator import SpanType  # local import
+
+            has_a2a = any(h.root_config.span_type is SpanType.A2A_ORCHESTRATE for h in hierarchies)
+
+            # Emit incoming / outgoing validation traces when an A2A orchestration
+            # hierarchy is present for this iteration.
+            if has_a2a:
+                incoming_h = self._build_incoming_request_validation_hierarchy()
+                incoming_trace_id = self.trace_generator.generate_trace(incoming_h, context)
+                iteration_trace_ids.append(incoming_trace_id)
+                trace_ids.append(incoming_trace_id)
+                all_span_names.extend(incoming_h.span_names())
+                if scenario.emit_metrics and self.metric_generator:
+                    self._emit_metrics_for_hierarchy(incoming_h, context)
+                if self.log_generator and scenario.emit_logs:
+                    self._emit_logs_for_hierarchy(incoming_h, context)
+
             for hierarchy in hierarchies:
-                wrapped = self._wrap_with_control_plane(hierarchy)
-                trace_id = self.trace_generator.generate_trace(wrapped, context)
-                iteration_trace_ids.append(trace_id)
-                trace_ids.append(trace_id)
+                dp_trace_id = self.trace_generator.generate_trace(hierarchy, context)
+                iteration_trace_ids.append(dp_trace_id)
+                trace_ids.append(dp_trace_id)
 
                 if scenario.emit_metrics and self.metric_generator:
-                    self._emit_metrics_for_hierarchy(wrapped, context)
+                    self._emit_metrics_for_hierarchy(hierarchy, context)
 
                 if self.log_generator and scenario.emit_logs:
-                    self._emit_logs_for_hierarchy(wrapped, context)
+                    self._emit_logs_for_hierarchy(hierarchy, context)
 
-                all_span_names.extend(wrapped.span_names())
+                all_span_names.extend(hierarchy.span_names())
+
+            if has_a2a:
+                outgoing_h = self._build_outgoing_response_validation_hierarchy()
+                outgoing_trace_id = self.trace_generator.generate_trace(outgoing_h, context)
+                iteration_trace_ids.append(outgoing_trace_id)
+                trace_ids.append(outgoing_trace_id)
+                all_span_names.extend(outgoing_h.span_names())
+                if scenario.emit_metrics and self.metric_generator:
+                    self._emit_metrics_for_hierarchy(outgoing_h, context)
+                if self.log_generator and scenario.emit_logs:
+                    self._emit_logs_for_hierarchy(outgoing_h, context)
 
             primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
 

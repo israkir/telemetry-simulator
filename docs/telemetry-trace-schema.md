@@ -77,11 +77,11 @@ Resource attributes identify the emitting service and environment (OTEL resource
 
 ## 3. Trace Hierarchy and Span Types
 
-A single logical request is represented by **one trace_id** that is shared across:
+A single logical request is represented by **three separate traces**, each with its own `trace_id` but sharing the same `gentoro.session.id` (and typically the same `gentoro.request.id`):
 
-- **Incoming control-plane validation**: root `gentoro.request.validation` (SERVER) + child validation spans.
-- **Data-plane orchestration**: root `gentoro.a2a.orchestrate` (SERVER) + planner/tasks/LLM/tools/compose.
-- **Outgoing control-plane validation** (when a response is produced): root `gentoro.response.validation` (SERVER) + child policy span.
+- **Incoming control-plane validation trace**: root `gentoro.request.validation` (SERVER) + child validation spans (payload, policy, augmentation).
+- **Data-plane orchestration trace**: root `gentoro.a2a.orchestrate` (SERVER) + planner/tasks/LLM/tools/compose.
+- **Outgoing control-plane validation trace** (when a response is produced): root `gentoro.response.validation` (SERVER) + child policy span.
 
 Within the Data plane portion, a typical hierarchy is:
 

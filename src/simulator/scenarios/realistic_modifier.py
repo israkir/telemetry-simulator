@@ -3,7 +3,7 @@ Apply realistic scenario modifiers to trace hierarchies.
 
 Drives scenario-based telemetry for:
 - 4xx from bad/missing parameters: error.type=invalid_arguments, optional http.response.status_code 4xx
-- Wrong division/disambiguation: same tool name, wrong gentoro.mcp.server.uuid (and mcp.tool.uuid)
+- Wrong division/disambiguation: same tool name, wrong vendor-prefixed mcp.server.uuid (and mcp.tool.uuid)
 - Partial/wrong-order workflows: hierarchy built from actual_steps (fewer or reordered steps)
 - Ungrounded answers: response_compose or RAG span with error (retrieval_error / composition)
 
@@ -156,7 +156,7 @@ def _apply_wrong_division(
 ) -> None:
     """
     Replace mcp.server.uuid (and mcp.tool.uuid) on one MCP span with a wrong division's server.
-    Same tool name, wrong gentoro.mcp.server.uuid (ambiguous customer input / missing division context).
+    Same tool name, wrong vendor-prefixed mcp.server.uuid (ambiguous customer input / missing division context).
     """
     other_keys = [k for k in config.divisions.values() if k != mcp_server_key]
     if not other_keys:
