@@ -1,7 +1,7 @@
 # Phone MCP context, happy path. Uses data_plane.template so workflow + simulation_goal
 # come from config (no need to repeat correct_flow or simulation_goal in YAML).
 
-name: phone_new_claim_happy
+name: new_claim_phone
 description: >
   Happy path for Phone mcp_server: planner → LLM task → tool recommendation → tool execution (new_claim) → response_compose.
 

@@ -59,7 +59,7 @@ The simulator is driven by **`src/simulator/scenarios/config/config.yaml`**. Wha
 | **agents** | List of agents by `id` (e.g. `toro-customer-assistant-001`). Scenarios reference `context.agent` by id. No channel or division on agent; scenario sets `context.mcp_server`. |
 | **mcp_servers** | Key → mcp_server_uuid + tools (name, tool_uuid). Scenarios reference `context.mcp_server` by key. |
 | **realistic_scenarios** | `divisions` (division name → mcp_servers key), `error_templates` (simulation_goal → error_type, http_status_codes), `workflow_templates` (workflow name → list of steps). |
-| **data_plane_templates** | Named templates (e.g. `new_claim_happy`) with `workflow` and optional `simulation_goal`. Scenarios use `data_plane.template: <name>` to get workflow + steps from config. |
+| **data_plane_templates** | Named templates (e.g. `new_claim_happy`) with `workflow`, optional `simulation_goal`, and optional **control_plane_template** (e.g. `allowed`). Scenarios using `data_plane.template` get workflow + steps from config; if they do not set `control_plane.template` in YAML, the request-validation template is taken from the data-plane template so the scenario is bound to the correct control-plane flow (e.g. no error/exception) without code change. |
 | **control_plane** | `trace_flow`, `request_validation_templates` (and optional `_defaults` for shared error_rate etc.), `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
 | **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns`. |
 
@@ -202,7 +202,7 @@ Along with randomness and statistical options, the simulator supports **realisti
 - **simulation_goal**: One of the goals above.
 - **realistic_overrides** (optional): e.g. `step_index_for_4xx`, `wrong_division_target`, `actual_steps`, `skip_steps`.
 
-Example scenarios in `definitions/`: `phone_new_claim`, `phone_new_claim_happy` (data-plane happy path), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only), `phone_new_claim_multi_turn`.
+Example scenarios in `definitions/`: `phone_new_claim`, `new_claim_phone` (data-plane happy path), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only), `phone_new_claim_multi_turn`.
 
 Control-plane examples:
 
@@ -242,7 +242,7 @@ All emitted values for **enum-like attributes** (e.g. `error.type`, `step.outcom
 
 - **Realistic scenario goals** (`simulation_goal`): Each scenario can target a specific outcome (e.g. `4xx_invalid_arguments`, `wrong_division`, `ungrounded_response`). The modifier then injects the right attributes (e.g. `error.type=invalid_arguments`, wrong `mcp.server.uuid`, or `step.outcome=fail`) using **only** SemConv-aligned values from `realistic_scenarios.error_templates` in `config/config.yaml`.
 - **Conversation messages**: Per convention we emit **one span per interaction** (user input → LLM response). Each LLM span carries `gen_ai.input.messages` = the user message(s) for *this* call and `gen_ai.output.messages` = the model reply for *this* call (no full conversation history on a single span). Content comes from:
-  - **Scenario `conversation.turns`** when defined: use format `user_input` / `llm_response` per turn, or alternating `role`/`text`. The simulator then emits **one trace per turn**, all with the **same session_id** for that logical session.
+  - **Scenario `conversation.turns`** when defined: use format `user_input` / `llm_response` per turn, or alternating `role`/`text`. The simulator emits **one trace per turn**, all with the **same session_id** for that logical session. Each turn's user input and LLM response are set on that turn's trace as **gen_ai.input.messages** and **gen_ai.output.messages** (OTEL GenAI shape) on the relevant spans (e.g. llm.call).
   - **`conversation_samples`** in `config/config.yaml` when the scenario has a workflow and no `conversation.turns`: one single-turn sample per workflow is chosen at random (one user message, one assistant message per span).
 - **Wrong division / partial workflow**: Wrong-division scenarios swap `mcp.server.uuid` (and tool UUID) to another division from config; partial-workflow scenarios build the trace from `actual_steps` or `skip_steps`. In all cases, `error.type` and `step.outcome` on affected spans remain SemConv-aligned.
 

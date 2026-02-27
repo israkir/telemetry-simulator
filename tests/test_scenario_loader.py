@@ -22,7 +22,7 @@ def test_loader_list_scenarios_excludes_example_when_sample_dir() -> None:
     loader = ScenarioLoader()
     names = loader.list_scenarios()
     assert EXAMPLE_SCENARIO_NAME not in names
-    assert len(names) >= 1  # e.g. phone_new_claim_happy
+    assert len(names) >= 1  # e.g. new_claim_phone
 
 
 def test_loader_load_all_excludes_example_when_sample_dir() -> None:
@@ -40,11 +40,11 @@ def test_loader_can_load_example_scenario_explicitly() -> None:
     assert scenario.name == EXAMPLE_SCENARIO_NAME
 
 
-def test_loader_can_load_phone_new_claim_happy() -> None:
-    """Scenario phone_new_claim (file) loads and has expected structure (context.correct_flow, mcp_server)."""
+def test_loader_can_load_new_claim_phone() -> None:
+    """Scenario new_claim_phone (file) loads and has expected structure (correct_flow, mcp_server)."""
     loader = ScenarioLoader()
-    scenario = loader.load("phone_new_claim")
-    assert scenario.name == "phone_new_claim_happy"
+    scenario = loader.load("new_claim_phone")
+    assert scenario.name == "new_claim_phone"
     assert scenario.repeat_count >= 1
     assert scenario.context is not None
     assert scenario.context.correct_flow is not None

@@ -270,36 +270,43 @@ def _apply_data_plane_template(
     context: ScenarioContext,
     template_name: str,
     config_path: Path,
-) -> tuple[ScenarioContext, str | None]:
+) -> tuple[ScenarioContext, str | None, str | None]:
     """
-    Enrich context from config data_plane_templates (workflow + correct_flow) and return simulation_goal.
-    Returns (context, simulation_goal). If template not found, returns (context, None).
+    Enrich context from config data_plane_templates (workflow + correct_flow) and return simulation_goal
+    and optional control_plane_template. When the data-plane template sets control_plane_template,
+    scenarios using it will use that request-validation template unless they override control_plane.template.
+    Returns (context, simulation_goal, control_plane_template). If template not found, returns (context, None, None).
     """
     from ..config import load_yaml
 
     data = load_yaml(config_path)
     if not isinstance(data, dict):
-        return context, None
+        return context, None, None
     templates = data.get("data_plane_templates")
     if not isinstance(templates, dict):
-        return context, None
+        return context, None, None
     template = templates.get((template_name or "").strip())
     if not isinstance(template, dict):
-        return context, None
+        return context, None, None
     workflow = template.get("workflow")
     if not isinstance(workflow, str):
-        return context, None
+        return context, None, None
     rs = data.get("realistic_scenarios")
     workflow_templates = rs.get("workflow_templates") if isinstance(rs, dict) else None
     if not isinstance(workflow_templates, dict):
-        return context, None
+        return context, None, None
     steps = workflow_templates.get(workflow)
     if not isinstance(steps, list):
-        return context, None
+        return context, None, None
     correct_flow = FlowConfig(steps=[str(s) for s in steps])
     simulation_goal = template.get("simulation_goal")
     if simulation_goal is not None and not isinstance(simulation_goal, str):
         simulation_goal = None
+    cp_template = template.get("control_plane_template")
+    if cp_template is not None and not isinstance(cp_template, str):
+        cp_template = None
+    if cp_template and not (cp_template := cp_template.strip()):
+        cp_template = None
     updated = ScenarioContext(
         tenant_uuid=context.tenant_uuid,
         agents=context.agents,
@@ -310,7 +317,7 @@ def _apply_data_plane_template(
         redaction_applied=context.redaction_applied,
         actual_steps=context.actual_steps,
     )
-    return updated, simulation_goal
+    return updated, simulation_goal, cp_template
 
 
 @dataclass
@@ -1112,7 +1119,9 @@ class ScenarioLoader:
             registry = get_request_scenario_registry(CONFIG_PATH)
             for name, entry in registry.items():
                 if name not in loaded_names and isinstance(entry, dict) and entry.get("template"):
-                    scenarios.append(self._parse_scenario(_control_plane_scenario_data(name, entry)))
+                    scenarios.append(
+                        self._parse_scenario(_control_plane_scenario_data(name, entry))
+                    )
 
         return scenarios
 
@@ -1147,17 +1156,20 @@ class ScenarioLoader:
         else:
             tenant_dist = {get_default_tenant_id(CONFIG_PATH): 1.0}
 
-        # Optional data_plane.template: workflow + correct_flow + simulation_goal from config.
+        # Optional data_plane.template: workflow + correct_flow + simulation_goal + control_plane_template from config.
         simulation_goal_from_template: str | None = None
+        control_plane_template_from_dp: str | None = None
         if scenario_context:
             dp = data.get("data_plane")
             if isinstance(dp, dict):
                 template_raw = dp.get("template")
                 if isinstance(template_raw, str) and template_raw.strip():
                     template_name = template_raw.strip()
-                    scenario_context, simulation_goal_from_template = _apply_data_plane_template(
-                        scenario_context, template_name, CONFIG_PATH
-                    )
+                    (
+                        scenario_context,
+                        simulation_goal_from_template,
+                        control_plane_template_from_dp,
+                    ) = _apply_data_plane_template(scenario_context, template_name, CONFIG_PATH)
 
         root_for_detect = data.get("root")
         is_statistical = self._detect_statistical(
@@ -1279,6 +1291,10 @@ class ScenarioLoader:
                 control_plane_policy_exception_override = {
                     k: str(v) for k, v in pe.items() if k in ("type", "message") and v is not None
                 }
+        # When scenario uses data_plane.template and did not set control_plane.template, use the
+        # control_plane_template from the data-plane template (e.g. allowed = no error/exception).
+        if control_plane_template is None and control_plane_template_from_dp is not None:
+            control_plane_template = control_plane_template_from_dp
 
         # For partial_workflow, set context.actual_steps from overrides so hierarchy is built with fewer/wrong-order steps.
         if (

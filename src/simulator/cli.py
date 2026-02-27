@@ -331,8 +331,11 @@ def cmd_run(args: argparse.Namespace):
             and trace_ids
         ):
             print()
-            print("Sample trace IDs:")
-            for trace_id in trace_ids[:5]:
+            max_show = 10
+            to_show = trace_ids if len(trace_ids) <= max_show else trace_ids[:max_show]
+            label = "Trace IDs:" if len(trace_ids) <= max_show else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            print(label)
+            for trace_id in to_show:
                 print(f"   {trace_id}")
             logical_requests = args.count
             if logical_requests and len(trace_ids) != logical_requests:
@@ -437,8 +440,11 @@ def cmd_scenario(args: argparse.Namespace):
             not (getattr(args, "show_spans", False) or getattr(args, "show_all_attributes", False))
             and trace_ids
         ):
-            print("Sample trace IDs:")
-            for tid in trace_ids[:5]:
+            max_show = 10
+            to_show = trace_ids if len(trace_ids) <= max_show else trace_ids[:max_show]
+            label = "Trace IDs:" if len(trace_ids) <= max_show else f"Trace IDs (first {max_show} of {len(trace_ids)}):"
+            print(label)
+            for tid in to_show:
                 print(f"   {tid}")
             if scenario.repeat_count and len(trace_ids) != scenario.repeat_count:
                 per_request = len(trace_ids) / float(scenario.repeat_count)

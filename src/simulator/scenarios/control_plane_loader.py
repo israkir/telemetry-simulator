@@ -237,8 +237,14 @@ def build_request_validation_hierarchy_from_template(
         {k: v for k, v in augment_raw.items() if k != "exception" and v is not None}
     )
     aug_exc = augment_raw.get("exception") if isinstance(augment_raw, dict) else None
-    aug_exc_type = str(aug_exc.get("type")) if isinstance(aug_exc, dict) and aug_exc.get("type") else None
-    aug_exc_msg = str(aug_exc.get("message")) if isinstance(aug_exc, dict) and aug_exc.get("message") else None
+    aug_exc_type = (
+        str(aug_exc.get("type")) if isinstance(aug_exc, dict) and aug_exc.get("type") else None
+    )
+    aug_exc_msg = (
+        str(aug_exc.get("message"))
+        if isinstance(aug_exc, dict) and aug_exc.get("message")
+        else None
+    )
     augment_cfg = SpanConfig(
         span_type=SpanType.AUGMENTATION,
         latency_mean_ms=float(augment_lat),
