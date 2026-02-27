@@ -726,12 +726,7 @@ a2a_orchestration_model:
     required_attributes:
       gentoro.span.class: { value: "planner", type: string }
       gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome.planner" }
-      gentoro.planner.output.task.count: { type: int }
-      gentoro.planner.output.entity.count: { type: int }
     recommended_attributes:
-      gentoro.planner.strategy: { type: enum, ref: "gentoro.planner.strategy" }
-      gentoro.planner.output.format: { type: enum, ref: "gentoro.planner.output.format" }
-      gentoro.planner.fallback.used: { type: boolean }
       error.type: { type: string, when: "if failed" }
     cardinality: "Do not store raw intent text, full task descriptions, or extracted entity values. Use counts, stable IDs, and enums. Debug details: event with truncated/sanitized payload, gated by debug/opt-in."
 
@@ -787,20 +782,6 @@ a2a_orchestration_model:
       values:
         success: "Planner produced a valid plan (sub-tasks/entities) usable by the orchestrator."
         fail: "Planner did not produce a usable plan."
-
-    gentoro.planner.strategy:
-      description: "Planning approach used"
-      values:
-        rules: "Deterministic decomposition and extraction (no model calls)."
-        model: "LLM/model-assisted decomposition and extraction."
-        hybrid: "Mix of deterministic + model-assisted techniques."
-
-    gentoro.planner.output.format:
-      description: "Shape of the produced plan"
-      values:
-        task_list: "Flat ordered list of tasks."
-        task_graph: "Dependency graph / DAG of tasks."
-        task_tree: "Hierarchical decomposition (parent/child tasks)."
 
     gentoro.task.type:
       description: "High-level category of task (coarse-grained for low-cardinality)"
@@ -1460,40 +1441,6 @@ a2a_orchestration_attributes:
 # Per planner spec: intent → sub-tasks and extracted entities. Use counts/enums; no raw intent or entity values.
 # Correlation/context attributes (session, tenant, route, redaction, enduser) use applies_to in common_attributes and exclude planner and task.execute.
 # -----------------------------------------------------------------------------
-planner_attributes:
-  gentoro.planner.output.task.count:
-    type: int
-    required: true
-    category: first_class
-    description: "Number of sub-tasks produced for the orchestrator."
-    examples: [0, 6]
-
-  gentoro.planner.output.entity.count:
-    type: int
-    required: true
-    category: first_class
-    description: "Number of extracted entities produced by the planner."
-    examples: [0, 4]
-
-  gentoro.planner.strategy:
-    type: string
-    required: false
-    category: first_class
-    description: "Planning approach used."
-    allowed_values: ["rules", "model", "hybrid"]
-
-  gentoro.planner.output.format:
-    type: string
-    required: false
-    category: first_class
-    description: "Shape of the produced plan."
-    allowed_values: ["task_list", "task_graph", "task_tree"]
-
-  gentoro.planner.fallback.used:
-    type: boolean
-    required: false
-    category: first_class
-    description: "true if planner used a degraded/fallback approach (rules-based, cached plan, etc.)."
 
 # -----------------------------------------------------------------------------
 # gentoro.task.execute (Task execution, child of planner or root)
@@ -2256,11 +2203,6 @@ cp_request_attributes:
     - gentoro.a2a.outcome
     - gentoro.response.format
     - gentoro.enduser.pseudo.id
-    - gentoro.planner.strategy
-    - gentoro.planner.output.format
-    - gentoro.planner.output.task.count
-    - gentoro.planner.output.entity.count
-    - gentoro.planner.fallback.used
     - gentoro.task.id
     - gentoro.task.type
     - gentoro.task.retry.count

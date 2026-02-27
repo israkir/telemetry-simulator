@@ -118,6 +118,41 @@ def get_trace_flow(
     return ["incoming_validation"]
 
 
+def get_default_data_plane_workflow_steps(config_path: Path | None = None) -> list[str]:
+    """
+    Return default workflow step names for data-plane hierarchy when a control-plane
+    scenario allows data_plane (trace_flow includes data_plane) but does not define
+    correct_flow (orchestrate-only would be emitted otherwise).
+    Uses control_plane.default_data_plane_workflow, else first workflow_templates key.
+    """
+    from ..config import load_yaml
+
+    path = config_path or CONFIG_PATH
+    data = load_yaml(path)
+    if not isinstance(data, dict):
+        return ["planner", "task", "tools_recommend", "new_claim", "response_compose"]
+    cp = data.get("control_plane")
+    workflow_key = None
+    if isinstance(cp, dict):
+        workflow_key = cp.get("default_data_plane_workflow")
+        if isinstance(workflow_key, str):
+            workflow_key = workflow_key.strip() or None
+    rs = data.get("realistic_scenarios")
+    workflow_templates = rs.get("workflow_templates") if isinstance(rs, dict) else {}
+    if not isinstance(workflow_templates, dict):
+        workflow_templates = {}
+    if workflow_key and workflow_key in workflow_templates:
+        steps = workflow_templates[workflow_key]
+        if isinstance(steps, list):
+            return [str(s) for s in steps]
+    if workflow_templates:
+        first_key = next(iter(workflow_templates))
+        steps = workflow_templates[first_key]
+        if isinstance(steps, list):
+            return [str(s) for s in steps]
+    return ["planner", "task", "tools_recommend", "new_claim", "response_compose"]
+
+
 def get_latencies_ms(config_path: Path | None = None) -> dict[str, float]:
     """Return control-plane span latencies from config (request_validation, validation_payload, etc.)."""
     cp = _load_control_plane_config(config_path)

@@ -203,6 +203,33 @@ class ScenarioRunner:
         iteration_trace_ids: list[str] = []
         all_span_names: list[str] = []
 
+        use_unified = (
+            "incoming_validation" in trace_flow
+            and has_data_plane
+            and "data_plane" in trace_flow
+            and "response_validation" in trace_flow
+            and len(hierarchies) > 0
+        )
+        if use_unified:
+            incoming_h = self._incoming_validation_hierarchy(scenario)
+            outgoing_h = self._response_validation_hierarchy(scenario)
+            tid = self.trace_generator.generate_unified_request_trace(
+                incoming_h, hierarchies[0], outgoing_h, context
+            )
+            iteration_trace_ids.append(tid)
+            all_span_names.extend(incoming_h.span_names())
+            all_span_names.extend(hierarchies[0].span_names())
+            all_span_names.extend(outgoing_h.span_names())
+            if scenario.emit_metrics and self.metric_generator:
+                self._emit_metrics_for_hierarchy(incoming_h, context)
+                self._emit_metrics_for_hierarchy(hierarchies[0], context)
+                self._emit_metrics_for_hierarchy(outgoing_h, context)
+            if scenario.emit_logs and self.log_generator:
+                self._emit_logs_for_hierarchy(incoming_h, context)
+                self._emit_logs_for_hierarchy(hierarchies[0], context)
+                self._emit_logs_for_hierarchy(outgoing_h, context)
+            return iteration_trace_ids, all_span_names
+
         if "incoming_validation" in trace_flow:
             incoming_h = self._incoming_validation_hierarchy(scenario)
             tid = self.trace_generator.generate_trace(incoming_h, context)
@@ -275,7 +302,8 @@ class ScenarioRunner:
             all_span_names: list[str] = []
 
             if use_multi_turn:
-                # One logical request per turn; same session_id for all turns.
+                # Multi-turn: each turn = one new request reaching control-plane (incoming).
+                # Different trace_id per turn; same session_id for the whole session.
                 for turn_index, (input_msgs, output_msgs) in enumerate(turn_pairs):
                     ctx_kwargs["session_id"] = session_id
                     ctx_kwargs["turn_index"] = turn_index
@@ -361,6 +389,12 @@ class ScenarioRunner:
         trace_ids: list[str] = []
         total = len(scenarios) if each_once else count
 
+        # When workload_weight is set on scenarios, use it as a relative sampling weight
+        # for mixed workloads so that, for example, successful control-plane outcomes
+        # can be more frequent than error/blocked outcomes.
+        weights = [max(getattr(s, "workload_weight", 1.0), 0.0) for s in scenarios]
+        use_weighted_sampling = not each_once and any(w > 0 for w in weights)
+
         def run_one_request(scenario: Scenario, index: int) -> None:
             tenants = list(scenario.tenant_distribution.keys())
             weights = list(scenario.tenant_distribution.values())
@@ -390,7 +424,10 @@ class ScenarioRunner:
                     time.sleep(interval_ms / 1000.0)
         else:
             for i in range(count):
-                scenario = random.choice(scenarios)
+                if use_weighted_sampling:
+                    scenario = random.choices(scenarios, weights=weights, k=1)[0]
+                else:
+                    scenario = random.choice(scenarios)
                 run_one_request(scenario, i)
                 if interval_ms > 0 and i < count - 1:
                     time.sleep(interval_ms / 1000.0)
