@@ -13,8 +13,8 @@
 #   - Control-plane: add a new key under request_validation_templates (and optionally under
 #     request_scenarios). Template supports root/payload/policy/augmentation, error_rate,
 #     include_policy, include_augmentation, validation_errors, exception; all driven by this config.
-#   - Data-plane: add workflow to workflow_templates, entry to data_plane_templates, and a
-#     scenario YAML with data_plane.template. New workflows must use existing step names
+#   - Data-plane: add workflow to workflow_templates; scenario YAML defines data_plane.workflow,
+#     data_plane.simulation_goal, data_plane.control_plane_template. New workflows must use existing step names
 #     (planner, task, tools_recommend, new_claim/update_appointment/..., response_compose).
 #   - Code change needed only when: adding a new span type (e.g. new control-plane child or
 #     new data-plane step kind) or a new event/attribute kind not yet supported in code.
@@ -31,16 +31,7 @@ happy_path_latencies_ms:
   mcp_tool_execute: 150.0
   response_compose: 60.0
 
-resource:
-  schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
-  attributes:
-    service.name: "gentoro-enterprise"
-    service.version: "1.0.0"
-    service.instance.id: "pod-7f9c6d4b8d-xyz12"
-    deployment.environment.name: "prod"
-    module: "data-plane"
-    component: "gateway-ext"
-    otel.source: "propagated"
+# Resource (schema_url, attributes) is loaded from config/resource.yaml.
 
 # -----------------------------------------------------------------------------
 # Tenants (by key). Scenarios reference context.tenant by key.
@@ -155,33 +146,6 @@ realistic_scenarios:
     pay: [planner, task, tools_recommend, pay, response_compose]
 
 # -----------------------------------------------------------------------------
-# Data-plane (a2a.orchestrate) templates. Scenario can reference data_plane.template
-# to get workflow + simulation_goal from config; no need to repeat correct_flow in YAML.
-# simulation_goal and error_pattern only apply when data-plane is emitted.
-# Optional control_plane_template: when set, scenarios using this data_plane template
-# use this request-validation template (e.g. allowed = no error/exception) unless the
-# scenario YAML overrides control_plane.template. Ensures data-plane scenarios are
-# bound to the correct control-plane flow without code change.
-# -----------------------------------------------------------------------------
-data_plane_templates:
-  new_claim_happy:
-    workflow: new_claim
-    simulation_goal: happy_path
-    control_plane_template: allowed
-  new_claim_4xx:
-    workflow: new_claim
-    simulation_goal: 4xx_invalid_arguments
-    control_plane_template: allowed
-  update_appointment_happy:
-    workflow: update_appointment
-    simulation_goal: happy_path
-    control_plane_template: allowed
-  pay_happy:
-    workflow: pay
-    simulation_goal: happy_path
-    control_plane_template: allowed
-
-# -----------------------------------------------------------------------------
 # Control-plane (semconv-aligned). Add new templates here; no code change needed.
 # Attribute keys use short names (request.outcome, block.reason, step.outcome, etc.);
 # prefix is applied at runtime. Values must match semconv enums (gentoro.request.outcome,
@@ -194,6 +158,11 @@ control_plane:
     validation_policy: 20
     augmentation: 20
     response_validation: 40
+
+  # When a control-plane scenario allows data_plane (trace_flow includes data_plane) but
+  # does not set data_plane.workflow or context.correct_flow, the data-plane trace is
+  # built from this workflow so orchestrate has full child spans (planner, task, tools, etc.).
+  default_data_plane_workflow: new_claim
 
   # Which traces to emit per request outcome (semconv: allowed | blocked | error).
   trace_flow:

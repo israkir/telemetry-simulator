@@ -48,6 +48,9 @@ make install
 ```bash
 # Run mixed workload (uses simulator defaults for count/interval)
 otelsim run --semconv /path/to/semconv.yaml
+
+# Quick run with Gentoro vendor prefix
+otelsim run --vendor=gentoro --count 100 --interval 50
 ```
 
 ### Run Specific Scenarios
@@ -159,13 +162,13 @@ root:
 
 You can add new scenarios by **adding YAML files only** (no code changes):
 
-1. **Data-plane (a2a.orchestrate) scenarios** – Use **key-based context**: `context.tenant`, `context.agent`, `context.mcp_server`. To avoid repeating workflow steps and semantics in YAML, set `data_plane.template: <name>` (e.g. `new_claim_happy`); workflow steps and `simulation_goal` are then read from `config/config.yaml` → `data_plane_templates` and `realistic_scenarios.workflow_templates`. `simulation_goal` and `error_pattern` only apply when the data-plane is emitted; you can omit them and use template defaults.
+1. **Data-plane (a2a.orchestrate) scenarios** – Use **key-based context**: `context.tenant`, `context.agent`, `context.mcp_server`. Define data-plane in the scenario YAML with `data_plane.workflow` (key into config `workflow_templates` for step list), optional `data_plane.simulation_goal`, and optional `data_plane.control_plane_template`. Config supplies only key → UUID and workflow step names.
 2. **Control-plane-only (e.g. blocked/error) scenarios** – Set `control_plane.request_outcome` and `control_plane.block_reason`, or `control_plane.template`. Use **minimal context**: `context.tenant` and `context.agent` only (no `mcp_server`, `workflow`, `correct_flow`, or `error_pattern`). Only the incoming request-validation trace is emitted; no data-plane or response-validation. To use a template but override the policy-span exception (e.g. for a variant), set `control_plane.policy_exception: { type: "...", message: "..." }` in the scenario YAML; the template’s default exception is overridden by these values.
 3. **New control-plane outcome/template** – Add entries under `control_plane.request_validation_templates` and, if needed, `control_plane.trace_flow` in `config/config.yaml`. Attribute values should follow `scenarios/conventions/semconv.yaml`.
-4. **New data-plane template** – Add an entry under `data_plane_templates` in `config/config.yaml` with `workflow` (key into `workflow_templates`) and optional `simulation_goal`; then reference it in a scenario with `data_plane.template: <name>`.
+4. **New data-plane workflow** – Add a workflow to `realistic_scenarios.workflow_templates` in `config/config.yaml` (workflow name → list of steps); then in a scenario YAML set `data_plane.workflow`, optional `data_plane.simulation_goal`, and optional `data_plane.control_plane_template`.
 5. **Tags** – In scenario YAML, set `tags: [control-plane]`, `tags: [data-plane, happy-path]`, etc. Then run a subset of scenarios with `otelsim run --tags=control-plane` or `--tags=data-plane,multi-turn` (scenarios that have *at least one* of the given tags are included). Use `--each-once` to run each (tagged) scenario exactly once instead of `--count` random picks.
 
-The simulator resolves tenant/agent/MCP IDs from config and builds control-plane and data-plane behavior from config templates, so new scenarios and behaviors are driven by config and scenario YAML.
+The simulator resolves tenant/agent/MCP IDs from config; data-plane behavior is defined per scenario (workflow, simulation_goal, control_plane_template), and control-plane behavior from config templates.
 
 ## CLI Reference
 
@@ -206,7 +209,7 @@ otelsim run --count 5 --show-full-spans
 | `TELEMETRY_SIMULATOR_VENDOR_NAME` | *(capitalized prefix)* | Display name used in validation messages. |
 | `SEMCONV` | *(optional)* | Full path to your semantic-conventions YAML. Default: `scenarios/conventions/semconv.yaml` (or pass `--semconv`). |
 
-Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read only from `src/simulator/scenarios/config/config.yaml` under the `resource` key. Configure them there; env vars are not used for these.
+Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read from `src/simulator/scenarios/config/resource.yaml`. Configure them there; env vars are not used for these.
 
 The schema defines which attributes exist and their types; scenario `attributes` override those values or supply distribution-based values. Use the same prefix as `VENDOR` (e.g. `vendor.turn.status.code` when prefix is `vendor`). Bundled scenarios use the default `vendor.*` namespace.
 

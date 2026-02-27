@@ -1,0 +1,29 @@
+# OTEL resource configuration: separate control-plane and data-plane.
+# Prefix-relative keys (module, component, otel.source) are expanded with the vendor
+# attribute prefix (e.g. gentoro.module, vendor.component) at load time.
+#
+# Data-plane: gentoro.component (resource attribute) is set at runtime per span to one of
+# (semconv 5.3): orchestrator, planning, retrieval, llm, mcp_client, tool_recommender.
+# Do not set component under data_plane.attributes; it is always overridden per span.
+
+schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
+
+control_plane:
+  attributes:
+    service.name: "gentoro-enterprise"
+    service.version: "1.0.0"
+    service.instance.id: "pod-7f9c6d4b8d-xyz12"
+    deployment.environment.name: "prod"
+    module: "control-plane"
+    component: "gateway-ext"
+    otel.source: "propagated"
+
+data_plane:
+  attributes:
+    service.name: "gentoro-enterprise"
+    service.version: "1.0.0"
+    service.instance.id: "pod-7f9c6d4b8d-xyz12"
+    deployment.environment.name: "prod"
+    module: "data-plane"
+    # component: set at runtime per span (orchestrator | planning | retrieval | llm | mcp_client | tool_recommender)
+    otel.source: "propagated"
