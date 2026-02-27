@@ -177,20 +177,21 @@ mcp_servers:
 # consistent, queryable telemetry (error.type, http.response.status_code, wrong
 # gentoro.mcp.server.uuid, partial workflows, ungrounded responses).
 #
-# Divisions: business divisions map to mcp_servers keys. Customer context (e.g. DirectLine
-# claim) should use the matching server; wrong_division scenarios use a different key
-# (same tool name, wrong gentoro.mcp.server.uuid).
+# Divisions: Toro's three product lines (by device type) map to mcp_servers keys.
+# Phone (mobile), Home electronics (TVs, smart devices, gaming), Home appliances
+# (dishwashers, fridges, washers, etc.). One agent routes by device; wrong_division
+# uses a different product line's server (same tool name, wrong mcp.server.uuid).
 #
 # Error templates: SemConv-aligned error.type and optional http.response.status_code.
 # See conventions/semconv.yaml allowed_values for error.type.
 
 realistic_scenarios:
-  # Division name -> mcp_servers key. Used to resolve correct vs wrong server UUID
-  # when simulation_goal = wrong_division (agent calls wrong division's tool).
+  # Product line (division) -> mcp_servers key. Used for wrong_division (agent
+  # calls wrong product line's tool; same tool name, wrong mcp.server.uuid).
   divisions:
-    directline: phone
-    brokerfirst: electronics
-    partnerconnect: appliances
+    phone: phone
+    home_electronics: electronics
+    home_appliances: appliances
 
   # Simulation goal -> error semantics (error.type; optional http status for 4xx).
   # Values must align with conventions/semconv.yaml (error.type allowed_values).
