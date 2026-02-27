@@ -35,7 +35,7 @@ resource:
   schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
   attributes:
     service.name: "gentoro-enterprise"
-    service.version: "1.2.0"
+    service.version: "1.0.0"
     service.instance.id: "pod-7f9c6d4b8d-xyz12"
     deployment.environment.name: "prod"
     module: "data-plane"

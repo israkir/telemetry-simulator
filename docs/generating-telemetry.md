@@ -178,11 +178,7 @@ retry:
   success_rate_per_attempt: [0.0, 0.75, 0.92]
 ```
 
-See the [Scenario Configuration Reference](./statistical-scenarios.md) for complete documentation.
-
 ### Realistic scenario-driven telemetry
-
-Along with randomness and statistical options, the simulator supports **realistic scenario goals** so you can generate telemetry for specific failure modes and edge cases in a repeatable way. Configure **general settings** in `config/config.yaml` under `realistic_scenarios` and **per-scenario goals** in each scenario YAML via `simulation_goal` and optional `realistic_overrides`.
 
 | Simulation goal | Description | Telemetry effect |
 |-----------------|-------------|------------------|
@@ -414,6 +410,5 @@ See [Live Trace Visualization](./live-trace-visualization.md) for the full flow 
 
 ## See Also
 
-- [Scenario Configuration Reference](./statistical-scenarios.md) - Complete YAML reference with distributions, error propagation, retries
 - [Live Trace Visualization](./live-trace-visualization.md) - View traces in Jaeger UI
 - [README](../README.md) - Quick start and CLI reference

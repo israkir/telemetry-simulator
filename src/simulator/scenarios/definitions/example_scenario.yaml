@@ -1,5 +1,5 @@
-# Reference/template scenario. Excluded from list_scenarios and load_all when using
-# sample definitions; load by name explicitly: otelsim run --name example_scenario
+# Reference/template scenario. Excluded from list and mixed workload when using
+# sample definitions; run explicitly: otelsim scenario --name example_scenario
 
 name: example_scenario
 description: Example scenario for documentation and explicit runs.

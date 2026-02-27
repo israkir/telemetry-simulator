@@ -65,9 +65,9 @@ Resource attributes identify the emitting service and environment (OTEL resource
 |-----|------|---------|------------------------|
 | `telemetry.sdk.language` | string | — | `"python"` |
 | `telemetry.sdk.name` | string | — | `"opentelemetry"` |
-| `telemetry.sdk.version` | string | — | `"1.39.1"` |
-| `service.name` | string | required | `"otelsim"` |
-| `service.version` | string | required | `"1.0.0"` |
+| `telemetry.sdk.version` | string | — | OTEL SDK version (from dependency) |
+| `service.name` | string | required | CLI default or config (e.g. `"otelsim"`) |
+| `service.version` | string | required | Package version (e.g. `"1.0.0"`) |
 | `service.instance.id` | string | optional | `"pod-7f9c6d4b8d-xyz12"` |
 | `deployment.environment.name` | string | required | Canonical: `development` \| `staging` \| `production`. Simulator may use `"prod"`. |
 | `gentoro.component` | string | optional | Canonical: `orchestrator` \| `planning` \| `retrieval` \| `llm` \| `mcp_client` \| `tool_recommender`. Simulator may use `"gateway-ext"`. |
