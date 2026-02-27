@@ -51,7 +51,7 @@ dev = [
 ]
 
 [project.scripts]
-telemetry-simulator = "simulator.cli:main"
+otelsim = "simulator.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

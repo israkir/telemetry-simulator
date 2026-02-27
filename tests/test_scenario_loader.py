@@ -6,12 +6,6 @@ from simulator.scenarios import SAMPLE_DEFINITIONS_DIR, ScenarioLoader
 from simulator.scenarios.scenario_loader import EXAMPLE_SCENARIO_NAME
 
 
-@pytest.fixture(autouse=True)
-def _tenant_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Set tenant env so scenario parsing (get_tenant_distribution) does not exit."""
-    monkeypatch.setenv("TENANT_UUID", "test-tenant-1")
-
-
 def test_sample_definitions_dir_exists() -> None:
     """Bundled sample definitions directory exists."""
     assert SAMPLE_DEFINITIONS_DIR.is_dir()
@@ -28,7 +22,7 @@ def test_loader_list_scenarios_excludes_example_when_sample_dir() -> None:
     loader = ScenarioLoader()
     names = loader.list_scenarios()
     assert EXAMPLE_SCENARIO_NAME not in names
-    assert len(names) >= 1  # at least successful_agent_turn, tool_retry
+    assert len(names) >= 1  # e.g. new_claim_phone
 
 
 def test_loader_load_all_excludes_example_when_sample_dir() -> None:
@@ -46,10 +40,14 @@ def test_loader_can_load_example_scenario_explicitly() -> None:
     assert scenario.name == EXAMPLE_SCENARIO_NAME
 
 
-def test_loader_can_load_successful_agent_turn() -> None:
-    """Sample scenario successful_agent_turn loads and has expected structure."""
+def test_loader_can_load_new_claim_phone() -> None:
+    """Scenario new_claim_phone (file) loads and has expected structure (correct_flow, mcp_server)."""
     loader = ScenarioLoader()
-    scenario = loader.load("successful_agent_turn")
-    assert scenario.name == "successful_agent_turn"
+    scenario = loader.load("new_claim_phone")
+    assert scenario.name == "new_claim_phone"
     assert scenario.repeat_count >= 1
-    assert scenario.root_step is not None
+    assert scenario.context is not None
+    assert scenario.context.correct_flow is not None
+    assert scenario.context.correct_flow.steps
+    assert scenario.mcp_server == "phone"
+    assert scenario.simulation_goal == "happy_path"

@@ -76,6 +76,7 @@ class FileMetricExporter(MetricExporter):
 
     def __init__(self, output_path: str | Path, append: bool = True):
         """Initialize file exporter."""
+        super().__init__()
         self.output_path = Path(output_path)
         self.append = append
         self.output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -43,3 +43,7 @@ Thumbs.db
 
 # Output files
 *.log
+
+# Generated files
+/traces.json
+/traces.jsonl
