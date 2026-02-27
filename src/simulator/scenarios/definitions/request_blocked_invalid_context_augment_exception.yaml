@@ -1,0 +1,25 @@
+# Augmentation fails (exception) → request is NOT accepted; root blocked (invalid_context).
+# Augmentation span has status=ERROR and exception event (AugmentationBindError).
+
+name: request_blocked_invalid_context_augment_exception
+description: >
+  Control-plane request blocked due to augmentation failure; root has gentoro.request.outcome=blocked,
+  gentoro.block.reason=invalid_context; augmentation span has gentoro.step.outcome=fail,
+  optional gentoro.block.reason=not_found, and exception event (AugmentationBindError, augmentation_failed).
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  template: blocked_invalid_context_augment_exception
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001

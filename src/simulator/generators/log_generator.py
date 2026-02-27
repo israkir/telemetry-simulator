@@ -17,7 +17,7 @@ from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor, LogRecordExporter
 from opentelemetry.sdk.resources import Resource
 
-from ..config import ATTR_PREFIX, resource_schema_url, schema_version_attr
+from ..config import ATTR_PREFIX, resource_schema_url
 from ..config import attr as config_attr
 from ..config import resource_attributes as config_resource_attributes
 from ..config import span_name as config_span_name
@@ -33,7 +33,7 @@ class LogGenerator:
         self,
         exporter: LogRecordExporter,
         schema_path: str | None = None,
-        service_name: str = "telemetry-simulator",
+        service_name: str = "otelsim",
     ):
         """Initialize log generator with exporter."""
         parser = SchemaParser(schema_path)
@@ -42,7 +42,6 @@ class LogGenerator:
 
         tenant_id = get_default_tenant_ids()[0]
         attrs = dict(config_resource_attributes(tenant_id))
-        attrs[schema_version_attr()] = self.schema.schema_version
         attrs["service.name"] = service_name
         attrs["service.version"] = "1.0.0"
         resource = Resource.create(attrs, schema_url=resource_schema_url())
@@ -142,7 +141,7 @@ class LogGenerator:
     ):
         """Log an LLM inference call."""
         attrs = self._get_base_attrs(context)
-        attrs["gen_ai.provider.name"] = provider
+        attrs["gen_ai.system"] = provider
         attrs["gen_ai.request.model"] = model
         attrs["gen_ai.operation.name"] = operation
         attrs["gen_ai.usage.input_tokens"] = input_tokens

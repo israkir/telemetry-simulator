@@ -16,7 +16,7 @@ from opentelemetry.sdk.resources import Resource
 
 from ..config import attr as config_attr
 from ..config import resource_attributes as config_resource_attributes
-from ..config import resource_schema_url, schema_version_attr
+from ..config import resource_schema_url
 from ..defaults import get_default_tenant_ids
 from ..schemas.attribute_generator import AttributeGenerator, GenerationContext
 from ..schemas.schema_parser import SchemaParser
@@ -29,7 +29,7 @@ class MetricGenerator:
         self,
         exporter: MetricExporter,
         schema_path: str | None = None,
-        service_name: str = "telemetry-simulator",
+        service_name: str = "otelsim",
         export_interval_ms: int = 5000,
     ):
         """Initialize metric generator with exporter."""
@@ -39,7 +39,6 @@ class MetricGenerator:
 
         tenant_id = get_default_tenant_ids()[0]
         attrs = dict(config_resource_attributes(tenant_id))
-        attrs[schema_version_attr()] = self.schema.schema_version
         attrs["service.name"] = service_name
         attrs["service.version"] = "1.0.0"
         resource = Resource.create(attrs, schema_url=resource_schema_url())
@@ -216,7 +215,7 @@ class MetricGenerator:
         """Record metrics for an LLM inference call."""
         attrs = {
             "tenant.id": context.tenant_id,
-            "gen_ai.provider.name": provider,
+            "gen_ai.system": provider,
             "gen_ai.request.model": model,
         }
 

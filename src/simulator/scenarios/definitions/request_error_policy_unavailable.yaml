@@ -1,0 +1,28 @@
+# Policy engine runtime exception variant: same template as error_policy_runtime,
+# but override exception type/message in scenario (no config change).
+# Demonstrates: standard in config (template), variant in scenario (policy_exception override).
+
+name: request_error_policy_unavailable
+description: >
+  Control-plane request validation fails with policy engine unavailable (variant).
+  Uses template error_policy_runtime but overrides policy exception to PolicyEngineUnavailable.
+
+tags:
+  - control-plane
+  
+mcp_server: phone
+repeat_count: 2
+interval_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+control_plane:
+  template: error_policy_runtime
+  policy_exception:
+    type: PolicyEngineUnavailable
+    message: policy_engine_unavailable
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001

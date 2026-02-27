@@ -1,7 +1,8 @@
 """
 Parse OTEL semantic conventions YAML schema.
 
-Reads a semantic-conventions YAML file (path must be provided by the client via TELEMETRY_SIMULATOR_SCHEMA_PATH or --schema-path) and provides structured access to:
+Reads a semantic-conventions YAML file (path from `SEMCONV` / `--semconv`, or default
+scenarios/conventions/semconv.yaml) and provides structured access to:
 - Span definitions (names, kinds, parent relationships)
 - Attribute schemas (types, requirements, allowed values)
 - Metrics definitions
@@ -15,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from ..config import DEFAULT_SEMCONV_PATH
 
 
 class AttributeRequirement(Enum):
@@ -56,6 +59,9 @@ class AttributeDefinition:
     examples: list[Any] | None = None
     default: Any = None
     sensitive: bool = False
+    # OTEL-style applicability: span name suffixes this attribute applies to (e.g. ["a2a.orchestrate", "task.execute"]).
+    # If None or empty, attribute applies to all spans.
+    applies_to: list[str] | None = None
 
     @classmethod
     def from_yaml(cls, name: str, data: dict | None) -> "AttributeDefinition":
@@ -76,6 +82,13 @@ class AttributeDefinition:
             else AttributeCategory.METADATA
         )
 
+        applies_to_raw = data.get("applies_to")
+        applies_to: list[str] | None = None
+        if isinstance(applies_to_raw, list):
+            applies_to = [str(s).strip() for s in applies_to_raw if isinstance(s, str)]
+        elif isinstance(applies_to_raw, str):
+            applies_to = [s.strip() for s in applies_to_raw.split(",") if s.strip()]
+
         return cls(
             name=name,
             attr_type=data.get("type", "string"),
@@ -87,6 +100,7 @@ class AttributeDefinition:
             examples=data.get("examples"),
             default=data.get("default"),
             sensitive=data.get("sensitive", False),
+            applies_to=applies_to if applies_to else None,
         )
 
 
@@ -164,15 +178,22 @@ class MetricDefinition:
         )
 
 
+def _span_suffix(span_name: str) -> str:
+    """Return the span type suffix (e.g. 'planner', 'a2a.orchestrate') for applicability checks."""
+    if "." in span_name:
+        return span_name.split(".", 1)[-1]
+    return span_name
+
+
 # Map from span name suffix to attribute section key used in otel-semantic.yaml.
 # Order: longer suffixes first so "mcp.tool.execute.attempt" matches before "mcp.tool.execute".
 _SPEC_SPAN_SECTION_ALIASES = [
-    ("mcp.tool.execute.attempt", "mcp_tool_attributes"),
+    ("mcp.tool.execute.attempt", "mcp_tool_attempt_attributes"),
     ("mcp.tool.execute", "mcp_tool_attributes"),
     ("llm.tool.response.bridge", "llm_tool_response_bridge_attributes"),
     ("context.augment", "context_augment_attributes"),
     ("a2a.orchestrate", "a2a_orchestration_attributes"),
-    ("response.compose", "a2a_orchestration_attributes"),
+    ("response.compose", "response_compose_attributes"),
     ("task.execute", "task_execute_attributes"),
     ("llm.call", "llm_call_attributes"),
     ("planner", "planner_attributes"),
@@ -193,18 +214,31 @@ class TelemetrySchema:
     status_codes: dict[str, StatusDefinition]
 
     def get_span_attributes(self, span_name: str) -> dict[str, AttributeDefinition]:
-        """Get all attributes for a span type (common + span-specific)."""
-        attrs = dict(self.common_attributes)
+        """Get all attributes for a span type (common + span-specific). Common attributes are filtered by applies_to when set."""
+        suffix = _span_suffix(span_name)
+        # Include common attributes that apply to this span (applies_to None/empty = all spans).
+        attrs = {}
+        for name, attr_def in self.common_attributes.items():
+            if attr_def.applies_to is None or len(attr_def.applies_to) == 0:
+                attrs[name] = attr_def
+            elif suffix in attr_def.applies_to:
+                attrs[name] = attr_def
         span_key = self._span_name_to_attr_key(span_name)
         if span_key in self.span_attributes:
             attrs.update(self.span_attributes[span_key])
         else:
             # Fallback: match by suffix so otel-semantic.yaml section names work (e.g. a2a_orchestration_attributes).
-            for suffix, section in _SPEC_SPAN_SECTION_ALIASES:
-                if span_name == suffix or span_name.endswith("." + suffix):
+            for spec_suffix, section in _SPEC_SPAN_SECTION_ALIASES:
+                if span_name == spec_suffix or span_name.endswith("." + spec_suffix):
                     if section in self.span_attributes:
                         attrs.update(self.span_attributes[section])
                     break
+        # LLM Calls: include inference and content-capture attributes for llm.call.
+        if suffix == "llm.call":
+            if "llm_inference_attributes" in self.span_attributes:
+                attrs.update(self.span_attributes["llm_inference_attributes"])
+            if "llm_content_capture_attributes" in self.span_attributes:
+                attrs.update(self.span_attributes["llm_content_capture_attributes"])
         return attrs
 
     def get_required_attributes(self, span_name: str) -> list[str]:
@@ -221,18 +255,21 @@ class SchemaParser:
     """Parse OTEL semantic conventions from YAML."""
 
     def __init__(self, schema_path: Path | str | None = None):
-        """Initialize parser with schema path. Path must be provided by the client (env or argument)."""
+        """Initialize parser with schema path (argument, SEMCONV env, or default scenarios/conventions/semconv.yaml)."""
         if schema_path is not None:
             self.schema_path = Path(schema_path)
             return
-        env_path = os.environ.get("TELEMETRY_SIMULATOR_SCHEMA_PATH") or os.environ.get(
-            "SCHEMA_PATH"
+        env_path = os.environ.get("SEMCONV")
+        if env_path and Path(env_path).exists():
+            self.schema_path = Path(env_path)
+            return
+        if DEFAULT_SEMCONV_PATH.exists():
+            self.schema_path = DEFAULT_SEMCONV_PATH
+            return
+        raise FileNotFoundError(
+            "Schema path is required. Set SEMCONV or pass --semconv with the path to your semantic-conventions YAML, "
+            "or place it at scenarios/conventions/semconv.yaml."
         )
-        if not env_path or not Path(env_path).exists():
-            raise FileNotFoundError(
-                "Schema path is required. Set TELEMETRY_SIMULATOR_SCHEMA_PATH or pass --schema-path with the full path to your semantic-conventions YAML file."
-            )
-        self.schema_path = Path(env_path)
 
     def parse(self) -> TelemetrySchema:
         """Parse the schema file and return structured schema."""
