@@ -31,14 +31,14 @@ src/simulator/
 ### Prerequisites
 
 - Python 3.11+
-- **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand, e.g. `telemetry-simulator scenario --name foo --semconv /path/to/conventions.yaml`).
+- **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand, e.g. `otelsim scenario --name foo --semconv /path/to/conventions.yaml`).
 - OpenTelemetry Collector running (port 4318) or use `--output-file` to export to file
 - **Tenant ID** is read from `src/simulator/scenarios/config/config.yaml` (`tenant.id`); no env vars required for tenants.
 
 ### Setup
 
 ```bash
-# From the telemetry-simulator project directory
+# From the otelsim project directory
 make venv
 make install
 ```
@@ -47,7 +47,7 @@ make install
 
 ```bash
 # Run mixed workload (uses simulator defaults for count/interval)
-telemetry-simulator run --semconv /path/to/semconv.yaml
+otelsim run --semconv /path/to/semconv.yaml
 ```
 
 ### Run Specific Scenarios
@@ -59,21 +59,21 @@ The simulator ships with **sample scenario definitions** in `src/simulator/scena
 make list-scenarios
 
 # Run a sample scenario
-telemetry-simulator scenario --name successful_agent_turn
+otelsim scenario --name phone_new_claim
 
 # Use a custom folder of scenario YAML files
-telemetry-simulator scenario --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
+otelsim scenario --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
 ```
 
-**Note:** Tenant IDs come from `config/config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`. Use `telemetry-simulator run` for a mixed workload (varied trace patterns); use `telemetry-simulator scenario --name <name>` for a single reproducible pattern.
+**Note:** Tenant IDs come from `config/config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`. Use `otelsim run` for a mixed workload (varied trace patterns); use `otelsim scenario --name <name>` for a single reproducible pattern.
 
 ### Live trace visualization
 
 To view traces in a browser while running the simulator on the host:
 
 1. Start Jaeger: `make jaeger-up`
-2. Run the simulator: `telemetry-simulator run --semconv /path/to/semconv.yaml`
-3. Open **http://localhost:16686** and select service `telemetry-simulator`
+2. Run the simulator: `otelsim run --semconv /path/to/semconv.yaml`
+3. Open **http://localhost:16686** and select service `otelsim`
 4. Stop Jaeger when done: `make jaeger-down`
 
 See [docs/live-trace-visualization.md](docs/live-trace-visualization.md) for details.
@@ -113,7 +113,7 @@ Set `VENDOR` to your vendor name (e.g. `acme`) so span names and vendor attribut
 
 ## YAML Scenarios
 
-**Sample definitions** are bundled in `src/simulator/scenarios/definitions/` (e.g. `successful_agent_turn.yaml`, `tool_retry.yaml`). A reference scenario `example_scenario.yaml` documents all YAML options; it is excluded from `list` and mixed workload when using the built-in samples but can be run with `--name example_scenario`. You can run samples as-is, add your own YAML there, or use a **custom definitions folder** via `--scenarios-dir` (see CLI Reference). Example structure:
+**Sample definitions** are bundled in `src/simulator/scenarios/definitions/` (e.g. `phone_new_claim.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`, `phone_new_claim_multi_turn.yaml`). A reference scenario `example_scenario.yaml` documents all YAML options; it is excluded from `list` and mixed workload when using the built-in samples but can be run with `--name example_scenario`. You can run samples as-is, add your own YAML there, or use a **custom definitions folder** via `--scenarios-dir` (see CLI Reference). Example structure:
 
 ```yaml
 name: my_scenario
@@ -155,29 +155,45 @@ root:
         gen_ai.operation.name: chat
 ```
 
+### Adding new scenarios (no code changes)
+
+You can add new scenarios by **adding YAML files only** (no code changes):
+
+1. **Data-plane (a2a.orchestrate) scenarios** – Use **key-based context**: `context.tenant`, `context.agent`, `context.mcp_server`. To avoid repeating workflow steps and semantics in YAML, set `data_plane.template: <name>` (e.g. `new_claim_happy`); workflow steps and `simulation_goal` are then read from `config/config.yaml` → `data_plane_templates` and `realistic_scenarios.workflow_templates`. `simulation_goal` and `error_pattern` only apply when the data-plane is emitted; you can omit them and use template defaults.
+2. **Control-plane-only (e.g. blocked/error) scenarios** – Set `control_plane.request_outcome` and `control_plane.block_reason`, or `control_plane.template`. Use **minimal context**: `context.tenant` and `context.agent` only (no `mcp_server`, `workflow`, `correct_flow`, or `error_pattern`). Only the incoming request-validation trace is emitted; no data-plane or response-validation. To use a template but override the policy-span exception (e.g. for a variant), set `control_plane.policy_exception: { type: "...", message: "..." }` in the scenario YAML; the template’s default exception is overridden by these values.
+3. **New control-plane outcome/template** – Add entries under `control_plane.request_validation_templates` and, if needed, `control_plane.trace_flow` in `config/config.yaml`. Attribute values should follow `scenarios/conventions/semconv.yaml`.
+4. **New data-plane template** – Add an entry under `data_plane_templates` in `config/config.yaml` with `workflow` (key into `workflow_templates`) and optional `simulation_goal`; then reference it in a scenario with `data_plane.template: <name>`.
+5. **Tags** – In scenario YAML, set `tags: [control-plane]`, `tags: [data-plane, happy-path]`, etc. Then run a subset of scenarios with `otelsim run --tags=control-plane` or `--tags=data-plane,multi-turn` (scenarios that have *at least one* of the given tags are included).
+
+The simulator resolves tenant/agent/MCP IDs from config and builds control-plane and data-plane behavior from config templates, so new scenarios and behaviors are driven by config and scenario YAML.
+
 ## CLI Reference
 
 ```bash
-# Run mixed workload
-telemetry-simulator run --count 100 --interval 500
+# Run mixed workload (all scenarios)
+otelsim run --count 100 --interval 500
+
+# Run only scenarios with a given tag (e.g. control-plane or data-plane)
+otelsim run --count 50 --tags=control-plane
+otelsim run --count 50 --tags=data-plane,multi-turn
 
 # Run YAML scenario (sample or custom definitions folder)
-telemetry-simulator scenario --name successful_agent_turn
-telemetry-simulator scenario --name my_scenario --scenarios-dir /path/to/definitions
+otelsim scenario --name phone_new_claim
+otelsim scenario --name my_scenario --scenarios-dir /path/to/definitions
 
 # List scenarios (from sample or custom folder)
-telemetry-simulator list
-telemetry-simulator list --scenarios-dir /path/to/definitions
+otelsim list
+otelsim list --scenarios-dir /path/to/definitions
 
 # Validate schema and show span/metric definitions
-telemetry-simulator validate --show-schema --show-spans --show-metrics
+otelsim validate --show-schema --show-spans --show-metrics
 
 # Show each generated trace (trace_id, tenant_id, span names)
-telemetry-simulator run --count 10 --show-spans
-telemetry-simulator run --show-all-attributes
+otelsim run --count 10 --show-spans
+otelsim run --show-all-attributes
 
 # Print complete span content (name, trace_id, span_id, kind, status, all attributes) for every span
-telemetry-simulator run --count 5 --show-full-spans
+otelsim run --count 5 --show-full-spans
 ```
 
 ### Configuration (environment)
@@ -209,6 +225,7 @@ All spans/metrics/logs are emitted with resource attributes per the OTEL resourc
 | `--show-all-attributes` | False | Same as --show-spans; used by default in container |
 | `--show-full-spans` | False | Print full span content (name, ids, kind, status, all attributes) for every span |
 | `--scenarios-dir` | *(built-in samples)* | Folder with scenario YAML files (for `run`, `scenario`, `list`) |
+| `--tags` | None | Comma-separated tags; only run scenarios that have at least one of these tags (e.g. `--tags=control-plane`, `--tags=data-plane,multi-turn`) |
 
 ## Schema Validation
 
@@ -294,7 +311,7 @@ The simulator can run **as a container** (with your own Docker setup) or **local
 
 ```bash
 make venv && make install
-telemetry-simulator run --semconv /path/to/semconv.yaml
+otelsim run --semconv /path/to/semconv.yaml
 ```
 
 ## Troubleshooting
@@ -312,11 +329,11 @@ Container log drivers often limit line length (e.g. 16KB). The simulator keeps p
 Set the schema path via environment or `--semconv` (before or after the subcommand):
 ```bash
 export SEMCONV=/path/to/your-semconv.yaml
-telemetry-simulator run
+otelsim run
 
 # Or pass per run (any of these work):
-telemetry-simulator run --semconv /path/to/your-schema.yaml
-telemetry-simulator scenario --name successful_agent_turn --semconv /path/to/your-schema.yaml
+otelsim run --semconv /path/to/your-schema.yaml
+otelsim scenario --name phone_new_claim --semconv /path/to/your-schema.yaml
 ```
 
 ### Virtual Environment Issues

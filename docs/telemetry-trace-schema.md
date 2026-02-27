@@ -24,7 +24,7 @@ This document describes the structure of the telemetry trace data in `traces.jso
 ## 1. Trace Data Format
 
 - **Format**: JSON Lines (`.jsonl`) — one JSON object per line, each representing a single **span**.
-- **Source**: OpenTelemetry-style spans emitted by the telemetry-simulator (Python, SDK 1.39.1).
+- **Source**: OpenTelemetry-style spans emitted by the otelsim (Python, SDK 1.39.1).
 - **Content**: Agent-to-Agent (A2A) orchestration traces for a customer-assistant flow (e.g. claims, tool use, LLM calls).
 
 Each line is a complete span. Spans are grouped by `trace_id`; within a trace, the hierarchy is given by `parent_span_id` (root spans have `parent_span_id: null`).
@@ -64,7 +64,7 @@ Resource attributes identify the emitting service and environment (OTEL resource
 | `telemetry.sdk.language` | string | — | `"python"` |
 | `telemetry.sdk.name` | string | — | `"opentelemetry"` |
 | `telemetry.sdk.version` | string | — | `"1.39.1"` |
-| `service.name` | string | required | `"telemetry-simulator"` |
+| `service.name` | string | required | `"otelsim"` |
 | `service.version` | string | required | `"1.0.0"` |
 | `service.instance.id` | string | optional | `"pod-7f9c6d4b8d-xyz12"` |
 | `deployment.environment.name` | string | required | Canonical: `development` \| `staging` \| `production`. Simulator may use `"prod"`. |
@@ -129,6 +129,8 @@ gentoro.a2a.orchestrate (root, SERVER)
 Attributes are span-specific and aligned with semconv. **REQUIRED** = MUST be present; **RECOMMENDED** = SHOULD when applicable. The canonical span identity attribute is **`gentoro.span.class`**.
 
 ### 4.1 Common / Session (multiple span types)
+
+In the simulator, **session and conversation IDs** are generated as follows: format templates are defined in `config/config.yaml` under `id_formats` (e.g. `session_id: "sess_toro_{hex:12}"`). The `ScenarioIdGenerator` produces a new value per logical request (per iteration in single-scenario run, per step in mixed workload). Multi-turn scenarios reuse the same session_id for all turns in one iteration. So: one session_id per logical session; different iterations/steps yield different sessions. See [Generating Telemetry – Trace, session, and conversation IDs](./generating-telemetry.md#trace-session-and-conversation-ids) for details.
 
 | Attribute | Type | Semconv | Description |
 |-----------|------|---------|-------------|
@@ -293,7 +295,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "telemetry.sdk.language": "python",
     "telemetry.sdk.name": "opentelemetry",
     "telemetry.sdk.version": "1.39.1",
-    "service.name": "telemetry-simulator",
+    "service.name": "otelsim",
     "service.version": "1.0.0",
     "service.instance.id": "pod-7f9c6d4b8d-xyz12",
     "deployment.environment.name": "prod",

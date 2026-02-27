@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import CONFIG_PATH, load_yaml
+from .config_resolver import ConfigResolutionError
 
 _HEX_PLACEHOLDER = re.compile(r"\{hex:(\d+)\}")
 _UUID_PLACEHOLDER = re.compile(r"\{uuid\}")
@@ -41,23 +42,18 @@ def _expand_template(template: str, tenant_id: str | None = None) -> str:
 
 
 def load_id_formats(config_path: Path | None = None) -> dict[str, str]:
-    """Load id_formats from config/config.yaml. Returns format key -> template."""
+    """Load id_formats from config/config.yaml. Config must define id_formats."""
     path = config_path or CONFIG_PATH
     data = load_yaml(path)
+    if not isinstance(data, dict):
+        raise ConfigResolutionError("Config is missing or invalid")
     raw = data.get("id_formats")
     if not isinstance(raw, dict):
-        return _default_id_formats()
-    return {str(k): str(v) for k, v in raw.items() if isinstance(v, str)}
-
-
-def _default_id_formats() -> dict[str, str]:
-    """Fallback when config is missing (convention-aligned: vendor.session.id, vendor.request.id, vendor.mcp.tool.call.id)."""
-    return {
-        "session_id": "sess_toro_{hex:12}",
-        "conversation_id": "sess_toro_{hex:12}",
-        "request_id": "req_{hex:6}",
-        "mcp_tool_call_id": "mcp_call_{hex:12}",
-    }
+        raise ConfigResolutionError("Config must define id_formats")
+    result = {str(k): str(v) for k, v in raw.items() if isinstance(v, str)}
+    if not result:
+        raise ConfigResolutionError("id_formats must contain at least one template")
+    return result
 
 
 class ScenarioIdGenerator:
@@ -82,8 +78,7 @@ class ScenarioIdGenerator:
         """
         template = self._formats.get(format_key)
         if not template:
-            # Fallback for unknown keys
-            template = f"id_{uuid.uuid4().hex[:12]}"
+            raise ConfigResolutionError(f"Unknown id format key: {format_key}")
         return _expand_template(template, tenant_id=tenant_id)
 
     def session_id(self, tenant_id: str | None = None) -> str:

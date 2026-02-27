@@ -90,12 +90,15 @@ def _record_span_error(
     overrides: dict[str, Any],
     message: str = "Error occurred",
     error_type_override: str | None = None,
+    exception_type: str | None = None,
+    exception_message: str | None = None,
 ) -> None:
     """Set status=ERROR, error.type (low-cardinality), and exception event (SemConv-aligned).
 
     When a span is in error, instrumentation SHOULD set error.type and record an exception
     event with exception.type, exception.message, exception.stacktrace (OpenTelemetry).
     error.type must be one of SEMCONV_ERROR_TYPE_VALUES from conventions/semconv.yaml.
+    If exception_type/exception_message are provided (e.g. from control-plane template), use them for the exception event.
     """
     raw = (
         error_type_override
@@ -114,7 +117,12 @@ def _record_span_error(
     if raw_category:
         span.set_attribute(config_attr("error.category"), raw_category)
     span.set_status(Status(StatusCode.ERROR, message))
-    exc = RuntimeError(message)
+    msg = exception_message or message
+    if exception_type:
+        exc_cls = type(exception_type, (RuntimeError,), {})
+        exc = exc_cls(msg)
+    else:
+        exc = RuntimeError(msg)
     if hasattr(span, "record_exception"):
         span.record_exception(exc)
 
@@ -235,6 +243,9 @@ class SpanConfig:
     latency_variance: float = 0.3
     error_rate: float = 0.02
     attribute_overrides: dict[str, Any] = field(default_factory=dict)
+    # Optional: when span is in error, record exception event with this type/message (e.g. from control-plane template).
+    exception_type: str | None = None
+    exception_message: str | None = None
 
 
 @dataclass
@@ -355,7 +366,7 @@ class TraceGenerator:
         self,
         exporter: SpanExporter,
         schema_path: str | None = None,
-        service_name: str = "telemetry-simulator",
+        service_name: str = "otelsim",
         service_version: str = "1.0.0",
         show_full_spans: bool = False,
     ):
@@ -431,32 +442,58 @@ class TraceGenerator:
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 outcome = (overrides.get(config_attr("a2a.outcome")) or "success").lower()
                 if outcome == "error":
-                    _record_span_error(span, config.span_type, overrides)
+                    _record_span_error(
+                        span, config.span_type, overrides,
+                        exception_type=getattr(config, "exception_type", None),
+                        exception_message=getattr(config, "exception_message", None),
+                    )
                 # success / partial: leave status UNSET (do not set OK)
             # Control-plane request / response validation roots: status.code UNSET on
             # allowed/blocked; ERROR on runtime/system failure (outcome=error).
             elif config.span_type == SpanType.REQUEST_VALIDATION:
                 outcome = (overrides.get(config_attr("request.outcome")) or "allowed").lower()
                 if outcome == "error":
-                    _record_span_error(span, config.span_type, overrides)
+                    _record_span_error(
+                        span, config.span_type, overrides,
+                        exception_type=getattr(config, "exception_type", None),
+                        exception_message=getattr(config, "exception_message", None),
+                    )
             elif config.span_type == SpanType.RESPONSE_VALIDATION:
                 outcome = (overrides.get(config_attr("response.outcome")) or "allowed").lower()
                 if outcome == "error":
-                    _record_span_error(span, config.span_type, overrides)
+                    _record_span_error(
+                        span, config.span_type, overrides,
+                        exception_type=getattr(config, "exception_type", None),
+                        exception_message=getattr(config, "exception_message", None),
+                    )
             elif config.span_type == SpanType.RESPONSE_COMPOSE and (is_error or tool_result is False):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
                     span, config.span_type, overrides,
                     error_type_override="protocol_error",
+                    exception_type=getattr(config, "exception_type", None),
+                    exception_message=getattr(config, "exception_message", None),
                 )
             elif config.span_type == SpanType.TASK_EXECUTE and (is_error or tool_result is False):
                 span.set_attribute(config_attr("step.outcome"), "fail")
-                _record_span_error(span, config.span_type, overrides)
+                _record_span_error(
+                    span, config.span_type, overrides,
+                    exception_type=getattr(config, "exception_type", None),
+                    exception_message=getattr(config, "exception_message", None),
+                )
             elif config.span_type == SpanType.TOOLS_RECOMMEND and (is_error or tool_result is False):
                 span.set_attribute(config_attr("step.outcome"), "fail")
-                _record_span_error(span, config.span_type, overrides)
+                _record_span_error(
+                    span, config.span_type, overrides,
+                    exception_type=getattr(config, "exception_type", None),
+                    exception_message=getattr(config, "exception_message", None),
+                )
             elif is_error or tool_result is False:
-                _record_span_error(span, config.span_type, overrides)
+                _record_span_error(
+                    span, config.span_type, overrides,
+                    exception_type=getattr(config, "exception_type", None),
+                    exception_message=getattr(config, "exception_message", None),
+                )
             else:
                 # Control-plane validation spans (root + children) use UNSET for
                 # allowed/blocked outcomes; do not force OK.

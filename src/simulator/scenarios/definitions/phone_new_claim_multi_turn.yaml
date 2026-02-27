@@ -1,21 +1,13 @@
 # Multi-turn conversation: one trace per turn, same session_id for all turns.
-# Same trace hierarchy as phone_new_claim_happy; conversation.turns defines 3 interactions.
-#
-# Expected: 3 traces per iteration (one per turn), each with hierarchy:
-#   a2a.orchestrate
-#   ├── planner
-#   ├── task.execute (llm_call) → llm.call
-#   ├── task.execute (tool_recommendation) → tools.recommend
-#   ├── task.execute (tool_execution) → mcp.tool.execute → mcp.tool.execute.attempt
-#   └── response.compose
-#
-# Correlate: all 3 traces share the same {prefix}.session.id and gen_ai.conversation.id; filter by either to get the full conversation.
-# Run: telemetry-simulator scenario --name phone_new_claim_multi_turn --count 1 --show-spans
+# Context is key-based; all IDs resolved from config.
 
 name: phone_new_claim_multi_turn
 description: >
   Multi-turn new-claim flow: 3 user/assistant turns per session; one trace per turn, same session_id.
 
+tags:
+  - data-plane
+  - multi-turn
 simulation_goal: happy_path
 mcp_server: phone
 
@@ -35,8 +27,10 @@ conversation:
       llm_response: "You're booked for Wednesday 9am. You'll get a confirmation by email."
 
 context:
-  tenant_uuid: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
-  workflow: "new_claim"
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  workflow: new_claim
   correct_flow:
     steps:
       - planner
@@ -45,10 +39,3 @@ context:
       - new_claim
       - response_compose
   error_pattern: happy_path
-  agents:
-    - uuid: "toro-customer-assistant-001"
-      mcp:
-        - server_uuid: "11111111-1111-4eec-8001-000000000001"
-          tools:
-            - name: new_claim
-              uuid: "11111111-1111-4eec-8001-000000000011"

@@ -560,10 +560,10 @@ root:
 
 ```bash
 # Run 50 traces with retry behavior
-telemetry-simulator scenario --name tool_retry --count 50
+otelsim scenario --name tool_retry --count 50
 
 # Show full span output including retry attributes
-telemetry-simulator scenario --name tool_retry --count 10 --show-full-spans
+otelsim scenario --name tool_retry --count 10 --show-full-spans
 ```
 
 ---

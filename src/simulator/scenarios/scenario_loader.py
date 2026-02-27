@@ -21,7 +21,6 @@ import yaml
 from ..config import ATTR_PREFIX, CONFIG_PATH, load_yaml
 from ..config import attr as config_attr
 from ..config import span_name as config_span_name
-from ..defaults import get_tenant_distribution
 from ..generators.trace_generator import (
     SpanConfig,
     SpanType,
@@ -29,6 +28,7 @@ from ..generators.trace_generator import (
 )
 from ..statistics.correlations import ErrorPropagation, RetryConfig, RetrySequence
 from ..statistics.distributions import Distribution, DistributionFactory
+from .config_resolver import get_default_tenant_id, resolve_context
 from .id_generator import ScenarioIdGenerator
 from .realistic_modifier import apply_realistic_scenario
 
@@ -164,98 +164,146 @@ class ScenarioContext:
     # When set, hierarchy is built from actual_steps instead of correct_flow.steps (partial_workflow).
     actual_steps: list[str] | None = None
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "ScenarioContext | None":
-        """Parse context from YAML/JSON (tenant_uuid, agents, workflow, correct_flow, error_pattern)."""
-        if not data or not isinstance(data, dict):
-            return None
-        tenant_uuid = data.get("tenant_uuid") or data.get("tenant_id")
-        if not tenant_uuid or not isinstance(tenant_uuid, str):
-            return None
-        agents_raw = data.get("agents")
-        if not isinstance(agents_raw, list):
-            agents_raw = []
 
-        workflow = data.get("workflow")
-        if workflow is not None and not isinstance(workflow, str):
-            workflow = None
+def _parse_and_resolve_context(
+    data: dict[str, Any] | None,
+    config_path: Path,
+) -> ScenarioContext | None:
+    """
+    Parse key-based context and resolve to ScenarioContext from config.
+    Requires tenant and agent. mcp_server is optional (control-plane-only scenarios need no MCP).
+    workflow, correct_flow, error_pattern are optional; only needed for data-plane hierarchy.
+    """
+    if not data or not isinstance(data, dict):
+        return None
+    tenant_key = data.get("tenant")
+    agent_id = data.get("agent")
+    mcp_server_key = data.get("mcp_server")
+    if not tenant_key or not isinstance(tenant_key, str):
+        return None
+    if not agent_id or not isinstance(agent_id, str):
+        return None
+    if mcp_server_key is not None and not isinstance(mcp_server_key, str):
+        mcp_server_key = None
 
-        correct_flow_cfg: FlowConfig | None = None
-        correct_flow_raw = data.get("correct_flow")
-        if isinstance(correct_flow_raw, dict) and isinstance(correct_flow_raw.get("steps"), list):
-            correct_flow_cfg = FlowConfig(steps=[str(s) for s in correct_flow_raw["steps"]])
-        elif isinstance(correct_flow_raw, list):
-            correct_flow_cfg = FlowConfig(steps=[str(s) for s in correct_flow_raw])
+    workflow = data.get("workflow")
+    if workflow is not None and not isinstance(workflow, str):
+        workflow = None
 
-        error_pattern = data.get("error_pattern", "happy_path")
-        if not isinstance(error_pattern, str):
-            error_pattern = "happy_path"
-        redaction_applied = data.get("redaction_applied", "none")
-        if not isinstance(redaction_applied, str):
-            redaction_applied = "none"
-        err_cfg_raw = data.get("error_config")
-        err_cfg: ErrorPatternConfig | None = None
-        if isinstance(err_cfg_raw, dict):
-            step_idx = err_cfg_raw.get("step_index", "random")
-            if not isinstance(step_idx, int):
-                step_idx = "random"
-            err_cfg = ErrorPatternConfig(
-                pattern=error_pattern,
-                rate=float(err_cfg_raw.get("rate", 0.1)),
-                step_index=step_idx,
-            )
-        elif error_pattern not in ("happy_path", "none"):
-            err_cfg = ErrorPatternConfig(pattern=error_pattern)
+    correct_flow_cfg: FlowConfig | None = None
+    correct_flow_raw = data.get("correct_flow")
+    if isinstance(correct_flow_raw, dict) and isinstance(correct_flow_raw.get("steps"), list):
+        correct_flow_cfg = FlowConfig(steps=[str(s) for s in correct_flow_raw["steps"]])
+    elif isinstance(correct_flow_raw, list):
+        correct_flow_cfg = FlowConfig(steps=[str(s) for s in correct_flow_raw])
 
-        agents: list[AgentRef] = []
-        for a in agents_raw:
-            if not isinstance(a, dict):
-                continue
-            agent_uuid = a.get("uuid")
-            if not agent_uuid or not isinstance(agent_uuid, str):
-                continue
-            mcp_list_raw = a.get("mcp")
-            mcp_list: list[MCPServerRef] = []
-            if isinstance(mcp_list_raw, list):
-                for m in mcp_list_raw:
-                    if not isinstance(m, dict):
-                        continue
-                    server_uuid = m.get("server_uuid")
-                    if not server_uuid or not isinstance(server_uuid, str):
-                        continue
-                    tools: list[MCPToolRef] = []
-                    # Support tools: [{name, uuid}, ...] or tool_uuids + tool_names
-                    tools_raw = m.get("tools")
-                    tool_uuids_raw = m.get("tool_uuids")
-                    tool_names_raw = m.get("tool_names")
-                    if isinstance(tools_raw, list):
-                        for t in tools_raw:
-                            if isinstance(t, dict):
-                                n, u = t.get("name"), t.get("uuid")
-                                if isinstance(n, str) and isinstance(u, str):
-                                    tools.append(MCPToolRef(name=n, uuid=u))
-                            elif isinstance(t, str):
-                                tools.append(MCPToolRef(name=t, uuid=t))
-                    elif isinstance(tool_uuids_raw, list) and isinstance(tool_names_raw, list):
-                        for nm, uid in zip(tool_names_raw, tool_uuids_raw, strict=False):
-                            if isinstance(nm, str) and isinstance(uid, str):
-                                tools.append(MCPToolRef(name=nm, uuid=uid))
-                    elif isinstance(tool_uuids_raw, list):
-                        for i, uid in enumerate(tool_uuids_raw):
-                            if isinstance(uid, str):
-                                tools.append(MCPToolRef(name=f"tool_{i}", uuid=uid))
-                    mcp_list.append(MCPServerRef(server_uuid=server_uuid, tools=tools))
-            agents.append(AgentRef(uuid=agent_uuid, mcp=mcp_list))
+    error_pattern = data.get("error_pattern", "happy_path")
+    if not isinstance(error_pattern, str):
+        error_pattern = "happy_path"
+    redaction_applied = data.get("redaction_applied", "none")
+    if not isinstance(redaction_applied, str):
+        redaction_applied = "none"
 
-        return cls(
-            tenant_uuid=tenant_uuid,
-            agents=agents,
-            workflow=workflow,
-            correct_flow=correct_flow_cfg,
-            error_pattern=error_pattern,
-            error_config=err_cfg,
-            redaction_applied=redaction_applied,
+    err_cfg: ErrorPatternConfig | None = None
+    err_cfg_raw = data.get("error_config")
+    if isinstance(err_cfg_raw, dict):
+        step_idx = err_cfg_raw.get("step_index", "random")
+        if not isinstance(step_idx, int):
+            step_idx = "random"
+        err_cfg = ErrorPatternConfig(
+            pattern=error_pattern,
+            rate=float(err_cfg_raw.get("rate", 0.1)),
+            step_index=step_idx,
         )
+    elif error_pattern not in ("happy_path", "none"):
+        err_cfg = ErrorPatternConfig(pattern=error_pattern)
+
+    resolved = resolve_context(
+        tenant_key=tenant_key.strip(),
+        agent_id=agent_id.strip(),
+        mcp_server_key=mcp_server_key.strip() if isinstance(mcp_server_key, str) else None,
+        workflow=workflow,
+        correct_flow=correct_flow_cfg,
+        error_pattern=error_pattern,
+        error_config=err_cfg,
+        redaction_applied=redaction_applied,
+        config_path=config_path,
+    )
+    agents: list[AgentRef] = []
+    for a in resolved.get("agents") or []:
+        if not isinstance(a, dict):
+            continue
+        agent_uuid = a.get("uuid")
+        if not isinstance(agent_uuid, str):
+            continue
+        mcp_list: list[MCPServerRef] = []
+        for m in a.get("mcp") or []:
+            if not isinstance(m, dict):
+                continue
+            server_uuid = m.get("server_uuid")
+            if not isinstance(server_uuid, str):
+                continue
+            tools = [MCPToolRef(name=t["name"], uuid=t["tool_uuid"]) for t in (m.get("tools") or []) if isinstance(t, dict) and isinstance(t.get("name"), str) and isinstance(t.get("tool_uuid"), str)]
+            mcp_list.append(MCPServerRef(server_uuid=server_uuid, tools=tools))
+        agents.append(AgentRef(uuid=agent_uuid, mcp=mcp_list))
+
+    return ScenarioContext(
+        tenant_uuid=resolved["tenant_uuid"],
+        agents=agents,
+        workflow=resolved.get("workflow"),
+        correct_flow=resolved.get("correct_flow"),
+        error_pattern=resolved.get("error_pattern", "happy_path"),
+        error_config=resolved.get("error_config"),
+        redaction_applied=resolved.get("redaction_applied", "none"),
+        actual_steps=resolved.get("actual_steps"),
+    )
+
+
+def _apply_data_plane_template(
+    context: ScenarioContext,
+    template_name: str,
+    config_path: Path,
+) -> tuple[ScenarioContext, str | None]:
+    """
+    Enrich context from config data_plane_templates (workflow + correct_flow) and return simulation_goal.
+    Returns (context, simulation_goal). If template not found, returns (context, None).
+    """
+    from ..config import load_yaml
+
+    data = load_yaml(config_path)
+    if not isinstance(data, dict):
+        return context, None
+    templates = data.get("data_plane_templates")
+    if not isinstance(templates, dict):
+        return context, None
+    template = templates.get((template_name or "").strip())
+    if not isinstance(template, dict):
+        return context, None
+    workflow = template.get("workflow")
+    if not isinstance(workflow, str):
+        return context, None
+    rs = data.get("realistic_scenarios")
+    workflow_templates = rs.get("workflow_templates") if isinstance(rs, dict) else None
+    if not isinstance(workflow_templates, dict):
+        return context, None
+    steps = workflow_templates.get(workflow)
+    if not isinstance(steps, list):
+        return context, None
+    correct_flow = FlowConfig(steps=[str(s) for s in steps])
+    simulation_goal = template.get("simulation_goal")
+    if simulation_goal is not None and not isinstance(simulation_goal, str):
+        simulation_goal = None
+    updated = ScenarioContext(
+        tenant_uuid=context.tenant_uuid,
+        agents=context.agents,
+        workflow=workflow,
+        correct_flow=correct_flow,
+        error_pattern=context.error_pattern,
+        error_config=context.error_config,
+        redaction_applied=context.redaction_applied,
+        actual_steps=context.actual_steps,
+    )
+    return updated, simulation_goal
 
 
 @dataclass
@@ -466,6 +514,14 @@ class Scenario:
     redaction_applied: str = "none"
     # Overrides for realistic scenario modifier (step_index_for_4xx, wrong_division_target, skip_steps, actual_steps).
     realistic_overrides: dict[str, Any] | None = None
+    # Control-plane: request outcome (allowed | blocked | error). When blocked, no a2a.orchestrate or response.validation.
+    control_plane_request_outcome: str = "allowed"
+    # When control_plane_request_outcome=blocked: invalid_payload | request_policy | invalid_context (semconv gentoro.block.reason).
+    control_plane_block_reason: str | None = None
+    # Optional: use a specific request_validation_templates key from config (overrides outcome + block_reason resolution).
+    control_plane_template: str | None = None
+    # Optional: override policy exception (type, message) from template; e.g. {"type": "PolicyEngineUnavailable", "message": "..."}.
+    control_plane_policy_exception_override: dict[str, str] | None = None
 
     def get_trace_hierarchy(self) -> TraceHierarchy:
         """Get the trace hierarchy for this scenario."""
@@ -486,12 +542,27 @@ class Scenario:
         When context.correct_flow.steps is set, the happy path is expressed in context:
         hierarchy is built from context.correct_flow.steps and context (tenant, agent,
         tools, error_pattern) is applied. Otherwise hierarchy comes from YAML root.
+        When scenario is control-plane-only (trace_flow is [incoming_validation] and no
+        data-plane definition), returns [] so only incoming validation is emitted.
         """
         if self.context and self.context.correct_flow and self.context.correct_flow.steps:
             hierarchy = _hierarchy_from_context(self.context)
             _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
             _apply_realistic_scenario_if_needed(self, hierarchy)
             return [hierarchy]
+        # Control-plane-only: no data-plane hierarchy to emit
+        from .control_plane_loader import get_request_validation_template_id, get_trace_flow
+
+        flow = get_trace_flow(
+            self.control_plane_request_outcome or "allowed",
+            template_id=get_request_validation_template_id(
+                self.control_plane_request_outcome or "allowed",
+                self.control_plane_block_reason,
+                self.control_plane_template,
+            ),
+        )
+        if flow == ["incoming_validation"]:
+            return []
         if self.root_step.retry and self.root_step.retry.enabled:
             hierarchies = self.root_step.to_retry_hierarchies()
         else:
@@ -1027,11 +1098,20 @@ class ScenarioLoader:
             root_raw = root_raw[0]
         root_step = self._parse_step(root_raw if isinstance(root_raw, dict) else {})
 
-        scenario_context = ScenarioContext.from_dict(data.get("context"))
+        scenario_context = _parse_and_resolve_context(data.get("context"), CONFIG_PATH)
         if scenario_context:
             tenant_dist = {scenario_context.tenant_uuid: 1.0}
         else:
-            tenant_dist = get_tenant_distribution()
+            tenant_dist = {get_default_tenant_id(CONFIG_PATH): 1.0}
+
+        # Optional data_plane.template: workflow + correct_flow + simulation_goal from config.
+        simulation_goal_from_template: str | None = None
+        if scenario_context:
+            dp = data.get("data_plane")
+            if isinstance(dp, dict) and dp.get("template"):
+                scenario_context, simulation_goal_from_template = _apply_data_plane_template(
+                    scenario_context, dp.get("template"), CONFIG_PATH
+                )
 
         root_for_detect = data.get("root")
         is_statistical = self._detect_statistical(
@@ -1041,6 +1121,8 @@ class ScenarioLoader:
         simulation_goal = data.get("simulation_goal")
         if simulation_goal is not None and not isinstance(simulation_goal, str):
             simulation_goal = None
+        if simulation_goal is None and simulation_goal_from_template is not None:
+            simulation_goal = simulation_goal_from_template
         mcp_server = data.get("mcp_server")
         if mcp_server is not None and not isinstance(mcp_server, str):
             mcp_server = None
@@ -1115,6 +1197,28 @@ class ScenarioLoader:
         if isinstance(realistic_overrides_raw, dict):
             realistic_overrides = dict(realistic_overrides_raw)
 
+        control_plane_request_outcome = "allowed"
+        control_plane_block_reason = None
+        control_plane_template: str | None = None
+        control_plane_policy_exception_override: dict[str, str] | None = None
+        cp_raw = data.get("control_plane")
+        if isinstance(cp_raw, dict):
+            outcome = cp_raw.get("request_outcome")
+            if isinstance(outcome, str) and outcome.strip().lower() in ("allowed", "blocked", "error"):
+                control_plane_request_outcome = outcome.strip().lower()
+            if control_plane_request_outcome == "blocked":
+                reason = cp_raw.get("block_reason")
+                if isinstance(reason, str) and reason.strip():
+                    control_plane_block_reason = reason.strip().lower()
+            template = cp_raw.get("template")
+            if isinstance(template, str) and template.strip():
+                control_plane_template = template.strip()
+            pe = cp_raw.get("policy_exception")
+            if isinstance(pe, dict) and (pe.get("type") or pe.get("message")):
+                control_plane_policy_exception_override = {
+                    k: str(v) for k, v in pe.items() if k in ("type", "message") and v is not None
+                }
+
         # For partial_workflow, set context.actual_steps from overrides so hierarchy is built with fewer/wrong-order steps.
         if (
             scenario_context
@@ -1132,10 +1236,18 @@ class ScenarioLoader:
                         steps_copy.pop(idx)
                 scenario_context.actual_steps = steps_copy
 
+        tags_raw = data.get("tags", [])
+        if isinstance(tags_raw, list):
+            tags = [str(t).strip() for t in tags_raw if t is not None]
+        elif isinstance(tags_raw, str) and tags_raw.strip():
+            tags = [tags_raw.strip()]
+        else:
+            tags = []
+
         return Scenario(
             name=data.get("name", "unnamed"),
             description=data.get("description", ""),
-            tags=data.get("tags", []),
+            tags=tags,
             tenant_distribution=tenant_dist,
             repeat_count=data.get("repeat_count", 1),
             interval_ms=data.get("interval_ms", 500),
@@ -1152,6 +1264,10 @@ class ScenarioLoader:
             conversation_turn_pairs=conversation_turn_pairs,
             redaction_applied=redaction_applied or "none",
             realistic_overrides=realistic_overrides or None,
+            control_plane_request_outcome=control_plane_request_outcome,
+            control_plane_block_reason=control_plane_block_reason,
+            control_plane_template=control_plane_template,
+            control_plane_policy_exception_override=control_plane_policy_exception_override,
         )
 
     def _detect_statistical(self, data: dict) -> bool:

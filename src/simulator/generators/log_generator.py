@@ -33,7 +33,7 @@ class LogGenerator:
         self,
         exporter: LogRecordExporter,
         schema_path: str | None = None,
-        service_name: str = "telemetry-simulator",
+        service_name: str = "otelsim",
     ):
         """Initialize log generator with exporter."""
         parser = SchemaParser(schema_path)

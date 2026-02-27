@@ -29,7 +29,7 @@ class MetricGenerator:
         self,
         exporter: MetricExporter,
         schema_path: str | None = None,
-        service_name: str = "telemetry-simulator",
+        service_name: str = "otelsim",
         export_interval_ms: int = 5000,
     ):
         """Initialize metric generator with exporter."""

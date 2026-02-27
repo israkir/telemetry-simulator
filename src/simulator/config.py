@@ -122,6 +122,26 @@ def resource_schema_url() -> str:
     return yaml_url
 
 
+def get_default_tenant_id(config_path: Path | None = None) -> str:
+    """
+    Return the first tenant id from config (tenants map).
+    Used by defaults and config_resolver; avoids circular imports.
+    """
+    path = config_path or _CONFIG_PATH
+    data = load_yaml(path)
+    if not isinstance(data, dict):
+        raise ValueError("Config is missing or invalid")
+    tenants = data.get("tenants") or {}
+    if not isinstance(tenants, dict) or not tenants:
+        raise ValueError("Config has no tenants; at least one tenant is required")
+    for t in tenants.values():
+        if isinstance(t, dict):
+            tid = t.get("id")
+            if isinstance(tid, str) and tid.strip():
+                return tid.strip()
+    raise ValueError("Config has no tenants; at least one tenant is required")
+
+
 def resource_attributes(tenant_id: str) -> dict[str, str]:
     """
     Build resource attributes per OTEL resource spec.

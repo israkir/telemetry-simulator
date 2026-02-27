@@ -280,7 +280,7 @@ class AttributeGenerator:
         if _attr_matches(name, "schema.version") or name == schema_version_attr():
             return self.schema.schema_version
         if name == "service.name":
-            return "telemetry-simulator"
+            return "otelsim"
         if name == "service.version":
             return "1.0.0"
 

@@ -55,22 +55,22 @@ def _format_progress_line(
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
-        prog="telemetry-simulator",
+        prog="otelsim",
         description="Schema-driven OTEL telemetry simulator for LLM observability",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Run mixed workload to OTLP collector
-  telemetry-simulator run --count 100 --interval 200
+  otelsim run --count 100 --interval 200
 
   # Run specific scenario
-  telemetry-simulator scenario --name successful_agent_turn
+  otelsim scenario --name phone_new_claim
 
   # Validate schema and show summary
-  telemetry-simulator validate --show-schema
+  otelsim validate --show-schema
 
   # Export to file instead of OTLP
-  telemetry-simulator run --count 10 --output-file traces.jsonl
+  otelsim run --count 10 --output-file traces.jsonl
         """,
     )
 
@@ -103,8 +103,8 @@ Examples:
     parser.add_argument(
         "--service-name",
         type=str,
-        default="telemetry-simulator",
-        help="Service name for telemetry (default: telemetry-simulator)",
+        default="otelsim",
+        help="Service name for telemetry (default: otelsim)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
@@ -163,6 +163,13 @@ Examples:
         default=None,
         help="Folder with scenario YAML files for mixed workload (default: built-in sample definitions)",
     )
+    run_parser.add_argument(
+        "--tags",
+        type=str,
+        default=None,
+        metavar="TAG[,TAG...]",
+        help="Only run scenarios that have at least one of these tags (e.g. --tags=control-plane or --tags=control-plane,data-plane)",
+    )
 
     scenario_parser = subparsers.add_parser("scenario", help="Run YAML-defined scenario")
     scenario_parser.add_argument("--endpoint", type=str, help=argparse.SUPPRESS)
@@ -212,6 +219,12 @@ Examples:
         action="store_true",
         help="Disable log export (use when backend accepts traces only, e.g. Jaeger)",
     )
+    scenario_parser.add_argument(
+        "--output-file",
+        type=str,
+        default=None,
+        help="Output file path (if set, exports traces to file instead of OTLP)",
+    )
 
     list_parser = subparsers.add_parser("list", help="List available scenarios")
     list_parser.add_argument(
@@ -248,6 +261,10 @@ def cmd_run(args: argparse.Namespace):
     print(f"   Endpoint: {args.endpoint}")
     print(f"   Count: {args.count}")
     print(f"   Interval: {args.interval}ms")
+    if getattr(args, "tags", None) and isinstance(args.tags, str):
+        tags_list = [t.strip() for t in args.tags.split(",") if t.strip()]
+        if tags_list:
+            print(f"   Tags filter: {', '.join(tags_list)}")
     print(f"   Tenants: {', '.join(get_default_tenant_ids())}")
     print()
 
@@ -297,10 +314,14 @@ def cmd_run(args: argparse.Namespace):
             scenarios_dir=getattr(args, "scenarios_dir", None),
         )
 
+        tags_list: list[str] | None = None
+        if getattr(args, "tags", None) and isinstance(args.tags, str):
+            tags_list = [t.strip() for t in args.tags.split(",") if t.strip()]
         trace_ids = runner.run_mixed_workload(
             count=args.count,
             interval_ms=args.interval,
             progress_callback=progress_callback,
+            tags=tags_list,
         )
 
         runner.shutdown()
@@ -351,6 +372,9 @@ def cmd_scenario(args: argparse.Namespace):
 
     print(f"   Description: {scenario.description}")
     print(f"   Repeat count: {scenario.repeat_count}")
+    if not getattr(args, "output_file", None):
+        print(f"   Endpoint: {args.endpoint}")
+        print(f"   Service: {args.service_name} (select this in Jaeger UI)")
     interval_str = f"{scenario.interval_ms}ms"
     if scenario.interval_deviation_ms > 0:
         interval_str += f" ±{scenario.interval_deviation_ms}ms"
@@ -358,17 +382,31 @@ def cmd_scenario(args: argparse.Namespace):
     print(f"   Tags: {', '.join(scenario.tags)}")
     print()
 
-    trace_exporter = create_otlp_trace_exporter(args.endpoint)
-    metric_exporter = (
-        create_otlp_metric_exporter(args.endpoint)
-        if scenario.emit_metrics and not getattr(args, "no_metrics", False)
-        else None
-    )
-    log_exporter = (
-        create_otlp_log_exporter(args.endpoint)
-        if scenario.emit_logs and not getattr(args, "no_logs", False)
-        else None
-    )
+    if getattr(args, "output_file", None):
+        trace_exporter = FileSpanExporter(args.output_file)
+        metric_exporter = (
+            FileMetricExporter(args.output_file.replace(".jsonl", "_metrics.jsonl"))
+            if scenario.emit_metrics and not getattr(args, "no_metrics", False)
+            else None
+        )
+        log_exporter = (
+            FileLogExporter(args.output_file.replace(".jsonl", "_logs.jsonl"))
+            if scenario.emit_logs and not getattr(args, "no_logs", False)
+            else None
+        )
+        print(f"   Output: {args.output_file}")
+    else:
+        trace_exporter = create_otlp_trace_exporter(args.endpoint)
+        metric_exporter = (
+            create_otlp_metric_exporter(args.endpoint)
+            if scenario.emit_metrics and not getattr(args, "no_metrics", False)
+            else None
+        )
+        log_exporter = (
+            create_otlp_log_exporter(args.endpoint)
+            if scenario.emit_logs and not getattr(args, "no_logs", False)
+            else None
+        )
 
     def progress_callback(
         current: int,
@@ -498,7 +536,7 @@ def cmd_validate(args: argparse.Namespace):
 
 
 _DEFAULT_ENDPOINT = "http://localhost:4318"
-_DEFAULT_SERVICE_NAME = "telemetry-simulator"
+_DEFAULT_SERVICE_NAME = "otelsim"
 
 
 def main():

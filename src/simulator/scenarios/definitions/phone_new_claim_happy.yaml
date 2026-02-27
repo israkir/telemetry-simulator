@@ -1,6 +1,5 @@
 # Phone MCP context, happy path. Uses data_plane.template so workflow + simulation_goal
 # come from config (no need to repeat correct_flow or simulation_goal in YAML).
-# Load by: otelsim scenario --name phone_new_claim
 
 name: phone_new_claim_happy
 description: >

@@ -1,50 +1,19 @@
 """
-Tenant defaults for the simulator.
+Default tenant for the simulator.
 
-Tenant identity is driven by the shared config file:
-
-- Primary source: `tenant.id` in scenarios/config/config.yaml
-- Fallback when config or id is missing: `"test-tenant-001"`
-
-All telemetry is generated for a **single** tenant id by default.
+Tenant identity comes only from config: scenarios/config/config.yaml tenants map.
+The default tenant id is the first tenant in config (used when a scenario has no context).
 """
 
-from .config import CONFIG_PATH, load_yaml
-
-_DEFAULT_TENANT_ID = "test-tenant-001"
-
-
-def _load_tenant_id_from_config() -> str:
-    """
-    Load the default tenant id from config/config.yaml.
-
-    Config shape:
-
-    tenant:
-      id: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
-      display_name: "Toro Insurance"
-    """
-    data = load_yaml(CONFIG_PATH)
-    tenant_data = data.get("tenant")
-    if isinstance(tenant_data, dict):
-        tenant_id = tenant_data.get("id")
-        if isinstance(tenant_id, str) and tenant_id.strip():
-            return tenant_id.strip()
-
-    return _DEFAULT_TENANT_ID
+from .config import get_default_tenant_id
 
 
 def get_default_tenant_ids() -> list[str]:
-    """Return the single default tenant id from config/config.yaml (or fallback)."""
-    return [_load_tenant_id_from_config()]
+    """Return the single default tenant id from config (first tenant)."""
+    return [get_default_tenant_id()]
 
 
 def get_tenant_distribution() -> dict[str, float]:
-    """
-    Return tenant distribution for generation.
-
-    Currently a single tenant with weight 1.0, using the id from config/config.yaml
-    or the `"test-tenant-001"` fallback when not configured.
-    """
-    tenant_id = _load_tenant_id_from_config()
-    return {tenant_id: 1.0}
+    """Return tenant distribution for generation: single default tenant from config."""
+    tid = get_default_tenant_id()
+    return {tid: 1.0}
