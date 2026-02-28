@@ -87,13 +87,17 @@ def _get_conversation_from_config(
     return None, None, None, None
 
 
-def _context_kwargs_for_scenario(scenario: Scenario, tenant_id: str) -> dict:
-    """Build kwargs for GenerationContext.create. All correlation IDs from config id_formats (id_generator or standalone generators); no fallbacks."""
+def _context_kwargs_for_scenario(
+    scenario: Scenario, tenant_id: str, iteration_index: int | None = None
+) -> dict:
+    """Build kwargs for GenerationContext.create. All correlation IDs from config id_formats (id_generator or standalone generators); no fallbacks.
+    When iteration_index is set and scenario.cycle_conversation_samples is True, use conversation_samples[iteration_index % len(samples)] instead of random."""
     kwargs: dict = {
         "tenant_id": tenant_id,
         "turn_index": 0,
         "redaction_applied": getattr(scenario, "redaction_applied", "none"),
         "scenario_name": getattr(scenario, "name", None),
+        "higher_latency_condition": getattr(scenario, "higher_latency_condition", None),
     }
     id_gen = getattr(scenario, "id_generator", None)
     if isinstance(id_gen, ScenarioIdGenerator):
@@ -106,14 +110,20 @@ def _context_kwargs_for_scenario(scenario: Scenario, tenant_id: str) -> dict:
         kwargs["user_id"] = generate_enduser_pseudo_id(tenant_id=tenant_id)
     # Per convention: one span per LLM call = one interaction (user input → LLM response).
     # When scenario has conversation_turn_pairs, the runner sets llm_* per turn (one trace per turn, same session_id).
-    # When scenario has conversation_samples, pick one at random per iteration (each iteration = different session).
+    # When scenario has conversation_samples, pick one per iteration: by index if cycle_conversation_samples else random.
     # Otherwise use a single-turn sample from config conversation_samples (workflow).
     if getattr(scenario, "conversation_turn_pairs", None):
         pass  # runner sets llm_input_messages / llm_output_messages per turn
     else:
         scenario_samples = getattr(scenario, "conversation_samples", None) or []
         if scenario_samples:
-            sample = random.choice(scenario_samples)
+            if (
+                iteration_index is not None
+                and getattr(scenario, "cycle_conversation_samples", False)
+            ):
+                sample = scenario_samples[iteration_index % len(scenario_samples)]
+            else:
+                sample = random.choice(scenario_samples)
             user_input = sample.get("user_input")
             llm_response = sample.get("llm_response")
             if isinstance(user_input, str) and isinstance(llm_response, str):
@@ -331,7 +341,7 @@ class ScenarioRunner:
 
         for i in range(scenario.repeat_count):
             tenant_id = random.choices(tenants, weights=weights)[0]
-            ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
+            ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id, iteration_index=i)
             # One session_id per logical session (iteration); all turns in this iteration share it.
             session_id = ctx_kwargs["session_id"]
             id_gen = getattr(scenario, "id_generator", None)

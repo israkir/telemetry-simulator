@@ -42,31 +42,17 @@ id_formats:
 #   request_validation / response_validation: schema + policy gate; lightweight, some variance.
 #   validation_payload / validation_policy: per-phase checks; fast, slight variance.
 #   augmentation: context fetch / RAG; often 50–150 ms with high variance.
-happy_path_latency:
-  default_variance: 0.2
-  spans:
-    a2a_orchestrate: { mean_ms: 1500.0, variance: 0.2 }
-    planner: { mean_ms: 220.0, variance: 0.22 }
-    task_execute: { mean_ms: 75.0, variance: 0.18 }
-    llm_call: { mean_ms: 420.0, variance: 0.35 }
-    tools_recommend: { mean_ms: 52.0, variance: 0.28 }
-    mcp_tool_execute: { mean_ms: 160.0, variance: 0.32 }
-    response_compose: { mean_ms: 58.0, variance: 0.2 }
-    request_validation: { mean_ms: 36.0, variance: 0.25 }
-    response_validation: { mean_ms: 38.0, variance: 0.25 }
-    validation_payload: { mean_ms: 18.0, variance: 0.22 }
-    validation_policy: { mean_ms: 24.0, variance: 0.25 }
-    augmentation: { mean_ms: 85.0, variance: 0.35 }
+# All latency profiles (happy_path, higher_latency, etc.) are under latency_profiles below.
 
 # -----------------------------------------------------------------------------
 # Tool recommendation (tools.recommend span) attributes. All values from config.
 # Semconv: mcp.tools.available.count (from MCP server tools list), mcp.selection.latency.ms
-# (from happy_path_latency.spans.tools_recommend), and the keys below.
+# (from latency_profiles.<profile>.spans.tools_recommend), and the keys below.
 # -----------------------------------------------------------------------------
 tools_recommend:
   step_outcome: "success"             # step.outcome on tools.recommend span (success | fail | skipped)
   selection_strategy: "default"       # capability_match | semantic_match | policy_filtered | hybrid | default
-  selection_constraints: "none"        # policy | permissions | environment | latency_budget | none
+  selection_constraints: "none"       # policy | permissions | environment | latency_budget | none
   tools_selected_count: 1             # number of tools selected (typically 1 per step)
   selection_fallback_used: false      # whether fallback/default selection was used
 
@@ -187,6 +173,41 @@ mcp_servers:
         tool_uuid: "33333333-3333-4eec-8003-000000000039"
 
 # -----------------------------------------------------------------------------
+# Tool call arguments (OTEL gen_ai.tool.call.arguments). Keyed by tool name; used on
+# mcp.tool.execute parent span. Values are serialized as JSON; may contain PII.
+# -----------------------------------------------------------------------------
+tool_call_arguments:
+  new_claim:
+    product_type: "phone"
+    description: "Screen cracked after drop"
+    incident_date: "2025-02-15"
+  update_appointment:
+    claim_id: "clm_abc123"
+    slot: "2025-02-20T14:00:00Z"
+    reason: "reschedule"
+  claim_status:
+    claim_id: "clm_abc123"
+  cancel_claim:
+    claim_id: "clm_abc123"
+    reason: "duplicate"
+  upload_documents:
+    claim_id: "clm_abc123"
+    document_type: "receipt"
+    count: 1
+  choose_insurance:
+    product_category: "phone"
+  buy_insurance:
+    product_id: "prod_phone_001"
+    tier: "standard"
+  cancel_product:
+    policy_id: "pol_xyz789"
+    reason: "replacement"
+  pay:
+    claim_id: "clm_abc123"
+    amount_cents: 19900
+    method: "card"
+
+# -----------------------------------------------------------------------------
 # Realistic scenario templates (simulation_goal -> error semantics, divisions)
 # -----------------------------------------------------------------------------
 realistic_scenarios:
@@ -210,7 +231,45 @@ realistic_scenarios:
   workflow_templates:
     new_claim: [planner, task, tools_recommend, new_claim, response_compose]
     update_appointment: [planner, task, tools_recommend, update_appointment, response_compose]
+    claim_status: [planner, task, tools_recommend, claim_status, response_compose]
     pay: [planner, task, tools_recommend, pay, response_compose]
+
+# -----------------------------------------------------------------------------
+# Latency profiles: scenario selects one via data_plane.latency_profile (or simulation_goal: higher_latency).
+# All profiles (happy_path, higher_latency, etc.). Scenario chooses via data_plane.latency_profile.
+# Order: single-turn happy_path < multi-turn (more traces) < higher_latency (slower).
+# -----------------------------------------------------------------------------
+latency_profiles:
+  happy_path:
+    default_variance: 0.2
+    spans:
+      a2a_orchestrate: { mean_ms: 1500.0, variance: 0.2 }
+      planner: { mean_ms: 220.0, variance: 0.22 }
+      task_execute: { mean_ms: 75.0, variance: 0.18 }
+      llm_call: { mean_ms: 420.0, variance: 0.35 }
+      tools_recommend: { mean_ms: 52.0, variance: 0.28 }
+      mcp_tool_execute: { mean_ms: 160.0, variance: 0.32 }
+      response_compose: { mean_ms: 58.0, variance: 0.2 }
+      request_validation: { mean_ms: 36.0, variance: 0.25 }
+      response_validation: { mean_ms: 38.0, variance: 0.25 }
+      validation_payload: { mean_ms: 18.0, variance: 0.22 }
+      validation_policy: { mean_ms: 24.0, variance: 0.25 }
+      augmentation: { mean_ms: 85.0, variance: 0.35 }
+  higher_latency:
+    default_variance: 0.2
+    spans:
+      a2a_orchestrate: { mean_ms: 2200.0, variance: 0.2 }
+      planner: { mean_ms: 220.0, variance: 0.22 }
+      task_execute: { mean_ms: 75.0, variance: 0.18 }
+      llm_call: { mean_ms: 420.0, variance: 0.35 }
+      tools_recommend: { mean_ms: 52.0, variance: 0.28 }
+      mcp_tool_execute: { mean_ms: 800.0, variance: 0.32 }
+      response_compose: { mean_ms: 58.0, variance: 0.2 }
+      request_validation: { mean_ms: 36.0, variance: 0.25 }
+      response_validation: { mean_ms: 38.0, variance: 0.25 }
+      validation_payload: { mean_ms: 18.0, variance: 0.22 }
+      validation_policy: { mean_ms: 24.0, variance: 0.25 }
+      augmentation: { mean_ms: 85.0, variance: 0.35 }
 
 # -----------------------------------------------------------------------------
 # Control-plane (semconv-aligned). Add new templates here; no code change needed.
@@ -261,6 +320,7 @@ control_plane:
     request_blocked_invalid_context:
       template: blocked_invalid_context
       description: "Request blocked due to augmentation/context invalid (invalid_context)."
+      workload_weight: 0.1
     request_blocked_invalid_context_augment_exception:
       template: blocked_invalid_context_augment_exception
       description: "Augmentation fails with exception; request blocked (invalid_context), augmentation span ERROR."

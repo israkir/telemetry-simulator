@@ -1,0 +1,52 @@
+# Tool calls have higher latency when claim_status output is 'technician on-route to scheduled appointment'.
+# This scenario runs both cases each time: (1) generic claim status response, (2) technician-on-route response.
+# Both are framed as gen_ai LLM response messages in traces; higher_latency_condition is captured as span attributes.
+
+name: claim_status_phone_higher_latency
+description: >
+  Tool calls have higher latency when claim status output is 'technician on-route to scheduled appointment'.
+  Each run emits two traces: one with a reasonable claim status reply, one with technician-on-route style response (gen_ai.output).
+
+tags:
+  - data-plane
+  - higher-latency
+  - claim-status
+
+# Higher-latency variants are a minority of data-plane traffic.
+workload_weight: 0.7
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+
+# Cycle through samples so each run produces both cases (generic + technician-on-route).
+cycle_conversation_samples: true
+
+data_plane:
+  workflow: claim_status
+  simulation_goal: higher_latency
+  latency_profile: higher_latency
+  control_plane_template: allowed
+  higher_latency_condition:
+    claim_status_output: "technician on-route to scheduled appointment"
+
+expected:
+  mcp_server: phone
+  tools:
+    - claim_status
+
+# Two samples: same user intent (status check), different claim outcomes. Both appear as gen_ai.input/output in traces.
+# Sample 0 = generic outcome (no technician-on-route). Sample 1 = outcome that triggers higher latency (technician on-route).
+conversation:
+  samples:
+    - user_input: "What's the status of my phone claim PH-8842?"
+      llm_response: "I've looked up PH-8842. It's still in processing — we'll schedule your appointment within 2 business days and send a confirmation."
+    - user_input: "What's the status of my phone claim PH-8842?"
+      llm_response: "I've checked PH-8842. Appointment is scheduled for Thursday 10am. Status: technician on-route to scheduled appointment."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

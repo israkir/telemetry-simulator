@@ -52,19 +52,20 @@ The simulator is driven by **`src/simulator/scenarios/config/config.yaml`**. Wha
 
 | Section | Purpose |
 |--------|---------|
-| **id_formats** | Templates for all correlation IDs: `session_id`, `conversation_id`, `request_id`, `mcp_tool_call_id`, `enduser_pseudo_id` (placeholders: `{hex:N}`, `{uuid}`, `{tenant_id}`). Used by `ScenarioIdGenerator` and by standalone generators when no id_generator; no fallbacks. |
-| **happy_path_latency** | Mean and variance per span for realistic fluctuation: `default_variance` and `spans` (e.g. a2a_orchestrate, planner, tools_recommend, mcp_tool_execute, response_compose) with `mean_ms` and `variance`. Trace generator uses mean × (1 + gauss(0, variance)). When the hierarchy is built from context (e.g. `data_plane.workflow`), these values are used for each span type. |
-| **tools_recommend** | Tool recommendation (tools.recommend span) attributes: `selection_strategy`, `selection_constraints`, `tools_selected_count`, `selection_fallback_used`. Together with MCP server tools list (mcp.tools.available.count) and happy_path_latency (mcp.selection.latency.ms), all tools.recommend span attributes come from config. |
+| **id_formats** | Templates for all correlation IDs: `session_id`, `conversation_id`, `request_id`, `mcp_tool_call_id`, `enduser_pseudo_id` (placeholders: `{hex:N}`, `{uuid}`, `{tenant_id}`). Used by `ScenarioIdGenerator` and by standalone generators when no id_generator. |
+| **latency_profiles** | Named profiles (e.g. `happy_path`, `higher_latency`). Each has `default_variance` and `spans` (a2a_orchestrate, planner, tools_recommend, mcp_tool_execute, response_compose, etc.) with `mean_ms` and `variance`. Scenario sets `data_plane.latency_profile` (default `happy_path`). Trace generator uses mean × (1 + gauss(0, variance)) per span type. |
+| **tools_recommend** | Tool recommendation (tools.recommend span) attributes: `selection_strategy`, `selection_constraints`, `tools_selected_count`, `selection_fallback_used`. Together with MCP server tools list and `latency_profiles.<profile>.spans.tools_recommend` (mcp.selection.latency.ms), all tools.recommend span attributes come from config. |
 | **mcp_retry** | `retry_policy` (e.g. none, exponential) and `latency_by_error_type` (timeout, unavailable, tool_error, etc.) for realistic latency on failed MCP attempts. Used when building MCP hierarchies from templates. |
-| **mcp_retry_templates** | Named templates for MCP tool retry behavior (replaces random error_rate). Each template has `attempts`: list of `{ outcome: success \| failure, optional error_type, optional latency_mean_ms }`. Scenario `data_plane.mcp_retry` can reference a template by name or define `attempts` inline. When set, MCP spans get one child per attempt with deterministic outcomes. |
-| **resource** | Resource attributes (service.name, service.version, deployment.environment.name, module, component, otel.source) and schema_url. |
+| **mcp_retry_templates** | Named templates for MCP tool retry behavior. Each template has `attempts`: list of `{ outcome: success \| failure, optional error_type, optional latency_mean_ms }`. Scenario `data_plane.mcp_retry` can reference a template by name or define `attempts` inline. When set, MCP spans get one child per attempt with deterministic outcomes. |
+| **tool_call_arguments** | Optional. Keyed by tool name (e.g. `new_claim`, `update_appointment`). Each value is an object of arguments; serialized as JSON and set as `gen_ai.tool.call.arguments` on the mcp.tool.execute parent span (OTEL GenAI). |
 | **tenants** | Key → id (e.g. `toro` → tenant UUID). Scenarios reference `context.tenant` by key. |
 | **agents** | List of agents by `id` (e.g. `toro-customer-assistant-001`). Scenarios reference `context.agent` by id. No channel or division on agent; scenario sets `context.mcp_server`. |
 | **mcp_servers** | Key → mcp_server_uuid + tools (name, tool_uuid). Scenarios reference `context.mcp_server` by key. |
 | **realistic_scenarios** | `divisions` (division name → mcp_servers key), `error_templates` (simulation_goal → error_type, http_status_codes), `workflow_templates` (workflow name → list of steps). |
 | *(no data_plane_templates)* | Data-plane is defined in each scenario YAML: `data_plane.workflow` (key into `workflow_templates` for step list), optional `data_plane.simulation_goal`, optional `data_plane.control_plane_template`, optional `data_plane.mcp_retry` (template name or inline `attempts` for MCP retry logic). Config supplies only `workflow_templates` (step names) and key → UUID. |
-| **control_plane** | `trace_flow`, `request_validation_templates` (and optional `_defaults` for shared error_rate etc.), `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
-| **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns`. |
+| **control_plane** | `trace_flow`, `request_validation_templates`, `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
+| **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns` or `conversation.samples`. |
+| **Resource** | Resource attributes (service.name, service.version, deployment.environment.name, module, component, otel.source) and schemaUrl are in **`config/resource.yaml`** (not config.yaml). |
 
 Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-path`, `multi-turn`). Use `otelsim run --vendor=your_vendor --tags=...` to run only scenarios that have at least one of the given tags. Use `--each-once` to run each (tagged) scenario exactly once instead of `--count` random picks (e.g. `otelsim run --vendor=your_vendor --each-once` or `otelsim run --vendor=your_vendor --tags=control-plane --each-once`).
 
@@ -138,9 +139,10 @@ Semantics:
   scenario from random selection (but you can still run it via `otelsim scenario --vendor=your_vendor --name ...`).
 - `--each-once` ignores weights and runs each (filtered) scenario exactly once.
 
-Bundled scenario definitions use **realistic relative weights**: data-plane happy path (e.g. 8.0),
-multi-turn and allowed-but-flagged lower (2–3), control-plane blocks and errors much lower (0.15–0.5),
-so `otelsim run --vendor=your_vendor --count 1000` produces a mix that resembles real-world traffic (mostly success, some retries, minority blocks/errors).
+Bundled scenario definitions use **realistic relative weights**: data-plane happy path (10.0),
+multi-turn and allowed-but-flagged lower (2.5–3), retries and higher-latency variants moderate (0.7–1),
+control-plane blocks and errors much lower (0.1–0.5), so `otelsim run --vendor=your_vendor --count 1000`
+produces a mix that resembles real-world traffic (mostly success, some retries, minority blocks/errors).
 
 ---
 
@@ -171,41 +173,34 @@ Template-driven MCP retry: first attempt fails (e.g. timeout with realistic late
 otelsim scenario --vendor=your_vendor --name new_claim_phone_mcp_tool_retry_then_success
 ```
 
-For statistical retry (distribution-based) in a scenario with a retry block, use a scenario that defines `retry.enabled` and retry config in its YAML; the bundled sample uses the template-driven MCP retry scenario above.
+For **workflow-based** scenarios, use `data_plane.mcp_retry` (template name or inline `attempts`); the bundled sample is `new_claim_phone_mcp_tool_retry_then_success`. For **explicit root** scenarios (custom span tree), you can instead define `retry.enabled` and retry config under the root step.
 
 ---
 
-## Scenario Configuration
+## Scenario configuration (explicit root only)
 
-Scenarios support realistic generation features:
+When you define a **custom span tree** with a `root` block (no `data_plane.workflow`), you can use:
 
 | Feature | Description |
 |---------|-------------|
-| **Log-normal latencies** | Right-skewed distributions matching real-world behavior |
-| **Probabilistic spans** | Not all traces have all span types |
-| **Count distributions** | Variable number of tool calls (e.g. Poisson) |
-| **Error propagation** | Correlated failures through hierarchies |
-| **Retry sequences** | Multi-attempt operations with backoff |
-| **Attribute distributions** | Sample values from distributions |
+| **Latency** | Per-node `latency.mean_ms`, `latency.variance`, or `latency.distribution` (e.g. log_normal) with `median_ms`, `sigma` |
+| **Probabilistic children** | `probability` on a child (e.g. 0.3 = 30% of traces include that span) |
+| **Retry** | `retry.enabled`, `retry.max_attempts`, `retry.force_initial_failure`, `retry.success_rate_per_attempt` on a step |
 
-### Example: Latency Distribution
+**Workflow-based** scenarios (with `data_plane.workflow`) do not use these; they use **latency_profiles** from config and **data_plane.mcp_retry** for MCP retry.
 
-```yaml
-latency:
-  distribution: log_normal
-  median_ms: 200
-  sigma: 0.8    # 0.5=tight, 0.8=moderate, 1.2=heavy tail
-```
-
-### Example: Probabilistic Span
+### Example: Latency (explicit root)
 
 ```yaml
-children:
-  - type: rag.retrieve
-    probability: 0.3    # Only 30% of traces include RAG
+root:
+  type: vendor.a2a.orchestrate
+  latency:
+    distribution: log_normal
+    median_ms: 1500
+    sigma: 0.4
 ```
 
-### Example: Retry Behavior
+### Example: Retry (explicit root)
 
 ```yaml
 retry:
@@ -285,7 +280,7 @@ All emitted values for **enum-like attributes** (e.g. `error.type`, `step.outcom
 
 - **Which scenario**: In mixed workload (`otelsim run --vendor=your_vendor`), each trace picks a scenario at random from the loaded definitions (e.g. happy path, 4xx, wrong division, ungrounded).
 - **Which sample**: When using `conversation_samples`, one user/LLM pair is chosen at random from the workflow’s `samples` list; when using `realistic_overrides`, optional indices (e.g. which MCP step gets 4xx) can be fixed or left random.
-- **Latency and counts**: Scenario YAML can define distributions (e.g. log-normal latency, Poisson count) so that span durations and child counts vary realistically.
+- **Latency and counts**: For **explicit root** scenarios, YAML can define per-node latency distributions (e.g. log-normal) and child counts. For **workflow-based** scenarios, latency comes from `latency_profiles` in config.
 - **Attribute values**: For attributes that have schema `allowed_values`, the generator picks at random from those values when no override is provided. For `error.type` and `step.outcome`, the generator uses the SemConv constants so that randomness never produces an invalid enum.
 
 ### Summary

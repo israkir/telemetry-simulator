@@ -6,7 +6,7 @@ This document describes how to define and extend scenarios with YAML. For config
 
 Scenarios are YAML files. The simulator bundles **sample definitions** in `src/simulator/scenarios/definitions/`:
 
-- **Data-plane**: `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`
+- **Data-plane**: `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, `generic_higher_latency_peak_hours.yaml`, `claim_status_phone_higher_latency.yaml`, `update_appointment_phone_higher_latency.yaml`
 - **Control-plane**: `request_blocked_by_policy.yaml`, `request_blocked_invalid_payload.yaml`, `request_blocked_rate_limited.yaml`, `request_blocked_invalid_payload_multi.yaml`, `request_allowed_audit_flagged.yaml`, `request_error_policy_runtime.yaml`, `request_blocked_policy_fail_closed.yaml`, `request_blocked_invalid_context_augment_exception.yaml`, `request_error_policy_unavailable.yaml`
 - **Reference**: `example_scenario.yaml` documents all YAML options; it is excluded from `list` and mixed workload when using the built-in samples but can be run with `--name example_scenario`.
 
@@ -18,7 +18,7 @@ Bundled scenarios use **data_plane** (workflow from config) or **control_plane**
 
 ### Data-plane (workflow from config)
 
-Hierarchy (steps, latencies) comes from `config/config.yaml` → `workflow_templates` and `happy_path_latency`. Scenario only references the workflow key and optional overrides:
+Hierarchy (steps, latencies) comes from `config/config.yaml` → `workflow_templates` and `latency_profiles`. Scenario references the workflow key and optional overrides; span latencies use `data_plane.latency_profile` (default `happy_path`):
 
 ```yaml
 name: new_claim_phone
@@ -27,7 +27,7 @@ description: Happy path for Phone MCP (planner → tool → response).
 tags:
   - data-plane
   - happy-path
-workload_weight: 8.0
+workload_weight: 10.0
 
 mcp_server: phone
 repeat_count: 5
@@ -134,7 +134,7 @@ Use `type` with the same prefix as `VENDOR` / `--vendor` (default `vendor`). Sup
 
 You can add new scenarios by **adding YAML files only**:
 
-1. **Data-plane (a2a.orchestrate) scenarios** – Use **key-based context**: `context.tenant`, `context.agent`, `context.mcp_server`. Define data-plane in the scenario with `data_plane.workflow` (key into config `workflow_templates` for the step list), optional `data_plane.simulation_goal`, optional `data_plane.control_plane_template`, and optional `data_plane.mcp_retry` (template name or inline `attempts` for MCP retry). Config supplies key → UUID and workflow step names; default span latencies come from config **`happy_path_latency`** (see [Generating Telemetry – Configuration reference](generating-telemetry.md#configuration-reference-what-exists)).
+1. **Data-plane (a2a.orchestrate) scenarios** – Use **key-based context**: `context.tenant`, `context.agent`, `context.mcp_server`. Define data-plane with `data_plane.workflow` (key into config `workflow_templates`), optional `data_plane.simulation_goal`, optional `data_plane.control_plane_template`, optional `data_plane.latency_profile` (default `happy_path`), and optional `data_plane.mcp_retry` (template name or inline `attempts`). Config supplies key → UUID and workflow step names; span latencies come from config **`latency_profiles.<profile>`** (see [Generating Telemetry – Configuration reference](generating-telemetry.md#configuration-reference-what-exists)).
 
 2. **Control-plane-only (e.g. blocked/error) scenarios** – Set `control_plane.request_outcome` and `control_plane.block_reason`, or `control_plane.template`. Use **minimal context**: `context.tenant` and `context.agent` only (no `mcp_server`, `workflow`, or `error_pattern`). Only the incoming request-validation trace is emitted. To override the policy-span exception (e.g. for a variant), set `control_plane.policy_exception: { type: "...", message: "..." }` in the scenario YAML.
 
