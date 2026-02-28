@@ -1,6 +1,6 @@
 # Generating Telemetry Data
 
-This guide describes how to generate realistic OpenTelemetry data with the telemetry simulator. Use this for pipeline testing, dashboard validation, and load testing.
+This guide describes how to generate realistic OpenTelemetry data with otelsim. Use this for pipeline testing, dashboard validation, and load testing.
 
 ## Overview
 
