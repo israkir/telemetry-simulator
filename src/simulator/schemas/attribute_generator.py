@@ -51,6 +51,9 @@ class GenerationContext:
     llm_output_messages_redacted: Any | None = None
     # Optional: scenario name that generated this trace; used for otel.scope.name (e.g. otelsim.new_claim_phone).
     scenario_name: str | None = None
+    # Optional: when scenario uses higher_latency profile, condition from data_plane.higher_latency_condition.
+    # Captured as span attributes (higher_latency.condition.*) for filtering/correlation.
+    higher_latency_condition: dict[str, Any] | None = None
 
     @classmethod
     def create(
@@ -74,6 +77,7 @@ class GenerationContext:
             llm_input_messages_redacted=kwargs.get("llm_input_messages_redacted"),
             llm_output_messages_redacted=kwargs.get("llm_output_messages_redacted"),
             scenario_name=kwargs.get("scenario_name"),
+            higher_latency_condition=kwargs.get("higher_latency_condition"),
         )
 
 
@@ -378,6 +382,10 @@ class AttributeGenerator:
         # _record_span_error; do not set here so success/partial spans don't carry an error type.
         if name == "error.type" or name.endswith(".error.type"):
             return None
+        # gen_ai.tool.call.arguments: per OTEL convention, parameters as JSON string. When no override
+        # (from config tool_call_arguments), use empty object so we never emit placeholder "value_xxx".
+        if name == "gen_ai.tool.call.arguments":
+            return "{}"
         # SemConv-aligned: step.outcome use only allowed values from schema/conventions.
         if _attr_matches(name, "step.outcome"):
             return random.choice(SEMCONV_STEP_OUTCOME_VALUES)

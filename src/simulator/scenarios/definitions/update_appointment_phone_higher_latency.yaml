@@ -1,0 +1,49 @@
+# Tool calls have higher latency when scheduling appointments in certain zip codes.
+# Latency from config latency_profiles.higher_latency; condition (zip_code) in this file. Add zips by copying.
+
+name: update_appointment_phone_higher_latency
+description: >
+  Tool calls have higher latency when scheduling appointments in zip 90210.
+  Condition is defined in this file; add new test cases (e.g. other zips) by copying and editing.
+
+tags:
+  - data-plane
+  - higher-latency
+  - scheduling
+
+# Higher-latency variants are a minority of data-plane traffic.
+workload_weight: 0.7
+
+mcp_server: phone
+repeat_count: 3
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+
+data_plane:
+  workflow: update_appointment
+  simulation_goal: higher_latency
+  latency_profile: higher_latency
+  control_plane_template: allowed
+  higher_latency_condition:
+    zip_code: "90210"
+
+expected:
+  mcp_server: phone
+  tools:
+    - update_appointment
+
+# Realistic single-turn conversation (zip-code higher-latency).
+conversation:
+  samples:
+    - user_input: "I need to move my phone repair to next week. Claim PH-8842."
+      llm_response: "For claim PH-8842, next week I have Mon 9am, Wed 2pm, Fri 11am. Which do you want?"
+    - user_input: "Reschedule my repair—claim PH-8842."
+      llm_response: "For PH-8842 I have Tue 10am, Thu 3pm. Which slot?"
+    - user_input: "Can you move my appointment to the following week?"
+      llm_response: "I've rescheduled your visit to Tuesday 10am–2pm next week. You'll get a confirmation by email."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

@@ -124,6 +124,9 @@ def resolve_context(
             "mcp": [{"server_uuid": server_uuid, "tools": tools_list}] if server_uuid else [],
         }
     ]
+    tool_call_arguments = data.get("tool_call_arguments")
+    if not isinstance(tool_call_arguments, dict):
+        tool_call_arguments = {}
     return {
         "tenant_uuid": tenant_uuid,
         "agents": agents_payload,
@@ -133,6 +136,7 @@ def resolve_context(
         "error_config": error_config,
         "redaction_applied": redaction_applied,
         "actual_steps": actual_steps,
+        "tool_call_arguments": dict(tool_call_arguments),
     }
 
 

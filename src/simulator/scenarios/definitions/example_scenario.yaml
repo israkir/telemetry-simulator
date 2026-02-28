@@ -9,7 +9,7 @@
 # - Control-plane templates: config/config.yaml → control_plane.request_validation_templates.
 # - Default conversation samples (when no conversation.samples/turns here):
 #   config/config.yaml → conversation_samples[data_plane.workflow].
-# - Span latencies (mean + variance): config/config.yaml → happy_path_latency.
+# - Span latencies (mean + variance): config/config.yaml → latency_profiles.<data_plane.latency_profile>.
 # - Resource (all spans): config/resource.yaml → control_plane.attributes or data_plane.attributes
 #   (schema_url, service.name, service.version, deployment.environment.name, module, component, otel.source).
 #   Data-plane component is set per span at runtime (orchestrator, planning, llm, mcp_client, etc.).

@@ -11,7 +11,7 @@ tags:
   - control-plane
 
 # Multiple payload validation errors are rarer than single-issue blocks.
-workload_weight: 0.2
+workload_weight: 0.15
 
 mcp_server: phone
 repeat_count: 2

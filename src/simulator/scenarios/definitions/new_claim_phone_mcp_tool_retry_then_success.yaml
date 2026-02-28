@@ -13,7 +13,7 @@ tags:
   - retry-then-success
 
 # MCP retries (timeout then success) are a minority of tool calls.
-workload_weight: 0.8
+workload_weight: 1.0
 
 mcp_server: phone
 repeat_count: 3
