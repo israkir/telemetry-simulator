@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-from ..config import ATTR_PREFIX, CONFIG_PATH, load_yaml
+from ..config import ATTR_PREFIX, CONFIG_PATH, get_resources_root, load_yaml
 from ..config import attr as config_attr
 from ..config import span_name as config_span_name
 from ..generators.trace_generator import (
@@ -1097,8 +1097,9 @@ def _hierarchy_from_context(
                 config_attr("retry.count"): retry_count,
                 config_attr("retry.policy"): retry_policy,
             }
-            if getattr(context, "tool_call_arguments", None) and step in context.tool_call_arguments:
-                args = context.tool_call_arguments[step]
+            tool_call_args = getattr(context, "tool_call_arguments", None)
+            if tool_call_args is not None and step in tool_call_args:
+                args = tool_call_args[step]
                 parent_overrides["gen_ai.tool.call.arguments"] = (
                     json.dumps(args) if isinstance(args, dict) else str(args)
                 )
@@ -1430,9 +1431,9 @@ _SPAN_SUFFIXES = [
 ]
 
 
-# Default directory of sample scenario definitions (bundled with the package).
+# Default directory of sample scenario definitions (at project root scenarios/definitions/ or bundled in resources).
 # Users can provide a custom folder via ScenarioLoader(scenarios_dir=...) or CLI --scenarios-dir.
-SAMPLE_DEFINITIONS_DIR = Path(__file__).parent / "definitions"
+SAMPLE_DEFINITIONS_DIR = get_resources_root() / "scenarios" / "definitions"
 
 # Reference scenario excluded from list and mixed workload when using sample definitions.
 # It can still be run explicitly with: scenario --name example_scenario
@@ -1597,7 +1598,10 @@ class ScenarioLoader:
             lp = dp.get("latency_profile")
             if isinstance(lp, str) and lp.strip():
                 latency_profile = lp.strip().lower()
-        if latency_profile == "happy_path" and (simulation_goal or "").strip().lower() == "higher_latency":
+        if (
+            latency_profile == "happy_path"
+            and (simulation_goal or "").strip().lower() == "higher_latency"
+        ):
             latency_profile = "higher_latency"
         higher_latency_condition: dict[str, Any] | None = None
         if isinstance(dp, dict):

@@ -91,7 +91,8 @@ def _context_kwargs_for_scenario(
     scenario: Scenario, tenant_id: str, iteration_index: int | None = None
 ) -> dict:
     """Build kwargs for GenerationContext.create. All correlation IDs from config id_formats (id_generator or standalone generators); no fallbacks.
-    When iteration_index is set and scenario.cycle_conversation_samples is True, use conversation_samples[iteration_index % len(samples)] instead of random."""
+    When iteration_index is set and scenario.cycle_conversation_samples is True, use conversation_samples[iteration_index % len(samples)] instead of random.
+    """
     kwargs: dict = {
         "tenant_id": tenant_id,
         "turn_index": 0,
@@ -117,9 +118,8 @@ def _context_kwargs_for_scenario(
     else:
         scenario_samples = getattr(scenario, "conversation_samples", None) or []
         if scenario_samples:
-            if (
-                iteration_index is not None
-                and getattr(scenario, "cycle_conversation_samples", False)
+            if iteration_index is not None and getattr(
+                scenario, "cycle_conversation_samples", False
             ):
                 sample = scenario_samples[iteration_index % len(scenario_samples)]
             else:
@@ -448,7 +448,7 @@ class ScenarioRunner:
             raise ValueError(
                 f"No YAML scenarios found in {dir_path}. "
                 "Add at least one .yaml file there, or pass --scenarios-dir to use a custom folder. "
-                "Sample definitions are bundled in src/simulator/scenarios/definitions/."
+                "Sample definitions live in scenarios/definitions/ (project root or TELEMETRY_SIMULATOR_ROOT)."
             )
 
         trace_ids: list[str] = []
