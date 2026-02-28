@@ -5,8 +5,11 @@ Allows projects to use the simulator with their own attribute namespace by setti
 VENDOR (e.g. "acme" for acme.session.id, acme.turn.status, etc.).
 Default prefix is "vendor"; override with VENDOR for your project.
 
-Resource attributes and resource.schemaUrl are loaded from config/resource.yaml
-(scenarios/config/resource.yaml); env vars are not used for these.
+Resource attributes and resource.schemaUrl are loaded from config/resource.yaml.
+Config and scenario files live outside src/ under resource/ (resource/config/,
+resource/scenarios/). When running from source, resource/ at project root is used.
+When the package is installed, set TELEMETRY_SIMULATOR_ROOT to a directory
+containing config/ and scenarios/ (e.g. the project's resource/ folder).
 """
 
 import os
@@ -14,6 +17,28 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+def get_resources_root() -> Path:
+    """Return the root directory for config and scenario resources.
+
+    Resolution order:
+    1. TELEMETRY_SIMULATOR_ROOT env var (must contain config/ and scenarios/)
+    2. resource/ under directory containing pyproject.toml (when running from source)
+    3. simulator/resources/ next to this package (when installed; set TELEMETRY_SIMULATOR_ROOT if not present)
+    """
+    env_root = os.environ.get("TELEMETRY_SIMULATOR_ROOT")
+    if env_root:
+        p = Path(env_root).resolve()
+        if p.is_dir():
+            return p
+    # Walk up from this file (e.g. .../src/simulator/config.py) looking for pyproject.toml
+    here = Path(__file__).resolve().parent
+    for candidate in [here, *here.parents]:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate / "resource"
+    # Installed package: no bundled resources; caller should set TELEMETRY_SIMULATOR_ROOT
+    return Path(__file__).resolve().parent / "resources"
 
 
 def _get_attr_prefix() -> str:
@@ -66,13 +91,12 @@ SEMCONV_ERROR_TYPE_VALUES = (
 SEMCONV_STEP_OUTCOME_VALUES = ("success", "fail", "skipped")
 
 
-_CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "config" / "config.yaml"
+_RESOURCES_ROOT = get_resources_root()
+_CONFIG_PATH = _RESOURCES_ROOT / "config" / "config.yaml"
 CONFIG_PATH = _CONFIG_PATH
-_RESOURCE_CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "config" / "resource.yaml"
+_RESOURCE_CONFIG_PATH = _RESOURCES_ROOT / "config" / "resource.yaml"
 # Default semantic-conventions path when SEMCONV / --semconv not set.
-DEFAULT_SEMCONV_PATH = (
-    Path(__file__).resolve().parent / "scenarios" / "conventions" / "semconv.yaml"
-)
+DEFAULT_SEMCONV_PATH = _RESOURCES_ROOT / "scenarios" / "conventions" / "semconv.yaml"
 
 # Keys in resource.attributes that are prefix-relative (expanded with attr() when loading from YAML).
 _PREFIX_RELATIVE_KEYS = frozenset({"module", "component", "otel.source"})

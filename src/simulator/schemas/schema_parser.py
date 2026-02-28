@@ -268,7 +268,7 @@ class SchemaParser:
             return
         raise FileNotFoundError(
             "Schema path is required. Set SEMCONV or pass --semconv with the path to your semantic-conventions YAML, "
-            "or place it at scenarios/conventions/semconv.yaml."
+            "or place it at scenarios/conventions/semconv.yaml (project root or TELEMETRY_SIMULATOR_ROOT)."
         )
 
     def parse(self) -> TelemetrySchema:
