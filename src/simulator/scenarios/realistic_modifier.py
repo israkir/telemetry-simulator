@@ -40,6 +40,8 @@ class RealisticScenarioConfig:
     - divisions: division name -> mcp_servers key (for wrong_division resolution)
     - error_templates: simulation_goal -> ErrorTemplate
     - mcp_servers_by_key: mcp_servers key -> { mcp_server_uuid, tools: [{ name, tool_uuid }] }
+
+    Latency is driven by config latency_profiles and scenario data_plane.latency_profile (no modifier).
     """
 
     divisions: dict[str, str] = field(default_factory=dict)
@@ -324,3 +326,5 @@ def apply_realistic_scenario(
         )
         _apply_partial_workflow(hierarchy, template, attr_prefix)
         return
+
+    # higher_latency: latency is set by config latency_profiles + scenario latency_profile at hierarchy build time; no modifier.

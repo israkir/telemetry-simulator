@@ -10,7 +10,7 @@ tags:
   - control-plane
 
 # Policy engine runtime errors are rare.
-workload_weight: 0.5
+workload_weight: 0.2
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50

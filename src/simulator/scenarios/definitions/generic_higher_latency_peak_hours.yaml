@@ -1,0 +1,55 @@
+# Tool calls have higher latency during peak hours (weekdays 9am–2pm PT) or post long weekends.
+# Latency from config latency_profiles.higher_latency; condition in this file. Add variants by copying.
+
+name: generic_higher_latency_peak_hours
+description: >
+  Tool calls have higher latency during peak hours (weekdays 9am–2pm PT) or post long weekends.
+  Condition is defined in this file; no config edit needed.
+
+tags:
+  - data-plane
+  - higher-latency
+  - peak-hours
+
+# Higher-latency variants are a minority of data-plane traffic.
+workload_weight: 0.7
+
+mcp_server: phone
+repeat_count: 3
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+
+data_plane:
+  workflow: new_claim
+  simulation_goal: higher_latency
+  latency_profile: higher_latency
+  control_plane_template: allowed
+  higher_latency_condition:
+    peak_hours:
+      timezone: "America/Los_Angeles"
+      start_hour: 9
+      end_hour: 14
+      weekdays: [1, 2, 3, 4, 5]  # Monday=1 .. Friday=5
+    post_long_weekend:
+      days_after: 1
+
+expected:
+  mcp_server: phone
+  tools:
+    - new_claim
+
+# Realistic single-turn conversation (peak hours / post long weekend higher-latency).
+conversation:
+  samples:
+    - user_input: "I dropped my phone, how do I start a claim?"
+      llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+    - user_input: "My phone screen is cracked. I need to make a claim."
+      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+    - user_input: "I need to file a claim for a cracked screen."
+      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

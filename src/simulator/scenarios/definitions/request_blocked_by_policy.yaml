@@ -8,8 +8,8 @@ description: >
 tags:
   - control-plane
 
-# Policy blocks are a minority of requests.
-workload_weight: 0.4
+# Policy blocks are the most common block type but still a minority of requests.
+workload_weight: 0.5
 
 mcp_server: phone
 repeat_count: 2

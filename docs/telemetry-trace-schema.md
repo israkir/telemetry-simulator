@@ -238,6 +238,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 | `gentoro.retry.count` | number | RECOMMENDED | Number of retries. |
 | `gentoro.retry.policy` | string | RECOMMENDED | Enum: `none` \| `fixed` \| `exponential` \| `exponential_jitter` \| `circuit_breaker`. |
 | `gen_ai.tool.name` / `gen_ai.tool.call.id` | string | RECOMMENDED | Tool identity. |
+| `gen_ai.tool.call.arguments` | string | OPTIONAL | Parameters passed to the tool call (JSON object as string; OTEL GenAI). |
 | `error.type` | string | SHOULD (if failed) | Suggested: `timeout` \| `unavailable` \| `invalid_arguments` \| `tool_error` \| `protocol_error`. |
 
 **Attempt span (gentoro.mcp.tool.execute.attempt):**

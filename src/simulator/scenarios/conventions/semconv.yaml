@@ -1212,6 +1212,64 @@ common_attributes:
     description: "Level of PII redaction applied to content fields"
     applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
 
+# -----------------------------------------------------------------------------
+# Higher-latency condition (Gentoro vendor; not in OTEL semantic conventions)
+# Set on root spans (gentoro.request.validation, gentoro.a2a.orchestrate) when
+# the trace was generated with a higher-latency scenario so analytics can filter
+# or correlate by condition (e.g. peak_hours, claim_status_output, zip_code).
+# -----------------------------------------------------------------------------
+higher_latency_condition_attributes:
+  note: "Vendor-specific (gentoro.*). OpenTelemetry does not define these; they are for observability/simulation context."
+  applies_to: ["request.validation", "a2a.orchestrate", "cp.request"]
+
+  gentoro.higher_latency.condition.keys:
+    type: string
+    required: false
+    category: metadata
+    description: "Comma-separated list of condition keys that triggered higher-latency profile (e.g. peak_hours, post_long_weekend, claim_status_output, zip_code)."
+    examples: ["claim_status_output", "peak_hours,post_long_weekend"]
+
+  # Structured conditions (when present in scenario data_plane.higher_latency_condition)
+  gentoro.higher_latency.peak_hours.timezone:
+    type: string
+    required: false
+    category: metadata
+    description: "IANA timezone for peak_hours condition (e.g. America/Los_Angeles)."
+  gentoro.higher_latency.peak_hours.start_hour:
+    type: int
+    required: false
+    category: metadata
+    description: "Start hour (0-23) for peak_hours window."
+  gentoro.higher_latency.peak_hours.end_hour:
+    type: int
+    required: false
+    category: metadata
+    description: "End hour (0-23) for peak_hours window."
+  gentoro.higher_latency.peak_hours.weekdays:
+    type: string
+    required: false
+    category: metadata
+    description: "JSON array of weekday numbers (1=Monday .. 7=Sunday) for peak_hours."
+  gentoro.higher_latency.post_long_weekend.days_after:
+    type: int
+    required: false
+    category: metadata
+    description: "Days after a long weekend for post_long_weekend condition."
+
+  # Arbitrary condition key-value (scenario-defined; key normalized to gentoro.higher_latency.condition.<key>)
+  gentoro.higher_latency.condition.claim_status_output:
+    type: string
+    required: false
+    category: metadata
+    description: "Example: claim_status tool output that triggered higher-latency (e.g. technician on-route to scheduled appointment)."
+    examples: ["technician on-route to scheduled appointment"]
+  gentoro.higher_latency.condition.zip_code:
+    type: string
+    required: false
+    category: metadata
+    description: "Example: zip code that triggered higher-latency for scheduling scenarios."
+    examples: ["90210"]
+
 # =============================================================================
 # SPAN-SPECIFIC ATTRIBUTES
 # =============================================================================
@@ -1595,6 +1653,13 @@ mcp_tool_attributes:
     category: first_class
     description: "Tool call identifier"
     examples: ["call_mszuSIzqtI65i1wAUOE8w5H4"]
+
+  # OTEL GenAI: parameters passed to the tool call (gen_ai.tool.call.arguments). May contain PII; record as JSON string when needed.
+  gen_ai.tool.call.arguments:
+    type: string
+    required: false
+    category: metadata
+    description: "Parameters passed to the tool call (OTEL gen_ai.tool.call.arguments). Object serialized as JSON; MAY contain sensitive information."
 
   # OTEL standard; set when span is in error (status.code=ERROR). See error_recording.
   error.type:
