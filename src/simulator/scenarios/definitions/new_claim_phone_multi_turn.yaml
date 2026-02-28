@@ -1,16 +1,22 @@
-# Multi-turn conversation: one trace per turn, same session_id for all turns.
-# Data-plane (workflow, simulation_goal, control_plane_template) defined here; config supplies step names.
-# Context is key-based; all IDs resolved from config.
+# Multi-turn new-claim (Phone MCP): one trace per turn, same session_id across turns.
+# - IDs (tenant, agent, MCP server, tools): keys only; resolved from config/config.yaml.
+# - Workflow steps: config → realistic_scenarios.workflow_templates.new_claim.
+# - Span latencies: config → happy_path_latency. Tools.recommend attributes: config → tools_recommend.
+# - Resource: config/resource.yaml (data_plane.attributes); span.class set per span type in code.
 
 name: new_claim_phone_multi_turn
 description: >
-  Multi-turn new-claim flow: 3 user/assistant turns per session; one trace per turn, same session_id.
+  Multi-turn new-claim flow: 3 user/assistant turns per session.
+  One trace per turn (each turn = one a2a.orchestrate tree); same session_id and gen_ai.conversation.id for all turns.
+  Correlate by session_id or conversation.id across traces.
 
 tags:
   - data-plane
   - multi-turn
+  - happy-path
 
-workload_weight: 3.0
+# Multi-turn conversations are less frequent than single-turn.
+workload_weight: 2.0
 
 mcp_server: phone
 repeat_count: 1
@@ -24,8 +30,14 @@ data_plane:
   simulation_goal: happy_path
   control_plane_template: allowed
 
-# One trace per turn; same session_id for all turns. Each turn's user_input/llm_response
-# is set on that trace's spans as gen_ai.input.messages and gen_ai.output.messages (OTEL GenAI shape).
+expected:
+  mcp_server: phone
+  tools:
+    - new_claim
+
+# Multi-turn: one trace per turn; same session_id for all turns in one run.
+# Each turn's user_input/llm_response → gen_ai.input.messages / gen_ai.output.messages on that trace.
+# Optional per-turn user_input_redacted / llm_response_redacted when redaction_applied != none.
 conversation:
   turns:
     - user_input: "I want to start a claim for my phone."

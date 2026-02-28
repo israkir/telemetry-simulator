@@ -9,6 +9,7 @@ description: >
 tags:
   - control-plane
 
+# Policy engine runtime errors are rare.
 workload_weight: 0.5
 mcp_server: phone
 repeat_count: 2

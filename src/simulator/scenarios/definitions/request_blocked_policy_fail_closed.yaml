@@ -10,7 +10,10 @@ description: >
 
 tags:
   - control-plane
-  
+
+# Policy engine failure (fail-closed) is rare.
+workload_weight: 0.2
+
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50

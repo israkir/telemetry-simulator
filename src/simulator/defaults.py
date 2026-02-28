@@ -11,9 +11,3 @@ from .config import get_default_tenant_id
 def get_default_tenant_ids() -> list[str]:
     """Return the single default tenant id from config (first tenant)."""
     return [get_default_tenant_id()]
-
-
-def get_tenant_distribution() -> dict[str, float]:
-    """Return tenant distribution for generation: single default tenant from config."""
-    tid = get_default_tenant_id()
-    return {tid: 1.0}

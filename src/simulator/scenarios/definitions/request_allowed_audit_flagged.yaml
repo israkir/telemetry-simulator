@@ -11,7 +11,8 @@ description: >
 tags:
   - control-plane
 
-workload_weight: 5.0
+# Allowed-but-flagged is a meaningful share of traffic but less than plain allow.
+workload_weight: 3.0
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50
