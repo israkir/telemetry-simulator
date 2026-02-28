@@ -11,7 +11,6 @@ Supports both deterministic scenarios (fixed structure) and statistical
 scenarios (probabilistic branching, distributions, retries).
 """
 
-import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -30,7 +29,7 @@ from ..statistics.correlations import ErrorPropagation, RetryConfig, RetrySequen
 from ..statistics.distributions import Distribution, DistributionFactory
 from .config_resolver import get_default_tenant_id, resolve_context
 from .control_plane_loader import get_request_scenario_registry
-from .id_generator import ScenarioIdGenerator
+from .id_generator import ScenarioIdGenerator, generate_mcp_tool_call_id
 from .realistic_modifier import apply_realistic_scenario
 
 
@@ -164,6 +163,9 @@ class ScenarioContext:
     redaction_applied: str = "none"
     # When set, hierarchy is built from actual_steps instead of correct_flow.steps (partial_workflow).
     actual_steps: list[str] | None = None
+    # MCP retry: list of attempt specs (outcome, optional error_type, optional latency_mean_ms).
+    # When set, MCP tool steps get one child per attempt; when None, default is single success.
+    mcp_retry_attempts: list[dict[str, Any]] | None = None
 
 
 def _parse_and_resolve_context(
@@ -303,6 +305,56 @@ def _apply_data_plane_from_scenario(
         cp_template = None
     if cp_template and not (cp_template := cp_template.strip()):
         cp_template = None
+    # MCP retry: template name (from config mcp_retry_templates) or inline attempts list.
+    mcp_retry_attempts: list[dict[str, Any]] | None = context.mcp_retry_attempts
+    mcp_retry_raw = data_plane.get("mcp_retry")
+    if mcp_retry_raw is not None:
+        if isinstance(mcp_retry_raw, str) and mcp_retry_raw.strip():
+            template_name = mcp_retry_raw.strip()
+            data = load_yaml(config_path)
+            templates = (data.get("mcp_retry_templates") or {}) if isinstance(data, dict) else {}
+            if isinstance(templates, dict) and template_name in templates:
+                t = templates[template_name]
+                if isinstance(t, dict) and isinstance(t.get("attempts"), list):
+                    mcp_retry_attempts = [
+                        _normalize_mcp_retry_attempt(a)
+                        for a in t["attempts"]
+                        if isinstance(a, dict)
+                    ]
+            if mcp_retry_attempts is None:
+                mcp_retry_attempts = [{"outcome": "success"}]
+        elif isinstance(mcp_retry_raw, dict):
+            if isinstance(mcp_retry_raw.get("attempts"), list):
+                mcp_retry_attempts = [
+                    _normalize_mcp_retry_attempt(a)
+                    for a in mcp_retry_raw["attempts"]
+                    if isinstance(a, dict)
+                ]
+            elif (
+                isinstance(mcp_retry_raw.get("template"), str) and mcp_retry_raw["template"].strip()
+            ):
+                template_name = mcp_retry_raw["template"].strip()
+                data = load_yaml(config_path)
+                templates = (
+                    (data.get("mcp_retry_templates") or {}) if isinstance(data, dict) else {}
+                )
+                if isinstance(templates, dict) and template_name in templates:
+                    t = templates[template_name]
+                    if isinstance(t, dict) and isinstance(t.get("attempts"), list):
+                        mcp_retry_attempts = [
+                            _normalize_mcp_retry_attempt(a)
+                            for a in t["attempts"]
+                            if isinstance(a, dict)
+                        ]
+            if mcp_retry_attempts is None:
+                mcp_retry_attempts = [{"outcome": "success"}]
+        elif isinstance(mcp_retry_raw, list):
+            mcp_retry_attempts = [
+                _normalize_mcp_retry_attempt(a) for a in mcp_retry_raw if isinstance(a, dict)
+            ]
+        if mcp_retry_attempts is not None and not mcp_retry_attempts:
+            mcp_retry_attempts = [{"outcome": "success"}]
+
     updated = ScenarioContext(
         tenant_uuid=context.tenant_uuid,
         agents=context.agents,
@@ -312,8 +364,27 @@ def _apply_data_plane_from_scenario(
         error_config=context.error_config,
         redaction_applied=context.redaction_applied,
         actual_steps=context.actual_steps,
+        mcp_retry_attempts=mcp_retry_attempts,
     )
     return updated, simulation_goal, cp_template
+
+
+def _normalize_mcp_retry_attempt(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one MCP retry attempt spec: outcome (success|failure in YAML → success|fail per spec), optional error_type, optional latency_mean_ms."""
+    out = str(raw.get("outcome") or "success").strip().lower()
+    if out not in ("success", "failure"):
+        out = "success"
+    # Spec/semconv: gentoro.mcp.attempt.outcome and gentoro.step.outcome use "fail" not "failure".
+    outcome_value = "fail" if out == "failure" else "success"
+    normalized: dict[str, Any] = {"outcome": outcome_value}
+    if out == "failure":
+        if isinstance(raw.get("error_type"), str) and raw["error_type"].strip():
+            normalized["error_type"] = raw["error_type"].strip()
+        else:
+            normalized["error_type"] = "timeout"
+    if isinstance(raw.get("latency_mean_ms"), (int, float)) and raw["latency_mean_ms"] >= 0:
+        normalized["latency_mean_ms"] = float(raw["latency_mean_ms"])
+    return normalized
 
 
 @dataclass
@@ -431,25 +502,44 @@ class ScenarioStep:
         # MCP tool: one hierarchy with root {prefix}.mcp.tool.execute and one child per attempt.
         if self.span_type == SpanType.MCP_TOOL_EXECUTE:
             base_attrs = self.sample_attributes()
+            any_success = any(a["success"] for a in attempts)
+            retry_count = max(0, len(attempts) - 1)
+            retry_policy = _MCP_RETRY_CONFIG.get("retry_policy") or (
+                "none" if len(attempts) <= 1 else "exponential"
+            )
+            exec_overrides = dict(base_attrs)
+            exec_overrides[config_attr("step.outcome")] = "success" if any_success else "fail"
+            exec_overrides[config_attr("retry.count")] = retry_count
+            exec_overrides[config_attr("retry.policy")] = retry_policy
+            if not any_success and attempts:
+                exec_overrides["error.type"] = attempts[-1]["error_type"]
             execute_config = SpanConfig(
                 span_type=SpanType.MCP_TOOL_EXECUTE,
                 latency_mean_ms=0.0,
                 latency_variance=0.0,
-                error_rate=0.0,
-                attribute_overrides=dict(base_attrs),
+                error_rate=0.0 if any_success else 1.0,
+                attribute_overrides=exec_overrides,
             )
             attempt_hierarchies = []
             for idx, attempt in enumerate(attempts):
                 attrs = dict(base_attrs)
                 attrs["retry.attempt"] = attempt["attempt"]
                 attrs["retry.is_retry"] = attempt["attempt"] > 1
-                attrs[config_attr("mcp.attempt.index")] = idx
+                attrs[config_attr("mcp.attempt.index")] = idx + 1  # Spec: 1..N
                 attrs[config_attr("mcp.attempt.outcome")] = (
-                    "success" if attempt["success"] else "failure"
+                    "success" if attempt["success"] else "fail"
                 )
                 if not attempt["success"]:
                     attrs["error.type"] = attempt["error_type"]
-
+                if idx > 0:
+                    prev_err = attempts[idx - 1]["error_type"]
+                    r = (prev_err or "").strip().lower()
+                    attrs[config_attr("retry.reason")] = (
+                        r
+                        if r
+                        in ("timeout", "unavailable", "rate_limited", "transient_error", "unknown")
+                        else "transient_error"
+                    )
                 attempt_config = SpanConfig(
                     span_type=SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
                     latency_mean_ms=attempt["latency_ms"],
@@ -526,6 +616,13 @@ class Scenario:
     # Per-turn (input_messages, output_messages) for one span per interaction; same session_id for all.
     # Built from conversation.turns in loader. When set, runner emits one trace per turn with same session_id.
     conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = None
+    # Optional redacted message pairs per turn (same length as conversation_turn_pairs). None at index i = no redacted variant for that turn.
+    conversation_turn_pairs_redacted: (
+        list[(tuple[list[dict[str, Any]], list[dict[str, Any]]]) | None] | None
+    ) = None
+    # Optional single-turn samples: list of {user_input, llm_response [, user_input_redacted, llm_response_redacted]}. When set, runner picks one at random
+    # per iteration (each iteration = different session). Overrides config conversation_samples for this scenario.
+    conversation_samples: list[dict[str, str]] | None = None
     # Redaction level for {prefix}.redaction.applied (none, basic, strict). From scenario YAML or context; default none.
     redaction_applied: str = "none"
     # Overrides for realistic scenario modifier (step_index_for_4xx, wrong_division_target, skip_steps, actual_steps).
@@ -619,64 +716,138 @@ class Scenario:
         return hierarchies
 
 
-def _load_happy_path_latencies() -> dict[SpanType, float]:
+_KEY_TO_SPAN_TYPE: dict[str, SpanType] = {
+    "a2a_orchestrate": SpanType.A2A_ORCHESTRATE,
+    "planner": SpanType.PLANNER,
+    "task_execute": SpanType.TASK_EXECUTE,
+    "llm_call": SpanType.LLM_CALL,
+    "tools_recommend": SpanType.TOOLS_RECOMMEND,
+    "mcp_tool_execute": SpanType.MCP_TOOL_EXECUTE,
+    "response_compose": SpanType.RESPONSE_COMPOSE,
+    "request_validation": SpanType.REQUEST_VALIDATION,
+    "response_validation": SpanType.RESPONSE_VALIDATION,
+    "validation_payload": SpanType.VALIDATION_PAYLOAD,
+    "validation_policy": SpanType.VALIDATION_POLICY,
+    "augmentation": SpanType.AUGMENTATION,
+}
+
+_DEFAULT_MEAN_MS: dict[SpanType, float] = {
+    SpanType.A2A_ORCHESTRATE: 1500.0,
+    SpanType.PLANNER: 250.0,
+    SpanType.TASK_EXECUTE: 80.0,
+    SpanType.LLM_CALL: 400.0,
+    SpanType.TOOLS_RECOMMEND: 50.0,
+    SpanType.MCP_TOOL_EXECUTE: 150.0,
+    SpanType.RESPONSE_COMPOSE: 60.0,
+    SpanType.REQUEST_VALIDATION: 40.0,
+    SpanType.RESPONSE_VALIDATION: 40.0,
+    SpanType.VALIDATION_PAYLOAD: 20.0,
+    SpanType.VALIDATION_POLICY: 20.0,
+    SpanType.AUGMENTATION: 20.0,
+}
+
+_DEFAULT_VARIANCE = 0.2
+
+
+def _load_happy_path_latency() -> tuple[dict[SpanType, float], dict[SpanType, float]]:
     """
-    Load default latencies for happy-path context flows from config/config.yaml.
-
-    Config shape in config/config.yaml:
-
-    happy_path_latencies_ms:
-      a2a_orchestrate: 1500.0
-      planner: 250.0
-      mcp_tool_execute: 150.0
-      response_compose: 60.0
+    Load mean_ms and variance per span from config happy_path_latency (spans + default_variance).
+    Returns (mean_ms_by_span_type, variance_by_span_type).
     """
-    defaults: dict[SpanType, float] = {
-        SpanType.A2A_ORCHESTRATE: 1500.0,
-        SpanType.PLANNER: 250.0,
-        SpanType.TASK_EXECUTE: 80.0,
-        SpanType.LLM_CALL: 400.0,
-        SpanType.TOOLS_RECOMMEND: 50.0,
-        SpanType.MCP_TOOL_EXECUTE: 150.0,
-        SpanType.RESPONSE_COMPOSE: 60.0,
-        SpanType.REQUEST_VALIDATION: 40.0,
-        SpanType.RESPONSE_VALIDATION: 40.0,
-        SpanType.VALIDATION_PAYLOAD: 20.0,
-        SpanType.VALIDATION_POLICY: 20.0,
-        SpanType.AUGMENTATION: 20.0,
-    }
-
     data = load_yaml(CONFIG_PATH)
-    raw_latencies = data.get("happy_path_latencies_ms")
-    if not isinstance(raw_latencies, dict):
-        return defaults
+    block = data.get("happy_path_latency")
+    if not isinstance(block, dict):
+        var_map = dict.fromkeys(_DEFAULT_MEAN_MS, _DEFAULT_VARIANCE)
+        return (dict(_DEFAULT_MEAN_MS), var_map)
 
-    key_map: dict[str, SpanType] = {
-        "a2a_orchestrate": SpanType.A2A_ORCHESTRATE,
-        "planner": SpanType.PLANNER,
-        "task_execute": SpanType.TASK_EXECUTE,
-        "llm_call": SpanType.LLM_CALL,
-        "tools_recommend": SpanType.TOOLS_RECOMMEND,
-        "mcp_tool_execute": SpanType.MCP_TOOL_EXECUTE,
-        "response_compose": SpanType.RESPONSE_COMPOSE,
-        "request_validation": SpanType.REQUEST_VALIDATION,
-        "response_validation": SpanType.RESPONSE_VALIDATION,
-        "validation_payload": SpanType.VALIDATION_PAYLOAD,
-        "validation_policy": SpanType.VALIDATION_POLICY,
-        "augmentation": SpanType.AUGMENTATION,
+    default_variance = float(block.get("default_variance", _DEFAULT_VARIANCE))
+    spans = block.get("spans")
+    if not isinstance(spans, dict):
+        var_map = dict.fromkeys(_DEFAULT_MEAN_MS, default_variance)
+        return (dict(_DEFAULT_MEAN_MS), var_map)
+
+    mean_ms = dict(_DEFAULT_MEAN_MS)
+    variance: dict[SpanType, float] = dict.fromkeys(_DEFAULT_MEAN_MS, default_variance)
+    for key, span_type in _KEY_TO_SPAN_TYPE.items():
+        entry = spans.get(key)
+        if isinstance(entry, dict):
+            if "mean_ms" in entry and isinstance(entry["mean_ms"], (int, float)):
+                mean_ms[span_type] = float(entry["mean_ms"])
+            if "variance" in entry and isinstance(entry["variance"], (int, float)):
+                variance[span_type] = float(entry["variance"])
+        elif isinstance(entry, (int, float)):
+            mean_ms[span_type] = float(entry)
+    return (mean_ms, variance)
+
+
+_DEFAULT_LATENCY_MS, _DEFAULT_LATENCY_VARIANCE = _load_happy_path_latency()
+
+
+def _load_tools_recommend_config() -> dict[str, Any]:
+    """
+    Load tools_recommend section from config (selection.strategy, selection.constraints,
+    tools.selected.count, selection.fallback.used). Returns dict with keys selection_strategy,
+    selection_constraints, tools_selected_count, selection_fallback_used; defaults if missing.
+    """
+    defaults: dict[str, Any] = {
+        "step_outcome": "success",
+        "selection_strategy": "default",
+        "selection_constraints": "none",
+        "tools_selected_count": 1,
+        "selection_fallback_used": False,
     }
+    data = load_yaml(CONFIG_PATH)
+    block = data.get("tools_recommend") if isinstance(data, dict) else None
+    if not isinstance(block, dict):
+        return defaults
+    out = dict(defaults)
+    if isinstance(block.get("step_outcome"), str) and block["step_outcome"].strip():
+        out["step_outcome"] = block["step_outcome"].strip()
+    if isinstance(block.get("selection_strategy"), str):
+        out["selection_strategy"] = block["selection_strategy"].strip()
+    if isinstance(block.get("selection_constraints"), str):
+        out["selection_constraints"] = block["selection_constraints"].strip()
+    if isinstance(block.get("tools_selected_count"), (int, float)):
+        out["tools_selected_count"] = int(block["tools_selected_count"])
+    if isinstance(block.get("selection_fallback_used"), bool):
+        out["selection_fallback_used"] = block["selection_fallback_used"]
+    return out
 
-    latencies = dict(defaults)
-    for key, span_type in key_map.items():
-        value = raw_latencies.get(key)
-        if isinstance(value, (int, float)):
-            latencies[span_type] = float(value)
 
-    return latencies
+_TOOLS_RECOMMEND_CONFIG = _load_tools_recommend_config()
 
 
-# Default latencies when building hierarchy from context.correct_flow (happy path).
-_DEFAULT_LATENCY_MS = _load_happy_path_latencies()
+def _load_mcp_retry_config() -> dict[str, Any]:
+    """Load mcp_retry config: latency_by_error_type, retry_policy for MCP parent/attempt spans."""
+    defaults: dict[str, Any] = {
+        "latency_by_error_type": {
+            "timeout": 5000.0,
+            "unavailable": 1200.0,
+            "tool_error": 180.0,
+            "invalid_arguments": 50.0,
+            "protocol_error": 100.0,
+        },
+        "retry_policy": "none",
+    }
+    data = load_yaml(CONFIG_PATH)
+    block = data.get("mcp_retry") if isinstance(data, dict) else None
+    if not isinstance(block, dict):
+        return defaults
+    out = dict(defaults)
+    lbet = block.get("latency_by_error_type")
+    if isinstance(lbet, dict):
+        out["latency_by_error_type"] = {
+            str(k): float(v) for k, v in lbet.items() if isinstance(v, (int, float)) and v >= 0
+        }
+        if out["latency_by_error_type"]:
+            out["latency_by_error_type"].setdefault("timeout", 5000.0)
+    rp = block.get("retry_policy")
+    if isinstance(rp, str) and rp.strip():
+        out["retry_policy"] = rp.strip()
+    return out
+
+
+_MCP_RETRY_CONFIG = _load_mcp_retry_config()
 
 # Task types per semantic conventions: llm_call, tool_recommendation, tool_execution.
 # These span types MUST have a task.execute parent with the matching {prefix}.task.type.
@@ -705,7 +876,7 @@ def _ensure_task_execute_parent(
     task_config = SpanConfig(
         span_type=SpanType.TASK_EXECUTE,
         latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
-        latency_variance=0.2,
+        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.TASK_EXECUTE],
         error_rate=0.0,
         attribute_overrides={
             config_attr("step.outcome"): "success",
@@ -748,7 +919,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
     root_config = SpanConfig(
         span_type=SpanType.A2A_ORCHESTRATE,
         latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.A2A_ORCHESTRATE],
-        latency_variance=0.25,
+        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.A2A_ORCHESTRATE],
         error_rate=0.0,
         attribute_overrides={config_attr("a2a.outcome"): "success"},
     )
@@ -771,7 +942,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                     root_config=SpanConfig(
                         span_type=SpanType.PLANNER,
                         latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.PLANNER],
-                        latency_variance=0.2,
+                        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.PLANNER],
                         error_rate=0.0,
                         attribute_overrides={config_attr("step.outcome"): "success"},
                     ),
@@ -785,7 +956,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                     root_config=SpanConfig(
                         span_type=SpanType.RESPONSE_COMPOSE,
                         latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.RESPONSE_COMPOSE],
-                        latency_variance=0.1,
+                        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.RESPONSE_COMPOSE],
                         error_rate=0.0,
                         attribute_overrides={
                             config_attr("response.format"): "a2a_json",
@@ -810,7 +981,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 root_config=SpanConfig(
                     span_type=SpanType.LLM_CALL,
                     latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.LLM_CALL],
-                    latency_variance=0.2,
+                    latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.LLM_CALL],
                     error_rate=0.0,
                     attribute_overrides=llm_overrides,
                 ),
@@ -821,7 +992,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                     root_config=SpanConfig(
                         span_type=SpanType.TASK_EXECUTE,
                         latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
-                        latency_variance=0.2,
+                        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.TASK_EXECUTE],
                         error_rate=0.0,
                         attribute_overrides=task_overrides,
                     ),
@@ -835,16 +1006,16 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 root_config=SpanConfig(
                     span_type=SpanType.TOOLS_RECOMMEND,
                     latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TOOLS_RECOMMEND],
-                    latency_variance=0.2,
+                    latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.TOOLS_RECOMMEND],
                     error_rate=0.0,
-                    attribute_overrides={config_attr("step.outcome"): "success"},
+                    attribute_overrides={},
                 ),
                 children=[],
             )
             task_config = SpanConfig(
                 span_type=SpanType.TASK_EXECUTE,
                 latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
-                latency_variance=0.2,
+                latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.TASK_EXECUTE],
                 error_rate=0.0,
                 attribute_overrides={
                     config_attr("step.outcome"): "success",
@@ -857,25 +1028,91 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             i += 1
         else:
             # Tool step at root level (no preceding task). Conventions: tool_execution requires task.execute parent.
-            latency = _DEFAULT_LATENCY_MS[SpanType.MCP_TOOL_EXECUTE]
+            # MCP retry: template/scenario-driven attempt list; default single success when context.mcp_retry_attempts is None.
+            attempts_spec = (
+                context.mcp_retry_attempts
+                if context.mcp_retry_attempts
+                else [{"outcome": "success"}]
+            )
+            default_latency = _DEFAULT_LATENCY_MS[SpanType.MCP_TOOL_EXECUTE]
+            variance = _DEFAULT_LATENCY_VARIANCE[SpanType.MCP_TOOL_EXECUTE]
+            any_success = any(
+                (a.get("outcome") or "success").strip().lower() == "success" for a in attempts_spec
+            )
+            num_attempts = len(attempts_spec)
+            retry_count = max(0, num_attempts - 1)
+            retry_policy = _MCP_RETRY_CONFIG.get("retry_policy") or (
+                "none" if num_attempts <= 1 else "exponential"
+            )
+            parent_overrides: dict[str, Any] = {
+                config_attr("step.outcome"): "success" if any_success else "fail",
+                config_attr("retry.count"): retry_count,
+                config_attr("retry.policy"): retry_policy,
+            }
+            if not any_success and attempts_spec:
+                last_att = attempts_spec[-1]
+                last_err = (
+                    last_att.get("error_type") if last_att.get("outcome") != "success" else None
+                )
+                if isinstance(last_err, str) and last_err.strip():
+                    parent_overrides["error.type"] = last_err.strip()
             execute_config = SpanConfig(
                 span_type=SpanType.MCP_TOOL_EXECUTE,
                 latency_mean_ms=0.0,
                 latency_variance=0.0,
-                error_rate=0.0,
-                attribute_overrides={config_attr("step.outcome"): "success"},
+                error_rate=0.0 if any_success else 1.0,
+                attribute_overrides=parent_overrides,
             )
-            attempt_config = SpanConfig(
-                span_type=SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
-                latency_mean_ms=latency,
-                latency_variance=0.2,
-                error_rate=0.0,
-                attribute_overrides={},
-            )
-            mcp_hierarchy = TraceHierarchy(
-                root_config=execute_config,
-                children=[TraceHierarchy(root_config=attempt_config, children=[])],
-            )
+            attempt_children: list[TraceHierarchy] = []
+            latency_by_error = _MCP_RETRY_CONFIG.get("latency_by_error_type") or {}
+            for idx, att in enumerate(attempts_spec):
+                outcome = (att.get("outcome") or "success").strip().lower()
+                if outcome not in ("success", "fail", "failure"):
+                    outcome = "success"
+                if outcome == "failure":
+                    outcome = "fail"
+                lat = att.get("latency_mean_ms")
+                if isinstance(lat, (int, float)) and lat >= 0:
+                    latency = float(lat)
+                elif outcome == "fail":
+                    err_type = (att.get("error_type") or "timeout").strip().lower()
+                    latency = float(latency_by_error.get(err_type, default_latency))
+                else:
+                    latency = default_latency
+                err_type = att.get("error_type", "timeout") if outcome == "fail" else None
+                # Spec: attempt.index is 1..N (1-based).
+                att_overrides: dict[str, Any] = {
+                    config_attr("mcp.attempt.index"): idx + 1,
+                    config_attr("mcp.attempt.outcome"): outcome,
+                }
+                if err_type:
+                    att_overrides["error.type"] = err_type
+                # retry.reason: why this attempt is a retry (semconv: timeout|unavailable|rate_limited|transient_error|unknown).
+                if idx > 0:
+                    prev_err = attempts_spec[idx - 1].get("error_type")
+                    if isinstance(prev_err, str) and prev_err.strip():
+                        r = prev_err.strip().lower()
+                        att_overrides[config_attr("retry.reason")] = (
+                            r
+                            if r
+                            in (
+                                "timeout",
+                                "unavailable",
+                                "rate_limited",
+                                "transient_error",
+                                "unknown",
+                            )
+                            else "transient_error"
+                        )
+                attempt_config = SpanConfig(
+                    span_type=SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
+                    latency_mean_ms=latency,
+                    latency_variance=variance,
+                    error_rate=0.0 if outcome == "success" else 1.0,
+                    attribute_overrides=att_overrides,
+                )
+                attempt_children.append(TraceHierarchy(root_config=attempt_config, children=[]))
+            mcp_hierarchy = TraceHierarchy(root_config=execute_config, children=attempt_children)
             wrapped = _ensure_task_execute_parent(mcp_hierarchy, SpanType.A2A_ORCHESTRATE)
             children.append(wrapped)
             i += 1
@@ -927,7 +1164,9 @@ def _collect_mcp_hierarchies_in_order(hierarchy: TraceHierarchy) -> list[TraceHi
 
 
 def _apply_error_pattern(hierarchy: TraceHierarchy, context: ScenarioContext) -> None:
-    """Set error_rate on root and MCP attempt spans according to context.error_pattern."""
+    """Set error_rate on root and MCP attempt spans according to context.error_pattern.
+    When context.mcp_retry_attempts is set, MCP attempt error_rates are template-driven; skip overwriting them.
+    """
     import random
 
     pattern = (context.error_pattern or "happy_path").lower()
@@ -935,13 +1174,19 @@ def _apply_error_pattern(hierarchy: TraceHierarchy, context: ScenarioContext) ->
         hierarchy.root_config.error_rate = 0.0
         for child in hierarchy.children:
             if child.root_config.span_type == SpanType.MCP_TOOL_EXECUTE and child.children:
-                child.children[0].root_config.error_rate = 0.0
+                for attempt_h in child.children:
+                    attempt_h.root_config.error_rate = 0.0
             _apply_error_pattern(child, context)
         return
 
     mcp_list = _collect_mcp_hierarchies_in_order(hierarchy)
     err_cfg = context.error_config or ErrorPatternConfig()
     rate = err_cfg.rate
+    # Template-driven retry: MCP attempt error_rates were set from mcp_retry_attempts; do not overwrite.
+    if context.mcp_retry_attempts:
+        if pattern == "cascade":
+            hierarchy.root_config.error_rate = rate
+        return
 
     def zero_all_mcp() -> None:
         for mcp_h in mcp_list:
@@ -1025,7 +1270,7 @@ def _apply_context_to_hierarchy(
             if id_generator:
                 call_id = id_generator.mcp_tool_call_id(tenant_id=context.tenant_uuid)
             else:
-                call_id = f"mcp_call_{uuid.uuid4().hex[:12]}"
+                call_id = generate_mcp_tool_call_id(tenant_id=context.tenant_uuid)
             overrides = dict(cfg.attribute_overrides or {})
             overrides[config_attr("mcp.server.uuid")] = server_uuid
             overrides[config_attr("mcp.tool.call.id")] = call_id
@@ -1040,19 +1285,37 @@ def _apply_context_to_hierarchy(
                 overrides[config_attr("mcp.tool.uuid")] = tool.uuid
             mcp_index[0] += 1
             cfg.attribute_overrides = overrides
-            if h.children:
-                attempt_cfg = h.children[0].root_config
+            for attempt_child in h.children:
+                attempt_cfg = attempt_child.root_config
                 attempt_overrides = dict(attempt_cfg.attribute_overrides or {})
                 attempt_overrides[config_attr("mcp.tool.call.id")] = call_id
+                # Parent step.outcome=success and single attempt: ensure attempt outcome is success.
+                if len(h.children) == 1 and overrides.get(config_attr("step.outcome")) == "success":
+                    attempt_overrides[config_attr("mcp.attempt.outcome")] = "success"
                 attempt_cfg.attribute_overrides = attempt_overrides
         elif cfg.span_type == SpanType.TOOLS_RECOMMEND:
-            # Align primary tool name with first tool step in workflow so tools_recommend and MCP tool execute match.
+            # All tools.recommend attributes from config (MCP tools list, happy_path_latency, tools_recommend section).
             overrides = dict(cfg.attribute_overrides or {})
             primary_tool_name = (tool_step_names[0] if tool_step_names else "") or (
                 tools_by_index[0].name if tools_by_index else ""
             )
             if primary_tool_name:
                 overrides["gen_ai.tool.name"] = primary_tool_name
+            overrides[config_attr("mcp.tools.available.count")] = len(tools_by_index)
+            overrides[config_attr("mcp.tools.selected.count")] = _TOOLS_RECOMMEND_CONFIG[
+                "tools_selected_count"
+            ]
+            overrides[config_attr("mcp.selection.latency.ms")] = int(cfg.latency_mean_ms)
+            overrides[config_attr("mcp.selection.strategy")] = _TOOLS_RECOMMEND_CONFIG[
+                "selection_strategy"
+            ]
+            overrides[config_attr("mcp.selection.constraints")] = _TOOLS_RECOMMEND_CONFIG[
+                "selection_constraints"
+            ]
+            overrides[config_attr("mcp.selection.fallback.used")] = _TOOLS_RECOMMEND_CONFIG[
+                "selection_fallback_used"
+            ]
+            overrides[config_attr("step.outcome")] = _TOOLS_RECOMMEND_CONFIG["step_outcome"]
             cfg.attribute_overrides = overrides
         for child in h.children:
             walk(child)
@@ -1283,11 +1546,18 @@ class ScenarioLoader:
         conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = (
             None
         )
+        conversation_turn_pairs_redacted: (
+            list[(tuple[list[dict[str, Any]], list[dict[str, Any]]]) | None] | None
+        ) = None
+        conversation_samples: list[dict[str, str]] | None = None
         conv_raw = data.get("conversation")
         if isinstance(conv_raw, dict):
             turns_raw = conv_raw.get("turns")
             if isinstance(turns_raw, list):
                 turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = []
+                turn_pairs_redacted: list[
+                    (tuple[list[dict[str, Any]], list[dict[str, Any]]]) | None
+                ] = []
                 for t in turns_raw:
                     if not isinstance(t, dict):
                         continue
@@ -1304,6 +1574,21 @@ class ScenarioLoader:
                             },
                         ]
                         turn_pairs.append((input_msgs, output_msgs))
+                        ui_red = t.get("user_input_redacted")
+                        lr_red = t.get("llm_response_redacted")
+                        if isinstance(ui_red, str) and isinstance(lr_red, str):
+                            inp_red = [
+                                {"role": "user", "content": [{"type": "text", "text": ui_red}]},
+                            ]
+                            out_red = [
+                                {
+                                    "role": "assistant",
+                                    "content": [{"type": "text", "text": lr_red}],
+                                },
+                            ]
+                            turn_pairs_redacted.append((inp_red, out_red))
+                        else:
+                            turn_pairs_redacted.append(None)
                 if turn_pairs:
                     conversation_turns = [
                         {"role": "user", "text": inp[0]["content"][0]["text"]}
@@ -1312,6 +1597,8 @@ class ScenarioLoader:
                         {"role": "assistant", "text": out[0]["content"][0]["text"]}
                         for _, out in turn_pairs
                     ]
+                    if len(turn_pairs_redacted) == len(turn_pairs) and any(turn_pairs_redacted):
+                        conversation_turn_pairs_redacted = turn_pairs_redacted
                 else:
                     cleaned: list[dict[str, str]] = []
                     for t in turns_raw:
@@ -1345,6 +1632,26 @@ class ScenarioLoader:
                                 i += 1
                 if turn_pairs:
                     conversation_turn_pairs = turn_pairs
+            # Single-turn samples: one random sample per iteration (different session per iteration).
+            if not conversation_turn_pairs and conv_raw is not None:
+                samples_raw = conv_raw.get("samples")
+                if isinstance(samples_raw, list) and samples_raw:
+                    conversation_samples_list: list[dict[str, str]] = []
+                    for s in samples_raw:
+                        if not isinstance(s, dict):
+                            continue
+                        ui = s.get("user_input")
+                        lr = s.get("llm_response")
+                        if isinstance(ui, str) and isinstance(lr, str):
+                            sample_dict: dict[str, str] = {"user_input": ui, "llm_response": lr}
+                            ui_red = s.get("user_input_redacted")
+                            lr_red = s.get("llm_response_redacted")
+                            if isinstance(ui_red, str) and isinstance(lr_red, str):
+                                sample_dict["user_input_redacted"] = ui_red
+                                sample_dict["llm_response_redacted"] = lr_red
+                            conversation_samples_list.append(sample_dict)
+                    if conversation_samples_list:
+                        conversation_samples = conversation_samples_list
 
         realistic_overrides_raw = data.get("realistic_overrides")
         realistic_overrides: dict[str, Any] = {}
@@ -1450,6 +1757,8 @@ class ScenarioLoader:
             expected_tools=expected_tools or None,
             conversation_turns=conversation_turns,
             conversation_turn_pairs=conversation_turn_pairs,
+            conversation_turn_pairs_redacted=conversation_turn_pairs_redacted,
+            conversation_samples=conversation_samples,
             redaction_applied=redaction_applied or "none",
             realistic_overrides=realistic_overrides or None,
             control_plane_request_outcome=control_plane_request_outcome,

@@ -98,7 +98,7 @@ _GENAI_REQUIRED_BY_SUFFIX = {
     ],
 }
 
-# Span suffixes that do not carry correlation/context attributes (tenant, session, enduser, redaction).
+# Span suffixes that do not carry correlation/context attributes (tenant, session, enduser.pseudo.id, redaction).
 _MINIMAL_SPAN_SUFFIXES = frozenset(
     {
         "task.execute",

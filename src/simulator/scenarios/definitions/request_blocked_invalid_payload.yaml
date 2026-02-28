@@ -7,7 +7,10 @@ description: >
 
 tags:
   - control-plane
-  
+
+# Invalid payload blocks are less common than policy blocks.
+workload_weight: 0.3
+
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50

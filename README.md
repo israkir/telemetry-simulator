@@ -22,7 +22,7 @@ src/simulator/
 ├── generators/        # Trace, metric, and log generators
 ├── scenarios/         # YAML scenario loader and runner
 ├── validators/        # OTEL payload validator
-├── exporters/         # OTLP, file, and console exporters
+├── exporters/         # OTLP and file exporters
 └── cli.py             # Command-line interface
 ```
 
@@ -31,9 +31,9 @@ src/simulator/
 ### Prerequisites
 
 - Python 3.11+
-- **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand, e.g. `otelsim scenario --name foo --semconv /path/to/conventions.yaml`).
+- **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand, e.g. `otelsim scenario --vendor=your_vendor --name foo --semconv /path/to/conventions.yaml`).
 - OpenTelemetry Collector running (port 4318) or use `--output-file` to export to file
-- **Tenant ID** is read from `src/simulator/scenarios/config/config.yaml` (`tenant.id`); no env vars required for tenants.
+- **Tenant ID** is read from `src/simulator/scenarios/config/config.yaml` (`tenants`; scenarios reference `context.tenant` by key, e.g. `toro`); no env vars required for tenants.
 
 ### Setup
 
@@ -47,10 +47,10 @@ make install
 
 ```bash
 # Run mixed workload (uses simulator defaults for count/interval)
-otelsim run --semconv /path/to/semconv.yaml
+otelsim run --vendor=your_vendor --semconv /path/to/semconv.yaml
 
-# Quick run with Gentoro vendor prefix
-otelsim run --vendor=gentoro --count 100 --interval 50
+# Quick run
+otelsim run --vendor=your_vendor --count 100 --interval 50
 ```
 
 ### Run Specific Scenarios
@@ -62,20 +62,20 @@ The simulator ships with **sample scenario definitions** in `src/simulator/scena
 make list-scenarios
 
 # Run a sample scenario
-otelsim scenario --name new_claim_phone
+otelsim scenario --vendor=your_vendor --name new_claim_phone
 
 # Use a custom folder of scenario YAML files
-otelsim scenario --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
+otelsim scenario --vendor=your_vendor --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
 ```
 
-**Note:** Tenant IDs come from `config/config.yaml` (`tenant.id`) or from the scenario YAML `context.tenant_uuid`. Use `otelsim run` for a mixed workload (varied trace patterns); use `otelsim scenario --name <name>` for a single reproducible pattern.
+**Note:** Tenant IDs come from `config/config.yaml` (`tenants`; scenario sets `context.tenant` by key, e.g. `toro`). Use `otelsim run --vendor=your_vendor` for a mixed workload (varied trace patterns); use `otelsim scenario --vendor=your_vendor --name <name>` for a single reproducible pattern.
 
 ### Live trace visualization
 
 To view traces in a browser while running the simulator on the host:
 
 1. Start Jaeger: `make jaeger-up`
-2. Run the simulator: `otelsim run --semconv /path/to/semconv.yaml`
+2. Run the simulator: `otelsim run --vendor=your_vendor --semconv /path/to/semconv.yaml`
 3. Open **http://localhost:16686** and select service `otelsim`
 4. Stop Jaeger when done: `make jaeger-down`
 
@@ -116,75 +116,25 @@ Set `VENDOR` to your vendor name (e.g. `acme`) so span names and vendor attribut
 
 ## YAML Scenarios
 
-**Sample definitions** are bundled in `src/simulator/scenarios/definitions/` (e.g. `new_claim_phone.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`, `new_claim_phone_multi_turn.yaml`). A reference scenario `example_scenario.yaml` documents all YAML options; it is excluded from `list` and mixed workload when using the built-in samples but can be run with `--name example_scenario`. You can run samples as-is, add your own YAML there, or use a **custom definitions folder** via `--scenarios-dir` (see CLI Reference). Example structure:
+Scenarios are YAML files in `src/simulator/scenarios/definitions/` (or a custom folder via `--scenarios-dir`). Bundled samples include data-plane flows (e.g. `new_claim_phone`, `new_claim_phone_mcp_tool_retry_then_success`) and control-plane outcomes (e.g. `request_blocked_by_policy`, `request_allowed_audit_flagged`). Use `make list-scenarios` or `otelsim list` to see names.
 
-```yaml
-name: my_scenario
-description: Custom test scenario
-
-# Tenant: use tenant.id from config/config.yaml, or set context.tenant_uuid in scenario YAML.
-
-repeat_count: 100
-interval_ms: 500
-
-emit_metrics: true
-emit_logs: true
-
-root:
-  type: vendor.a2a.orchestrate
-  latency:
-    mean_ms: 1500
-    variance: 0.3
-  error:
-    rate: 0.02
-  
-  children:
-    - type: vendor.planner
-      latency:
-        mean_ms: 300
-    
-    - type: vendor.mcp.tool.execute
-      latency:
-        mean_ms: 200
-      error:
-        rate: 0.05
-      attributes:
-        gen_ai.tool.name: my_tool
-    
-    - type: vendor.llm.call
-      latency:
-        mean_ms: 600
-      attributes:
-        gen_ai.operation.name: chat
-```
-
-### Adding new scenarios (no code changes)
-
-You can add new scenarios by **adding YAML files only** (no code changes):
-
-1. **Data-plane (a2a.orchestrate) scenarios** – Use **key-based context**: `context.tenant`, `context.agent`, `context.mcp_server`. Define data-plane in the scenario YAML with `data_plane.workflow` (key into config `workflow_templates` for step list), optional `data_plane.simulation_goal`, and optional `data_plane.control_plane_template`. Config supplies only key → UUID and workflow step names.
-2. **Control-plane-only (e.g. blocked/error) scenarios** – Set `control_plane.request_outcome` and `control_plane.block_reason`, or `control_plane.template`. Use **minimal context**: `context.tenant` and `context.agent` only (no `mcp_server`, `workflow`, `correct_flow`, or `error_pattern`). Only the incoming request-validation trace is emitted; no data-plane or response-validation. To use a template but override the policy-span exception (e.g. for a variant), set `control_plane.policy_exception: { type: "...", message: "..." }` in the scenario YAML; the template’s default exception is overridden by these values.
-3. **New control-plane outcome/template** – Add entries under `control_plane.request_validation_templates` and, if needed, `control_plane.trace_flow` in `config/config.yaml`. Attribute values should follow `scenarios/conventions/semconv.yaml`.
-4. **New data-plane workflow** – Add a workflow to `realistic_scenarios.workflow_templates` in `config/config.yaml` (workflow name → list of steps); then in a scenario YAML set `data_plane.workflow`, optional `data_plane.simulation_goal`, and optional `data_plane.control_plane_template`.
-5. **Tags** – In scenario YAML, set `tags: [control-plane]`, `tags: [data-plane, happy-path]`, etc. Then run a subset of scenarios with `otelsim run --tags=control-plane` or `--tags=data-plane,multi-turn` (scenarios that have *at least one* of the given tags are included). Use `--each-once` to run each (tagged) scenario exactly once instead of `--count` random picks.
-
-The simulator resolves tenant/agent/MCP IDs from config; data-plane behavior is defined per scenario (workflow, simulation_goal, control_plane_template), and control-plane behavior from config templates.
+For **YAML structure**, **adding new scenarios**, and **tags/workflow/mcp_retry**, see [Scenario YAML Reference](docs/scenario-yaml-reference.md). For config (tenants, workflows, latency, MCP retry templates), see [Generating Telemetry](docs/generating-telemetry.md#configuration-reference-what-exists).
 
 ## CLI Reference
 
 ```bash
 # Run mixed workload (all scenarios)
-otelsim run --count 100 --interval 500
+otelsim run --vendor=your_vendor --count 100 --interval 500
 
 # Run only scenarios with a given tag (e.g. control-plane or data-plane)
-otelsim run --count 50 --tags=control-plane
-otelsim run --count 50 --tags=data-plane,multi-turn
-otelsim run --each-once                       # each scenario once
-otelsim run --tags=control-plane --each-once  # each tagged scenario once
+otelsim run --vendor=your_vendor --count 50 --tags=control-plane
+otelsim run --vendor=your_vendor --count 50 --tags=data-plane,multi-turn
+otelsim run --vendor=your_vendor --each-once                       # each scenario once
+otelsim run --vendor=your_vendor --tags=control-plane --each-once  # each tagged scenario once
 
 # Run YAML scenario (sample or custom definitions folder)
-otelsim scenario --name new_claim_phone
-otelsim scenario --name my_scenario --scenarios-dir /path/to/definitions
+otelsim scenario --vendor=your_vendor --name new_claim_phone
+otelsim scenario --vendor=your_vendor --name my_scenario --scenarios-dir /path/to/definitions
 
 # List scenarios (from sample or custom folder)
 otelsim list
@@ -194,11 +144,11 @@ otelsim list --scenarios-dir /path/to/definitions
 otelsim validate --show-schema --show-spans --show-metrics
 
 # Show each generated trace (trace_id, tenant_id, span names)
-otelsim run --count 10 --show-spans
-otelsim run --show-all-attributes
+otelsim run --vendor=your_vendor --count 10 --show-spans
+otelsim run --vendor=your_vendor --show-all-attributes
 
 # Print complete span content (name, trace_id, span_id, kind, status, all attributes) for every span
-otelsim run --count 5 --show-full-spans
+otelsim run --vendor=your_vendor --count 5 --show-full-spans
 ```
 
 ### Configuration (environment)
@@ -317,7 +267,7 @@ The simulator can run **as a container** (with your own Docker setup) or **local
 
 ```bash
 make venv && make install
-otelsim run --semconv /path/to/semconv.yaml
+otelsim run --vendor=your_vendor --semconv /path/to/semconv.yaml
 ```
 
 ## Troubleshooting
@@ -335,11 +285,11 @@ Container log drivers often limit line length (e.g. 16KB). The simulator keeps p
 Set the schema path via environment or `--semconv` (before or after the subcommand):
 ```bash
 export SEMCONV=/path/to/your-semconv.yaml
-otelsim run
+otelsim run --vendor=your_vendor
 
 # Or pass per run (any of these work):
-otelsim run --semconv /path/to/your-schema.yaml
-otelsim scenario --name new_claim_phone --semconv /path/to/your-schema.yaml
+otelsim run --vendor=your_vendor --semconv /path/to/your-schema.yaml
+otelsim scenario --vendor=your_vendor --name new_claim_phone --semconv /path/to/your-schema.yaml
 ```
 
 ### Virtual Environment Issues

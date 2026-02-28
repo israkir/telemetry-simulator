@@ -8,7 +8,10 @@ description: >
 
 tags:
   - control-plane
-  
+
+# Rate limiting typically affects a small fraction of traffic.
+workload_weight: 0.15
+
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50

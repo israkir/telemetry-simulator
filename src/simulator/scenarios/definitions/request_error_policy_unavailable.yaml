@@ -9,7 +9,10 @@ description: >
 
 tags:
   - control-plane
-  
+
+# Policy engine unavailable is a rare runtime variant.
+workload_weight: 0.3
+
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50
