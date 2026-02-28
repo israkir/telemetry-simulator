@@ -1,5 +1,5 @@
 """
-Command-line interface for otelsim.
+Command-line interface for the Telemetry Simulator.
 
 Provides commands for:
 - Running YAML-defined scenarios
@@ -56,7 +56,7 @@ def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
         prog="otelsim",
-        description="Schema-driven OpenTelemetry telemetry simulator for LLM observability",
+        description="Schema-driven OTEL telemetry simulator for LLM observability",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

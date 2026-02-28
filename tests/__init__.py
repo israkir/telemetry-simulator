@@ -1,1 +1,1 @@
-"""Tests for otelsim."""
+"""Tests for the telemetry simulator."""

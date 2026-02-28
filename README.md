@@ -1,10 +1,10 @@
-# otelsim
+# Telemetry Simulator
 
 Schema-driven OpenTelemetry telemetry simulator for LLM observability. Generates realistic traces, metrics, and logs aligned with configurable semantic conventions.
 
 ## Overview
 
-otelsim produces OTEL-compliant telemetry for testing and validating observability pipelines:
+The telemetry simulator produces OTEL-compliant telemetry for testing and validating observability pipelines:
 
 - **Schema-Driven**: Reads your semantic-conventions YAML (path required); the schema defines which attributes exist per span type (types, allowed values, defaults). Scenario YAML overrides or supplies distribution-based values.
 - **Realism + Randomness + SemConv**: Combines realistic scenario content (conversation samples, failure modes like 4xx or wrong division) with controlled randomness (latency distributions, which scenario/sample runs). All enum-like values (e.g. `error.type`, `step.outcome`) are chosen only from semantic-convention allowed values so traces stay valid and queryable. See [Generating Telemetry](docs/generating-telemetry.md#realism-randomness-and-semantic-conventions).
@@ -354,9 +354,4 @@ make install
 
 - [Generating Telemetry](docs/generating-telemetry.md) – Guide, realism/randomness/SemConv, and scenario examples
 
-When using otelsim inside another repo, provide your schema YAML path (`SEMCONV`, `--semconv`, or default `scenarios/conventions/semconv.yaml`) and set `VENDOR` to your project’s attribute namespace.
-
-## About
-
-**otelsim** – Schema-driven OpenTelemetry telemetry simulator for LLM observability.  
-[https://github.com/israkir/otelsim](https://github.com/israkir/otelsim)
+When using this simulator inside another repo, provide your schema YAML path (`SEMCONV`, `--semconv`, or default `scenarios/conventions/semconv.yaml`) and set `VENDOR` to your project’s attribute namespace.
