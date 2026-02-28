@@ -190,7 +190,9 @@ def _set_higher_latency_condition_attributes(
         if isinstance(ph.get("timezone"), str):
             span.set_attribute(attr_fn("higher_latency.peak_hours.timezone"), ph["timezone"])
         if isinstance(ph.get("start_hour"), (int, float)):
-            span.set_attribute(attr_fn("higher_latency.peak_hours.start_hour"), int(ph["start_hour"]))
+            span.set_attribute(
+                attr_fn("higher_latency.peak_hours.start_hour"), int(ph["start_hour"])
+            )
         if isinstance(ph.get("end_hour"), (int, float)):
             span.set_attribute(attr_fn("higher_latency.peak_hours.end_hour"), int(ph["end_hour"]))
         if isinstance(ph.get("weekdays"), list):
