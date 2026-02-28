@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "otelsim"
+name = "telemetry-simulator"
 version = "1.0.0"
-description = "Schema-driven OpenTelemetry telemetry simulator for LLM observability"
+description = "Schema-driven OTEL telemetry simulator for LLM observability"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}

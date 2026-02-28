@@ -36,7 +36,7 @@ check-venv:
 
 # Default target
 help:
-	@echo "otelsim"
+	@echo "Telemetry Simulator"
 	@echo "Schema-driven OTEL telemetry simulation for LLM observability"
 	@echo ""
 	@echo "Setup:"
