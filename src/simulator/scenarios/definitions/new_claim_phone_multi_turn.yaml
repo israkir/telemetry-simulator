@@ -1,7 +1,7 @@
 # Multi-turn new-claim (Phone MCP): one trace per turn, same session_id across turns.
 # - IDs (tenant, agent, MCP server, tools): keys only; resolved from config/config.yaml.
 # - Workflow steps: config → realistic_scenarios.workflow_templates.new_claim.
-# - Span latencies: config → happy_path_latency. Tools.recommend attributes: config → tools_recommend.
+# - Span latencies: config → latency_profiles. Tools.recommend attributes: config → tools_recommend.
 # - Resource: config/resource.yaml (data_plane.attributes); span.class set per span type in code.
 
 name: new_claim_phone_multi_turn
@@ -15,8 +15,8 @@ tags:
   - multi-turn
   - happy-path
 
-# Multi-turn conversations are less frequent than single-turn.
-workload_weight: 2.0
+# Multi-turn conversations are less frequent than single-turn but still significant.
+workload_weight: 2.5
 
 mcp_server: phone
 repeat_count: 1

@@ -11,6 +11,7 @@ Supports both deterministic scenarios (fixed structure) and statistical
 scenarios (probabilistic branching, distributions, retries).
 """
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -166,6 +167,8 @@ class ScenarioContext:
     # MCP retry: list of attempt specs (outcome, optional error_type, optional latency_mean_ms).
     # When set, MCP tool steps get one child per attempt; when None, default is single success.
     mcp_retry_attempts: list[dict[str, Any]] | None = None
+    # Tool call arguments (OTEL gen_ai.tool.call.arguments) keyed by tool name; from config.
+    tool_call_arguments: dict[str, Any] | None = None
 
 
 def _parse_and_resolve_context(
@@ -265,6 +268,7 @@ def _parse_and_resolve_context(
         error_config=resolved.get("error_config"),
         redaction_applied=resolved.get("redaction_applied", "none"),
         actual_steps=resolved.get("actual_steps"),
+        tool_call_arguments=resolved.get("tool_call_arguments") or None,
     )
 
 
@@ -365,6 +369,7 @@ def _apply_data_plane_from_scenario(
         redaction_applied=context.redaction_applied,
         actual_steps=context.actual_steps,
         mcp_retry_attempts=mcp_retry_attempts,
+        tool_call_arguments=context.tool_call_arguments,
     )
     return updated, simulation_goal, cp_template
 
@@ -606,6 +611,11 @@ class Scenario:
     id_generator: ScenarioIdGenerator | None = None
     # Simulation goal (e.g. happy_path, higher_latency, 4xx_invalid_arguments); defined per scenario.
     simulation_goal: str | None = None
+    # Latency profile from config (happy_path | higher_latency). Drives mean_ms/variance when building hierarchy.
+    latency_profile: str = "happy_path"
+    # Optional: when latency_profile is higher_latency, condition that triggered it (peak_hours, zip_code, etc.).
+    # Captured as span attributes so telemetry can filter/correlate by condition.
+    higher_latency_condition: dict[str, Any] | None = None
     # MCP server context (e.g. phone, electronics, appliances); identifies which mcp_servers entry.
     mcp_server: str | None = None
     # Expected MCP server and tools (from scenario definition); for docs and validation. Keys only; UUIDs from config.
@@ -623,6 +633,8 @@ class Scenario:
     # Optional single-turn samples: list of {user_input, llm_response [, user_input_redacted, llm_response_redacted]}. When set, runner picks one at random
     # per iteration (each iteration = different session). Overrides config conversation_samples for this scenario.
     conversation_samples: list[dict[str, str]] | None = None
+    # When True and conversation_samples is set, use sample at (iteration_index % len(samples)) so each run cycles through all samples.
+    cycle_conversation_samples: bool = False
     # Redaction level for {prefix}.redaction.applied (none, basic, strict). From scenario YAML or context; default none.
     redaction_applied: str = "none"
     # Overrides for realistic scenario modifier (step_index_for_4xx, wrong_division_target, skip_steps, actual_steps).
@@ -639,7 +651,8 @@ class Scenario:
     def get_trace_hierarchy(self) -> TraceHierarchy:
         """Get the trace hierarchy for this scenario."""
         if self.context and self.context.correct_flow and self.context.correct_flow.steps:
-            hierarchy = _hierarchy_from_context(self.context)
+            profile = getattr(self, "latency_profile", None) or "happy_path"
+            hierarchy = _hierarchy_from_context(self.context, latency_profile=profile)
             _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
             _apply_realistic_scenario_if_needed(self, hierarchy)
             return hierarchy
@@ -659,7 +672,8 @@ class Scenario:
         data-plane definition), returns [] so only incoming validation is emitted.
         """
         if self.context and self.context.correct_flow and self.context.correct_flow.steps:
-            hierarchy = _hierarchy_from_context(self.context)
+            profile = getattr(self, "latency_profile", None) or "happy_path"
+            hierarchy = _hierarchy_from_context(self.context, latency_profile=profile)
             _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
             _apply_realistic_scenario_if_needed(self, hierarchy)
             return [hierarchy]
@@ -705,8 +719,9 @@ class Scenario:
                 error_config=getattr(self.context, "error_config", None),
                 redaction_applied=getattr(self.context, "redaction_applied", "none") or "none",
                 actual_steps=None,
+                tool_call_arguments=getattr(self.context, "tool_call_arguments", None),
             )
-            hierarchy = _hierarchy_from_context(merged_context)
+            hierarchy = _hierarchy_from_context(merged_context, latency_profile="happy_path")
             _apply_context_to_hierarchy(hierarchy, merged_context, self.id_generator)
             return [hierarchy]
 
@@ -749,27 +764,25 @@ _DEFAULT_MEAN_MS: dict[SpanType, float] = {
 _DEFAULT_VARIANCE = 0.2
 
 
-def _load_happy_path_latency() -> tuple[dict[SpanType, float], dict[SpanType, float]]:
-    """
-    Load mean_ms and variance per span from config happy_path_latency (spans + default_variance).
-    Returns (mean_ms_by_span_type, variance_by_span_type).
-    """
-    data = load_yaml(CONFIG_PATH)
-    block = data.get("happy_path_latency")
-    if not isinstance(block, dict):
-        var_map = dict.fromkeys(_DEFAULT_MEAN_MS, _DEFAULT_VARIANCE)
-        return (dict(_DEFAULT_MEAN_MS), var_map)
+def _fallback_latency() -> tuple[dict[SpanType, float], dict[SpanType, float]]:
+    """Fallback when a profile is missing in config (use default means and variance)."""
+    return (
+        dict(_DEFAULT_MEAN_MS),
+        dict.fromkeys(_DEFAULT_MEAN_MS, _DEFAULT_VARIANCE),
+    )
 
+
+def _parse_latency_block(block: dict) -> tuple[dict[SpanType, float], dict[SpanType, float]]:
+    """Parse a single latency profile block (default_variance + spans) into mean_ms and variance maps."""
     default_variance = float(block.get("default_variance", _DEFAULT_VARIANCE))
     spans = block.get("spans")
     if not isinstance(spans, dict):
         var_map = dict.fromkeys(_DEFAULT_MEAN_MS, default_variance)
         return (dict(_DEFAULT_MEAN_MS), var_map)
-
     mean_ms = dict(_DEFAULT_MEAN_MS)
     variance: dict[SpanType, float] = dict.fromkeys(_DEFAULT_MEAN_MS, default_variance)
-    for key, span_type in _KEY_TO_SPAN_TYPE.items():
-        entry = spans.get(key)
+    for span_key, span_type in _KEY_TO_SPAN_TYPE.items():
+        entry = spans.get(span_key)
         if isinstance(entry, dict):
             if "mean_ms" in entry and isinstance(entry["mean_ms"], (int, float)):
                 mean_ms[span_type] = float(entry["mean_ms"])
@@ -780,7 +793,37 @@ def _load_happy_path_latency() -> tuple[dict[SpanType, float], dict[SpanType, fl
     return (mean_ms, variance)
 
 
-_DEFAULT_LATENCY_MS, _DEFAULT_LATENCY_VARIANCE = _load_happy_path_latency()
+_LATENCY_PROFILE_CACHE: dict[str, tuple[dict[SpanType, float], dict[SpanType, float]]] = {}
+
+
+def _get_latency_for_profile(
+    profile_name: str,
+) -> tuple[dict[SpanType, float], dict[SpanType, float]]:
+    """
+    Return (mean_ms, variance) for the given latency profile.
+    All profiles (happy_path, higher_latency, etc.) are read from config latency_profiles.<name>.
+    """
+    key = (profile_name or "happy_path").strip().lower()
+    if key in _LATENCY_PROFILE_CACHE:
+        return _LATENCY_PROFILE_CACHE[key]
+    data = load_yaml(CONFIG_PATH)
+    profiles = data.get("latency_profiles") if isinstance(data, dict) else None
+    if not isinstance(profiles, dict) or key not in profiles:
+        result = _fallback_latency()
+        _LATENCY_PROFILE_CACHE[key] = result
+        return result
+    block = profiles.get(key)
+    if not isinstance(block, dict):
+        result = _fallback_latency()
+        _LATENCY_PROFILE_CACHE[key] = result
+        return result
+    result = _parse_latency_block(block)
+    _LATENCY_PROFILE_CACHE[key] = result
+    return result
+
+
+# Used by code that needs a default (e.g. fallback span config); same as happy_path profile.
+_DEFAULT_LATENCY_MS, _DEFAULT_LATENCY_VARIANCE = _get_latency_for_profile("happy_path")
 
 
 def _load_tools_recommend_config() -> dict[str, Any]:
@@ -901,10 +944,13 @@ def _apply_realistic_scenario_if_needed(scenario: "Scenario", hierarchy: TraceHi
     )
 
 
-def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
+def _hierarchy_from_context(
+    context: ScenarioContext,
+    latency_profile: str = "happy_path",
+) -> TraceHierarchy:
     """
     Build trace hierarchy from context.correct_flow.steps (or context.actual_steps for partial_workflow).
-    The generator knows the correct path from context; no YAML structure required.
+    Latency comes from config latency profile (happy_path | higher_latency) — no post-hoc modifier.
     """
     steps = None
     if getattr(context, "actual_steps", None):
@@ -916,10 +962,12 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             "context.correct_flow.steps or context.actual_steps required to build hierarchy from context"
         )
 
+    mean_ms, variance = _get_latency_for_profile(latency_profile or "happy_path")
+
     root_config = SpanConfig(
         span_type=SpanType.A2A_ORCHESTRATE,
-        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.A2A_ORCHESTRATE],
-        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.A2A_ORCHESTRATE],
+        latency_mean_ms=mean_ms[SpanType.A2A_ORCHESTRATE],
+        latency_variance=variance[SpanType.A2A_ORCHESTRATE],
         error_rate=0.0,
         attribute_overrides={config_attr("a2a.outcome"): "success"},
     )
@@ -941,8 +989,8 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 TraceHierarchy(
                     root_config=SpanConfig(
                         span_type=SpanType.PLANNER,
-                        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.PLANNER],
-                        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.PLANNER],
+                        latency_mean_ms=mean_ms[SpanType.PLANNER],
+                        latency_variance=variance[SpanType.PLANNER],
                         error_rate=0.0,
                         attribute_overrides={config_attr("step.outcome"): "success"},
                     ),
@@ -955,8 +1003,8 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 TraceHierarchy(
                     root_config=SpanConfig(
                         span_type=SpanType.RESPONSE_COMPOSE,
-                        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.RESPONSE_COMPOSE],
-                        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.RESPONSE_COMPOSE],
+                        latency_mean_ms=mean_ms[SpanType.RESPONSE_COMPOSE],
+                        latency_variance=variance[SpanType.RESPONSE_COMPOSE],
                         error_rate=0.0,
                         attribute_overrides={
                             config_attr("response.format"): "a2a_json",
@@ -980,8 +1028,8 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             llm_call_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.LLM_CALL,
-                    latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.LLM_CALL],
-                    latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.LLM_CALL],
+                    latency_mean_ms=mean_ms[SpanType.LLM_CALL],
+                    latency_variance=variance[SpanType.LLM_CALL],
                     error_rate=0.0,
                     attribute_overrides=llm_overrides,
                 ),
@@ -991,8 +1039,8 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 TraceHierarchy(
                     root_config=SpanConfig(
                         span_type=SpanType.TASK_EXECUTE,
-                        latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
-                        latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.TASK_EXECUTE],
+                        latency_mean_ms=mean_ms[SpanType.TASK_EXECUTE],
+                        latency_variance=variance[SpanType.TASK_EXECUTE],
                         error_rate=0.0,
                         attribute_overrides=task_overrides,
                     ),
@@ -1005,8 +1053,8 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             tools_recommend_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.TOOLS_RECOMMEND,
-                    latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TOOLS_RECOMMEND],
-                    latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.TOOLS_RECOMMEND],
+                    latency_mean_ms=mean_ms[SpanType.TOOLS_RECOMMEND],
+                    latency_variance=variance[SpanType.TOOLS_RECOMMEND],
                     error_rate=0.0,
                     attribute_overrides={},
                 ),
@@ -1014,8 +1062,8 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
             )
             task_config = SpanConfig(
                 span_type=SpanType.TASK_EXECUTE,
-                latency_mean_ms=_DEFAULT_LATENCY_MS[SpanType.TASK_EXECUTE],
-                latency_variance=_DEFAULT_LATENCY_VARIANCE[SpanType.TASK_EXECUTE],
+                latency_mean_ms=mean_ms[SpanType.TASK_EXECUTE],
+                latency_variance=variance[SpanType.TASK_EXECUTE],
                 error_rate=0.0,
                 attribute_overrides={
                     config_attr("step.outcome"): "success",
@@ -1034,8 +1082,8 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 if context.mcp_retry_attempts
                 else [{"outcome": "success"}]
             )
-            default_latency = _DEFAULT_LATENCY_MS[SpanType.MCP_TOOL_EXECUTE]
-            variance = _DEFAULT_LATENCY_VARIANCE[SpanType.MCP_TOOL_EXECUTE]
+            default_latency = mean_ms[SpanType.MCP_TOOL_EXECUTE]
+            mcp_variance = variance[SpanType.MCP_TOOL_EXECUTE]
             any_success = any(
                 (a.get("outcome") or "success").strip().lower() == "success" for a in attempts_spec
             )
@@ -1049,6 +1097,11 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 config_attr("retry.count"): retry_count,
                 config_attr("retry.policy"): retry_policy,
             }
+            if getattr(context, "tool_call_arguments", None) and step in context.tool_call_arguments:
+                args = context.tool_call_arguments[step]
+                parent_overrides["gen_ai.tool.call.arguments"] = (
+                    json.dumps(args) if isinstance(args, dict) else str(args)
+                )
             if not any_success and attempts_spec:
                 last_att = attempts_spec[-1]
                 last_err = (
@@ -1107,7 +1160,7 @@ def _hierarchy_from_context(context: ScenarioContext) -> TraceHierarchy:
                 attempt_config = SpanConfig(
                     span_type=SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
                     latency_mean_ms=latency,
-                    latency_variance=variance,
+                    latency_variance=mcp_variance,
                     error_rate=0.0 if outcome == "success" else 1.0,
                     attribute_overrides=att_overrides,
                 )
@@ -1283,18 +1336,32 @@ def _apply_context_to_hierarchy(
             if tool:
                 overrides["gen_ai.tool.name"] = tool.name
                 overrides[config_attr("mcp.tool.uuid")] = tool.uuid
+                if context.tool_call_arguments and tool.name in context.tool_call_arguments:
+                    args = context.tool_call_arguments[tool.name]
+                    overrides["gen_ai.tool.call.arguments"] = (
+                        json.dumps(args) if isinstance(args, dict) else str(args)
+                    )
             mcp_index[0] += 1
             cfg.attribute_overrides = overrides
             for attempt_child in h.children:
                 attempt_cfg = attempt_child.root_config
                 attempt_overrides = dict(attempt_cfg.attribute_overrides or {})
                 attempt_overrides[config_attr("mcp.tool.call.id")] = call_id
+                # Propagate MCP server/tool semantics to attempt spans for consistent context.
+                if server_uuid:
+                    attempt_overrides[config_attr("mcp.server.uuid")] = server_uuid
+                if overrides.get(config_attr("mcp.tool.uuid")):
+                    attempt_overrides[config_attr("mcp.tool.uuid")] = overrides[
+                        config_attr("mcp.tool.uuid")
+                    ]
+                if overrides.get("gen_ai.tool.name"):
+                    attempt_overrides["gen_ai.tool.name"] = overrides["gen_ai.tool.name"]
                 # Parent step.outcome=success and single attempt: ensure attempt outcome is success.
                 if len(h.children) == 1 and overrides.get(config_attr("step.outcome")) == "success":
                     attempt_overrides[config_attr("mcp.attempt.outcome")] = "success"
                 attempt_cfg.attribute_overrides = attempt_overrides
         elif cfg.span_type == SpanType.TOOLS_RECOMMEND:
-            # All tools.recommend attributes from config (MCP tools list, happy_path_latency, tools_recommend section).
+            # All tools.recommend attributes from config (MCP tools list, latency_profiles, tools_recommend section).
             overrides = dict(cfg.attribute_overrides or {})
             primary_tool_name = (tool_step_names[0] if tool_step_names else "") or (
                 tools_by_index[0].name if tools_by_index else ""
@@ -1523,6 +1590,20 @@ class ScenarioLoader:
             simulation_goal = None
         if simulation_goal is None and simulation_goal_from_dp is not None:
             simulation_goal = simulation_goal_from_dp
+        # Latency profile: from data_plane.latency_profile or derived from simulation_goal (higher_latency -> higher_latency profile).
+        latency_profile = "happy_path"
+        dp = data.get("data_plane")
+        if isinstance(dp, dict):
+            lp = dp.get("latency_profile")
+            if isinstance(lp, str) and lp.strip():
+                latency_profile = lp.strip().lower()
+        if latency_profile == "happy_path" and (simulation_goal or "").strip().lower() == "higher_latency":
+            latency_profile = "higher_latency"
+        higher_latency_condition: dict[str, Any] | None = None
+        if isinstance(dp, dict):
+            hlc = dp.get("higher_latency_condition")
+            if isinstance(hlc, dict) and hlc:
+                higher_latency_condition = dict(hlc)
         mcp_server = data.get("mcp_server")
         if mcp_server is not None and not isinstance(mcp_server, str):
             mcp_server = None
@@ -1652,6 +1733,7 @@ class ScenarioLoader:
                             conversation_samples_list.append(sample_dict)
                     if conversation_samples_list:
                         conversation_samples = conversation_samples_list
+        cycle_conversation_samples = bool(data.get("cycle_conversation_samples", False))
 
         realistic_overrides_raw = data.get("realistic_overrides")
         realistic_overrides: dict[str, Any] = {}
@@ -1752,6 +1834,8 @@ class ScenarioLoader:
             context=scenario_context,
             id_generator=self.get_id_generator(),
             simulation_goal=simulation_goal,
+            latency_profile=latency_profile,
+            higher_latency_condition=higher_latency_condition,
             mcp_server=mcp_server,
             expected_mcp_server=expected_mcp_server,
             expected_tools=expected_tools or None,
@@ -1759,6 +1843,7 @@ class ScenarioLoader:
             conversation_turn_pairs=conversation_turn_pairs,
             conversation_turn_pairs_redacted=conversation_turn_pairs_redacted,
             conversation_samples=conversation_samples,
+            cycle_conversation_samples=cycle_conversation_samples,
             redaction_applied=redaction_applied or "none",
             realistic_overrides=realistic_overrides or None,
             control_plane_request_outcome=control_plane_request_outcome,

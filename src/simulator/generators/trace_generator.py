@@ -171,6 +171,53 @@ def _record_span_error(
         span.record_exception(exc)
 
 
+def _set_higher_latency_condition_attributes(
+    span: Any,
+    context: GenerationContext,
+    attr_fn: Any,
+) -> None:
+    """Set span attributes from context.higher_latency_condition so telemetry captures the condition."""
+    condition = getattr(context, "higher_latency_condition", None) if context else None
+    if not condition or not isinstance(condition, dict):
+        return
+    keys = list(condition.keys())
+    if not keys:
+        return
+    span.set_attribute(attr_fn("higher_latency.condition.keys"), ",".join(keys))
+    # Structured condition keys with known shape
+    if "peak_hours" in condition and isinstance(condition["peak_hours"], dict):
+        ph = condition["peak_hours"]
+        if isinstance(ph.get("timezone"), str):
+            span.set_attribute(attr_fn("higher_latency.peak_hours.timezone"), ph["timezone"])
+        if isinstance(ph.get("start_hour"), (int, float)):
+            span.set_attribute(attr_fn("higher_latency.peak_hours.start_hour"), int(ph["start_hour"]))
+        if isinstance(ph.get("end_hour"), (int, float)):
+            span.set_attribute(attr_fn("higher_latency.peak_hours.end_hour"), int(ph["end_hour"]))
+        if isinstance(ph.get("weekdays"), list):
+            span.set_attribute(
+                attr_fn("higher_latency.peak_hours.weekdays"), json.dumps(ph["weekdays"])
+            )
+    if "post_long_weekend" in condition and isinstance(condition["post_long_weekend"], dict):
+        plw = condition["post_long_weekend"]
+        if isinstance(plw.get("days_after"), (int, float)):
+            span.set_attribute(
+                attr_fn("higher_latency.post_long_weekend.days_after"), int(plw["days_after"])
+            )
+    # Arbitrary key-value conditions (claim_status_output, zip_code, etc.)
+    for key in keys:
+        if key in ("peak_hours", "post_long_weekend"):
+            continue
+        val = condition[key]
+        if val is None:
+            continue
+        safe_key = key.replace(".", "_").replace(" ", "_").lower()
+        attr_name = attr_fn(f"higher_latency.condition.{safe_key}")
+        if isinstance(val, (str, int, float, bool)):
+            span.set_attribute(attr_name, str(val) if not isinstance(val, bool) else val)
+        else:
+            span.set_attribute(attr_name, json.dumps(val))
+
+
 SPAN_KIND_MAP = {
     SpanType.A2A_ORCHESTRATE: SpanKind.SERVER,
     SpanType.PLANNER: SpanKind.INTERNAL,
@@ -401,6 +448,25 @@ class SpanBuilder:
             attrs.pop("error.type", None)
             attrs.pop(config_attr("error.type"), None)
             attrs.pop(config_attr("error.category"), None)
+        # When mcp.tool.execute has retry.count 0 there is only one attempt (index 1); do not set retry.reason.
+        # retry.reason is only for retries (attempt index > 1).
+        if span_type == SpanType.MCP_TOOL_EXECUTE_ATTEMPT:
+            attempt_index = overrides.get(config_attr("mcp.attempt.index"))
+            if attempt_index == 1:
+                attrs.pop(config_attr("retry.reason"), None)
+        # Higher-latency condition is set only from context by _set_higher_latency_condition_attributes on root spans.
+        # Strip any schema-driven higher_latency.* attributes so generic scenarios don't get example values
+        # (e.g. claim_status_output) from the schema.
+        if span_type in (
+            SpanType.CP_REQUEST,
+            SpanType.REQUEST_VALIDATION,
+            SpanType.A2A_ORCHESTRATE,
+        ):
+            hlc = getattr(context, "higher_latency_condition", None)
+            if hlc is not None and isinstance(hlc, dict):
+                for key in list(attrs.keys()):
+                    if "higher_latency" in key:
+                        attrs.pop(key, None)
         return attrs
 
 
@@ -537,7 +603,7 @@ class TraceGenerator:
         if context is None:
             context = GenerationContext.create()
 
-        trace_id, _ = self._generate_span_recursive(hierarchy, context, None, None)
+        trace_id, _, _ = self._generate_span_recursive(hierarchy, context, None, None)
         return trace_id
 
     def generate_unified_request_trace(
@@ -555,11 +621,11 @@ class TraceGenerator:
         separate call, yielding a different trace_id; use the same context.session_id for
         all calls that belong to the same session.
         """
-        trace_id, span_id_req = self._generate_span_recursive(
+        trace_id, span_id_req, _ = self._generate_span_recursive(
             incoming_hierarchy, context, None, None
         )
         ctx_after_request = _context_from_trace_and_span(trace_id, span_id_req)
-        _, span_id_orchestrate = self._generate_span_recursive(
+        _, span_id_orchestrate, _ = self._generate_span_recursive(
             data_plane_hierarchy, context, None, ctx_after_request
         )
         # Small delay so response_validation root start_time is clearly after data_plane last span
@@ -576,8 +642,10 @@ class TraceGenerator:
         context: GenerationContext,
         parent_span: Any,
         parent_context: Any | None = None,
-    ) -> tuple[str, str]:
-        """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex)."""
+    ) -> tuple[str, str, int]:
+        """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns).
+        end_time_ns is the span's logical end timestamp so parents can ensure end >= last child end.
+        """
         config = hierarchy.root_config
         span_name = get_span_name(config.span_type)
         span_kind = SPAN_KIND_MAP.get(config.span_type, SpanKind.INTERNAL)
@@ -600,9 +668,41 @@ class TraceGenerator:
         }
         if parent_context is not None:
             kwargs["context"] = parent_context
-        with tracer.start_as_current_span(span_name, **kwargs) as span:
+        # end_on_exit=False so we can call span.end(end_time=...) once; avoids "Calling end() on an ended span" warning.
+        with tracer.start_as_current_span(span_name, **kwargs, end_on_exit=False) as span:
+            start_time_ns = time.time_ns()
             current_trace_id = format(span.get_span_context().trace_id, "032x")
             current_span_id = format(span.get_span_context().span_id, "016x")
+
+            # Record simulated latency/duration as span attribute so telemetry reflects config/modifier.
+            latency_attr_ms = round(latency_ms)
+            if config.span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
+                span.set_attribute(config_attr("tool.latency_ms"), latency_attr_ms)
+            elif config.span_type == SpanType.A2A_ORCHESTRATE:
+                span.set_attribute(config_attr("orchestration.duration_ms"), latency_attr_ms)
+            elif config.span_type == SpanType.LLM_CALL:
+                span.set_attribute(config_attr("llm.latency_ms"), latency_attr_ms)
+            elif config.span_type == SpanType.RAG_RETRIEVE:
+                span.set_attribute(config_attr("rag.latency_ms"), latency_attr_ms)
+            elif config.span_type == SpanType.A2A_CALL:
+                span.set_attribute(config_attr("a2a.latency_ms"), latency_attr_ms)
+            elif config.span_type == SpanType.CP_REQUEST:
+                span.set_attribute(config_attr("cp.request.duration_ms"), latency_attr_ms)
+            elif config.span_type == SpanType.TOOLS_RECOMMEND:
+                span.set_attribute(config_attr("mcp.selection.latency.ms"), latency_attr_ms)
+            elif config.span_type == SpanType.REQUEST_VALIDATION:
+                span.set_attribute(config_attr("request.validation.duration_ms"), latency_attr_ms)
+            elif config.span_type == SpanType.RESPONSE_VALIDATION:
+                span.set_attribute(config_attr("response.validation.duration_ms"), latency_attr_ms)
+            elif config.span_type in (
+                SpanType.PLANNER,
+                SpanType.TASK_EXECUTE,
+                SpanType.RESPONSE_COMPOSE,
+                SpanType.VALIDATION_PAYLOAD,
+                SpanType.VALIDATION_POLICY,
+                SpanType.AUGMENTATION,
+            ):
+                span.set_attribute(config_attr("span.duration_ms"), latency_attr_ms)
 
             # Incoming request at control-plane: trace_id is generated here and shared afterwards.
             if config.span_type == SpanType.CP_REQUEST:
@@ -612,6 +712,14 @@ class TraceGenerator:
                     "FLAGGED",
                 ]:
                     span.set_attribute(config_attr("cp.outgoing_trace_id"), current_trace_id)
+
+            # Capture higher_latency_condition on root spans for filtering/correlation.
+            if config.span_type in (
+                SpanType.CP_REQUEST,
+                SpanType.REQUEST_VALIDATION,
+                SpanType.A2A_ORCHESTRATE,
+            ):
+                _set_higher_latency_condition_attributes(span, context, config_attr)
 
             is_error = self.span_builder.should_error(config)
             tool_result = overrides.get(config_attr("tool.status.result"))
@@ -829,12 +937,23 @@ class TraceGenerator:
                     # Events are best-effort; failures here must not break trace generation.
                     pass
 
+            # Generate children and collect their logical end times so parent end >= last child end.
+            last_child_end_ns = start_time_ns
             for child_hierarchy in hierarchy.children:
-                self._generate_span_recursive(child_hierarchy, context, span, None)
+                _, _, child_end_ns = self._generate_span_recursive(
+                    child_hierarchy, context, span, None
+                )
+                last_child_end_ns = max(last_child_end_ns, child_end_ns)
+
+            # Set span end time so exported duration matches simulated latency (config + modifier).
+            # Parent end must be >= last child end so trace timestamps are logical (no child after parent).
+            span_end_from_latency_ns = start_time_ns + int(latency_ms * 1_000_000)
+            end_time_ns = max(span_end_from_latency_ns, last_child_end_ns)
+            span.end(end_time=end_time_ns)
 
             time.sleep(latency_ms / 1000.0 * 0.01)
 
-        return current_trace_id, current_span_id
+        return current_trace_id, current_span_id, end_time_ns
 
     def shutdown(self):
         """Shutdown all tracer providers. Flush all before any shutdown so OTLP

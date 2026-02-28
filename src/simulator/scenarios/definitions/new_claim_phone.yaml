@@ -11,8 +11,8 @@ tags:
   - data-plane
   - happy-path
 
-# Relative weight for mixed workload: happy path is most traffic in real world.
-workload_weight: 8.0
+# Relative weight for mixed workload: happy path (single-turn success) is bulk of traffic.
+workload_weight: 10.0
 
 mcp_server: phone
 repeat_count: 5
