@@ -1,0 +1,48 @@
+# Phone MCP context: new_claim tool with MCP retry (first attempt timeout, second success).
+# Demonstrates template-driven MCP retry per Gentoro spec: parent mcp.tool.execute with
+# attempt children, retry.count, retry.policy, retry.reason, step.outcome success.
+
+name: new_claim_phone_mcp_tool_retry_then_success
+description: >
+  new_claim tool on Phone MCP: first attempt times out (realistic latency from mcp_retry.latency_by_error_type),
+  second attempt succeeds. Uses data_plane.mcp_retry template retry_then_success.
+
+tags:
+  - data-plane
+  - mcp-retry
+  - retry-then-success
+
+# MCP retries (timeout then success) are a minority of tool calls.
+workload_weight: 0.8
+
+mcp_server: phone
+repeat_count: 3
+interval_ms: 150
+interval_deviation_ms: 30
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: new_claim
+  simulation_goal: happy_path
+  control_plane_template: allowed
+  # Template: first attempt fails with timeout (realistic latency from config), second succeeds.
+  mcp_retry: retry_then_success
+
+expected:
+  mcp_server: phone
+  tools:
+    - new_claim
+
+conversation:
+  samples:
+    - user_input: "I need to start a claim for my phone, it's broken."
+      llm_response: "I've started a claim for your phone (claim ID PH-8801). First attempt timed out; retry succeeded. Next slots: tomorrow 10am or 2pm."
+      user_input_redacted: "I need to start a claim for my phone, it's broken."
+      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). First attempt timed out; retry succeeded. Next slots: tomorrow 10am or 2pm."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

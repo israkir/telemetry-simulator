@@ -64,7 +64,6 @@ SEMCONV_ERROR_TYPE_VALUES = (
     "protocol_error",
 )
 SEMCONV_STEP_OUTCOME_VALUES = ("success", "fail", "skipped")
-SEMCONV_RESPONSE_FORMAT_VALUES = ("a2a_json", "a2a_stream")
 
 
 _CONFIG_PATH = Path(__file__).resolve().parent / "scenarios" / "config" / "config.yaml"

@@ -9,7 +9,10 @@ description: >
 
 tags:
   - control-plane
-  
+
+# Augmentation failure (invalid_context) is rare.
+workload_weight: 0.15
+
 mcp_server: phone
 repeat_count: 2
 interval_ms: 50

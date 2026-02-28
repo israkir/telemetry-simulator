@@ -1,6 +1,6 @@
 # Telemetry Data Trace: Schema and Examples
 
-This document describes the structure of telemetry trace data produced by the simulator: span schema, trace hierarchy, attribute semantics, and examples. When exporting to file (e.g. `otelsim run --output-file traces.jsonl`), each line is one span in JSON Lines format. The schema is aligned with the **Gentoro LLM Observability Semantic Conventions** in `src/simulator/scenarios/conventions/semconv.yaml` (schema version **1.0.0**).
+This document describes the structure of telemetry trace data produced by the simulator: span schema, trace hierarchy, attribute semantics, and examples. When exporting to file (e.g. `otelsim run --vendor=your_vendor --output-file traces.jsonl`), each line is one span in JSON Lines format. The schema is aligned with the **Gentoro LLM Observability Semantic Conventions** in `src/simulator/scenarios/conventions/semconv.yaml` (schema version **1.0.0**).
 
 **Vendor prefix:** Span and attribute names use the configurable vendor prefix (`VENDOR` env or `--vendor`, default `vendor`). The bundled config and semconv use the same structure; examples below use the `gentoro.*` prefix as in the convention. Replace with your prefix (e.g. `vendor.*`) when validating or querying.
 
@@ -132,7 +132,7 @@ Attributes are span-specific and aligned with semconv. **REQUIRED** = MUST be pr
 
 ### 4.1 Common / Session (multiple span types)
 
-In the simulator, **session and conversation IDs** are generated as follows: format templates are defined in `config/config.yaml` under `id_formats` (e.g. `session_id: "sess_toro_{hex:12}"`). The `ScenarioIdGenerator` produces a new value per logical request (per iteration in single-scenario run, per step in mixed workload). Multi-turn scenarios reuse the same session_id for all turns in one iteration. So: one session_id per logical session; different iterations/steps yield different sessions. See [Generating Telemetry – Trace, session, and conversation IDs](./generating-telemetry.md#trace-session-and-conversation-ids) for details.
+In the simulator, **all correlation IDs** (session, conversation, request, mcp_tool_call_id, enduser_pseudo_id) are generated from format templates in `config/config.yaml` under **id_formats** only; there are no fallbacks. When a scenario has `ScenarioIdGenerator`, it uses those formats; otherwise standalone generators read the same config. Multi-turn scenarios reuse the same session_id for all turns in one iteration. See [Generating Telemetry – Trace, session, and conversation IDs](./generating-telemetry.md#trace-session-and-conversation-ids) for details.
 
 | Attribute | Type | Semconv | Description |
 |-----------|------|---------|-------------|
@@ -147,12 +147,11 @@ In the simulator, **session and conversation IDs** are generated as follows: for
 | Attribute | Type | Semconv | Description |
 |-----------|------|---------|-------------|
 | `gentoro.span.class` | string | REQUIRED | Value: `a2a.orchestrate`. |
-| `gentoro.a2a.agent.target.id` | string | REQUIRED | Target agent identifier. |
+| `gentoro.a2a.agent.target.id` | string | REQUIRED | Target agent identifier (resolved from config: agent id or UUID per your config). |
 | `gentoro.a2a.outcome` | string | REQUIRED | Enum: `success` \| `partial` \| `error`. |
-| `gentoro.enduser.pseudo.id` | string | REQUIRED | Pseudonymized user ID. |
+| `gentoro.enduser.pseudo.id` | string | REQUIRED | Pseudonymized user ID (only on `gentoro.request.validation` and `gentoro.a2a.orchestrate`). |
 | `gentoro.session.id` | string | REQUIRED | Session ID. |
 | `gen_ai.conversation.id` | string | RECOMMENDED | Conversation ID. |
-| `enduser.id` | string | REQUIRED (common) | End-user ID (e.g. `usr_sha256:...`). |
 | `gentoro.tenant.id` | string | REQUIRED (common) | Tenant UUID. |
 | `gentoro.redaction.applied` | string | REQUIRED (common) | Enum: `none` \| `basic` \| `strict`. |
 
@@ -280,11 +279,10 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
   "attributes": {
     "gen_ai.conversation.id": "sess_toro_d862fb6b415b",
     "gentoro.session.id": "sess_toro_d862fb6b415b",
-    "enduser.id": "usr_sha256:024bf78e76b0e929",
     "gentoro.tenant.id": "9cafa427-504f-4bb7-a09f-ec1f5524facf",
     "gentoro.redaction.applied": "none",
     "gentoro.a2a.outcome": "success",
-    "gentoro.enduser.pseudo.id": "usr_sha256:024bf78e76b0e929",
+    "gentoro.enduser.pseudo.id": "user_9f3c2a",
     "gentoro.a2a.agent.target.id": "toro-customer-assistant-001"
   },
   "kind": "SERVER",
@@ -404,11 +402,10 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
     "gentoro.mcp.server.uuid": "11111111-1111-4eec-8001-000000000001",
     "gentoro.mcp.tool.uuid": "11111111-1111-4eec-8001-000000000011",
     "gentoro.mcp.tool.call.id": "mcp_call_082d8443825a",
-    "gentoro.retry.count": 2,
+    "gentoro.retry.count": 0,
     "gentoro.retry.policy": "none",
     "gen_ai.tool.name": "new_claim",
     "gen_ai.tool.call.id": "call_mszuSIzqtI65i1wAUOE8w5H4",
-    "error.type": "timeout",
     "gentoro.session.id": "sess_toro_d862fb6b415b",
     "gen_ai.conversation.id": "sess_toro_d862fb6b415b"
   },
@@ -427,11 +424,10 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
   "end_time": 1772195175441142000,
   "status": { "status_code": "OK", "description": null },
   "attributes": {
+    "gentoro.span.class": "mcp.tool.execute.attempt",
     "gentoro.mcp.tool.call.id": "mcp_call_082d8443825a",
     "gentoro.mcp.attempt.index": 1,
     "gentoro.mcp.attempt.outcome": "success",
-    "error.type": "invalid_arguments",
-    "gentoro.retry.reason": "rate_limited",
     "gentoro.session.id": "sess_toro_d862fb6b415b",
     "gen_ai.conversation.id": "sess_toro_d862fb6b415b"
   },
@@ -439,6 +435,8 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
   "resource": { "...": "..." }
 }
 ```
+
+(On failure, the attempt span would also include `error.type` and optionally `gentoro.retry.reason` on a subsequent attempt.)
 
 ### 5.5 Response compose
 
@@ -476,4 +474,4 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 
 ---
 
-This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect the normative conventions and representative simulator output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane shapes, see sample scenarios such as `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple validation error events on the payload span).
+This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect the normative conventions and representative simulator output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane and data-plane shapes, see sample scenarios such as `new_claim_phone` (data-plane happy path), `new_claim_phone_mcp_tool_retry_then_success` (MCP retry), `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple validation error events on the payload span).

@@ -1,15 +1,18 @@
 # Phone MCP context, happy path. Data-plane (workflow, simulation_goal, control_plane_template)
 # and expected MCP server/tools are defined here; config supplies key → UUID and workflow step names.
+# Each iteration uses a different session and a random conversation sample (simulating different users).
 
 name: new_claim_phone
 description: >
   Happy path for Phone mcp_server: planner → LLM task → tool recommendation → tool execution (new_claim) → response_compose.
+  Multiple conversation samples simulate different users; each iteration = one session, one random sample.
 
 tags:
   - data-plane
   - happy-path
 
-workload_weight: 5.0
+# Relative weight for mixed workload: happy path is most traffic in real world.
+workload_weight: 8.0
 
 mcp_server: phone
 repeat_count: 5
@@ -17,7 +20,7 @@ interval_ms: 100
 interval_deviation_ms: 50
 emit_metrics: false
 emit_logs: false
-redaction_applied: none
+redaction_applied: basic
 
 data_plane:
   workflow: new_claim
@@ -29,6 +32,71 @@ expected:
   mcp_server: phone
   tools:
     - new_claim
+
+# One random sample per iteration (different session per iteration = different user).
+# redaction_applied: basic — gen_ai.input.redacted / gen_ai.output.redacted use the defined redacted text below.
+conversation:
+  samples:
+    - user_input: "I dropped my phone, how do I start a claim?"
+      llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+      user_input_redacted: "I dropped my phone, how do I start a claim?"
+      llm_response_redacted: "I've started a claim for your phone (claim ID <CLAIM_ID>). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+    - user_input: "My phone screen is cracked. I need to make a claim."
+      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+      user_input_redacted: "My phone screen is cracked. I need to make a claim."
+      llm_response_redacted: "I've opened a claim for your phone (claim ID <CLAIM_ID>). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+    - user_input: "I lost my phone, can I start a claim?"
+      llm_response: "I've started a claim for your lost phone (PH-6601). Have you reported it to your network provider? I can then help with replacement options."
+      user_input_redacted: "I lost my phone, can I start a claim?"
+      llm_response_redacted: "I've started a claim for your lost phone (<CLAIM_ID>). Have you reported it to your network provider? I can then help with replacement options."
+    - user_input: "My phone fell in water and won't turn on."
+      llm_response: "I've created a claim for your phone (PH-5512). Water damage is covered under your plan. Next available assessment: Thursday 10am or Friday 2pm."
+      user_input_redacted: "My phone fell in water and won't turn on."
+      llm_response_redacted: "I've created a claim for your phone (<CLAIM_ID>). Water damage is covered under your plan. Next available assessment: Thursday 10am or Friday 2pm."
+    - user_input: "I need to file a claim for a cracked screen."
+      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+      user_input_redacted: "I need to file a claim for a cracked screen."
+      llm_response_redacted: "I've opened a claim for your phone (claim ID <CLAIM_ID>). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+    - user_input: "Start a claim for my phone. My address is 42 High Street and policy number is POL-8892."
+      llm_response: "I've started a claim for your phone at 42 High Street under policy POL-8892. Your claim ID is PH-9900; I'll now find appointment options for you."
+      user_input_redacted: "Start a claim for my phone. My address is <ADDRESS> and policy number is <POLICY_ID>."
+      llm_response_redacted: "I've started a claim for your phone at <ADDRESS> under policy <POLICY_ID>. Your claim ID is PH-9900; I'll now find appointment options for you."
+    - user_input: "My phone was stolen yesterday. How do I claim?"
+      llm_response: "I've started a claim for your stolen phone (PH-3304). Please report to police if you haven't already—we'll need the crime reference. I can then arrange replacement."
+      user_input_redacted: "My phone was stolen yesterday. How do I claim?"
+      llm_response_redacted: "I've started a claim for your stolen phone (<CLAIM_ID>). Please report to police if you haven't already—we'll need the crime reference. I can then arrange replacement."
+    - user_input: "The battery on my phone is swollen. Is that a claim?"
+      llm_response: "Yes. I've opened a claim for your phone (PH-4415). For safety, don't charge it. Next repair slot: Tuesday 9am or Wednesday 2pm."
+      user_input_redacted: "The battery on my phone is swollen. Is that a claim?"
+      llm_response_redacted: "Yes. I've opened a claim for your phone (<CLAIM_ID>). For safety, don't charge it. Next repair slot: Tuesday 9am or Wednesday 2pm."
+    - user_input: "Can I make a claim for my mobile? It's not charging."
+      llm_response: "I've started a claim for your phone (PH-2207). We'll get it assessed. Next slots: Monday 10am or Tuesday 3pm."
+      user_input_redacted: "Can I make a claim for my mobile? It's not charging."
+      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). We'll get it assessed. Next slots: Monday 10am or Tuesday 3pm."
+    - user_input: "I want to start a claim for my smartphone—screen is broken."
+      llm_response: "I've started a claim for your phone (PH-8833). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+      user_input_redacted: "I want to start a claim for my smartphone—screen is broken."
+      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+    - user_input: "My kid dropped my phone in the toilet. Claim?"
+      llm_response: "I've created a claim for your phone (PH-1198). Liquid damage is covered. Next assessment: Wednesday 11am or Thursday 2pm."
+      user_input_redacted: "My kid dropped my phone in the toilet. Claim?"
+      llm_response_redacted: "I've created a claim for your phone (<CLAIM_ID>). Liquid damage is covered. Next assessment: Wednesday 11am or Thursday 2pm."
+    - user_input: "Phone damaged at work—how do I claim?"
+      llm_response: "I've opened a claim for your phone (PH-6672). If it was work-related, your employer may have separate cover. Next repair: Friday 9am or Monday 2pm."
+      user_input_redacted: "Phone damaged at work—how do I claim?"
+      llm_response_redacted: "I've opened a claim for your phone (<CLAIM_ID>). If it was work-related, your employer may have separate cover. Next repair: Friday 9am or Monday 2pm."
+    - user_input: "New claim for my phone, date of loss 15 March 2024."
+      llm_response: "I've started a claim for your phone (PH-9921) with date of loss 15 March 2024. Next repair slots: Wednesday 9am or Friday 2pm. Which do you prefer?"
+      user_input_redacted: "New claim for my phone, date of loss <DATE>."
+      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>) with date of loss <DATE>. Next repair slots: Wednesday 9am or Friday 2pm. Which do you prefer?"
+    - user_input: "I need a claim for a broken phone display."
+      llm_response: "I've opened a claim for your phone (PH-5543). You can upload photos in the app. Next repair slots: Tuesday 10am or Thursday 2pm."
+      user_input_redacted: "I need a claim for a broken phone display."
+      llm_response_redacted: "I've opened a claim for your phone (<CLAIM_ID>). You can upload photos in the app. Next repair slots: Tuesday 10am or Thursday 2pm."
+    - user_input: "My mobile phone is not working after I dropped it. Start a claim."
+      llm_response: "I've started a claim for your phone (PH-7788). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+      user_input_redacted: "My mobile phone is not working after I dropped it. Start a claim."
+      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
 
 context:
   tenant: toro

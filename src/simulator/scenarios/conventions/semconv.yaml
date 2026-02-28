@@ -477,7 +477,8 @@ data_plane_a2a_observability:
 
   enums:
     gentoro.a2a.outcome: ["success", "partial", "error"]
-    gentoro.step.outcome: ["success", "fail", "skip"]
+    # Normative per MCP spec 4.1: success, fail, skipped (parent span step.outcome).
+    gentoro.step.outcome: ["success", "fail", "skipped"]
     gentoro.component: ["orchestrator", "planning", "retrieval", "llm", "mcp_client", "tool_recommender"]
     gentoro.rag.approach: ["vector", "keyword", "hybrid", "rerank"]
     gentoro.tools.recommended.source: ["static", "learned", "hybrid"]
@@ -556,7 +557,7 @@ control_plane_validation_model:
         kind: INTERNAL
         parent: gentoro.request.validation
         required: [gentoro.span.class, gentoro.step.outcome]
-        recommended: [gentoro.augment.conversation_id.action, gentoro.augment.enduser_id.action, gentoro.augment.target_agent_id.action]
+        recommended: [gentoro.augment.conversation_id.action, gentoro.augment.target_agent_id.action]
     request_outcome_rules:
       fully_allowed: "gentoro.request.outcome = allowed"
       allowed_but_flagged: "gentoro.request.outcome = allowed; gentoro.request.audit.flag = true"
@@ -1104,22 +1105,23 @@ mcp_tool_execution_model:
       gentoro.retry.backoff.ms: { type: int, description: "Backoff delay in ms before this attempt" }
       transport_semconv: { type: varies, description: "e.g. http.response.status_code, rpc.method (OTEL transport semconv)" }
 
+  # Enum tables normative per Gentoro MCP spec section 4 (step.outcome, mcp.attempt.outcome, retry.policy, retry.reason, error.type).
   enums:
     gentoro.step.outcome:
-      description: "Final outcome of logical tool call (parent span)"
+      description: "Final outcome of logical tool call (parent span). Spec 4.1."
       values:
         success: "Tool eventually succeeded"
         fail: "Tool failed after retries"
         skipped: "Tool intentionally not executed"
 
     gentoro.mcp.attempt.outcome:
-      description: "Outcome of this attempt (attempt span)"
+      description: "Outcome of this attempt (attempt span). Spec 4.2."
       values:
         success: "Attempt succeeded"
         fail: "Attempt failed"
 
     gentoro.retry.policy:
-      description: "Retry strategy used"
+      description: "Retry strategy used. Spec 4.3."
       values:
         none: "No retries"
         fixed: "Fixed delay"
@@ -1128,7 +1130,7 @@ mcp_tool_execution_model:
         circuit_breaker: "Controlled by CB state"
 
     gentoro.retry.reason:
-      description: "Retry trigger reason"
+      description: "Retry trigger reason. Spec 4.4."
       values:
         timeout: "Attempt timed out"
         unavailable: "Server/tool unavailable"
@@ -1137,7 +1139,7 @@ mcp_tool_execution_model:
         unknown: "Unclassified"
 
     error.type_suggested:
-      description: "Suggested low-cardinality error classifiers"
+      description: "Suggested low-cardinality error classifiers. Spec 4.5."
       values:
         timeout: "Call exceeded latency budget"
         unavailable: "Tool/server unreachable"
@@ -1161,7 +1163,6 @@ mcp_tool_execution_model:
 #   - trace_id and span_id are part of SpanContext, not attributes
 #   - Uses gen_ai.conversation.id (OTEL standard) for session tracking
 #   - gentoro.session.id is the canonical session (resource and span)
-#   - Uses enduser.id (OTEL standard) for user identification
 # =============================================================================
 # Common attributes apply to all spans unless applies_to is set (OTEL-style applicability).
 # applies_to: list of span name suffixes that carry this attribute. task.execute, llm.call, tools.recommend,
@@ -1183,15 +1184,6 @@ common_attributes:
     category: first_class
     description: "Session id for this request. A2A contextId when present in the request; otherwise CP-generated. Set on resource from request or Baggage; copy to span for query convenience. Same value across caller, CP, DP, MCP and dependencies. No extra client attributes required."
     examples: ["sess_a1b2c3d4", "conv_5j66UpCpwteGg4YSxUnt7lPY"]
-    applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
-
-  # OTEL standard: End user identifier
-  enduser.id:
-    type: string
-    required: true
-    category: first_class
-    description: "Hashed user identifier (no PII)"
-    examples: ["usr_sha256:a1b2c3..."]
     applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
 
   # Tenant context
@@ -1439,7 +1431,7 @@ a2a_orchestration_attributes:
 # -----------------------------------------------------------------------------
 # gentoro.planner (Planner stage, child of gentoro.a2a.orchestrate)
 # Per planner spec: intent → sub-tasks and extracted entities. Use counts/enums; no raw intent or entity values.
-# Correlation/context attributes (session, tenant, route, redaction, enduser) use applies_to in common_attributes and exclude planner and task.execute.
+# Correlation/context attributes (session, tenant, route, redaction) use applies_to in common_attributes and exclude planner and task.execute. enduser.pseudo.id only on request.validation and a2a.orchestrate.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -1493,6 +1485,13 @@ task_execute_attributes:
 # Child of gentoro.mcp.tool.execute. One span per attempt/retry.
 # -----------------------------------------------------------------------------
 mcp_tool_attempt_attributes:
+  gentoro.span.class:
+    type: string
+    required: true
+    category: first_class
+    description: "Span class. Value: mcp.tool.execute.attempt (MUST)."
+    allowed_values: ["mcp.tool.execute.attempt"]
+
   gentoro.mcp.tool.call.id:
     type: string
     required: true
@@ -1537,8 +1536,8 @@ mcp_tool_attributes:
     type: string
     required: true
     category: first_class
-    description: "Span class. MCP: 'mcp.tool.execute' | 'mcp.tool.execute.attempt'. Orchestration: 'a2a.orchestrate' | 'response.compose' | 'planner' | 'task.execute'. RAG: 'context.augment'. LLM: 'llm.call' | 'llm.tool.response.bridge'. Tool recommendation: 'tools.recommend'. Control-plane: 'request.validation' | 'validation.payload' | 'validation.policy' | 'augmentation' | 'response.validation'."
-    allowed_values: ["mcp.tool.execute", "mcp.tool.execute.attempt", "a2a.orchestrate", "response.compose", "planner", "task.execute", "context.augment", "llm.call", "llm.tool.response.bridge", "tools.recommend", "request.validation", "validation.payload", "validation.policy", "augmentation", "response.validation"]
+    description: "Span class. Value: mcp.tool.execute (MUST)."
+    allowed_values: ["mcp.tool.execute"]
 
   gentoro.step.outcome:
     type: string
@@ -2046,13 +2045,6 @@ cp_request_attributes:
     required: false
     category: first_class
     description: "Augmentation action for conversation ID (low-cardinality)."
-    allowed_values: ["created", "propagated", "attached", "missing"]
-
-  gentoro.augment.enduser_id.action:
-    type: string
-    required: false
-    category: first_class
-    description: "Augmentation action for end-user ID."
     allowed_values: ["created", "propagated", "attached", "missing"]
 
   gentoro.augment.target_agent_id.action:
