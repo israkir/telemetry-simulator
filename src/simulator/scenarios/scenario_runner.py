@@ -23,7 +23,12 @@ from ..generators.log_generator import LogGenerator
 from ..generators.metric_generator import MetricGenerator
 from ..generators.trace_generator import TraceGenerator, TraceHierarchy
 from ..schemas.attribute_generator import GenerationContext
-from .id_generator import ScenarioIdGenerator
+from .id_generator import (
+    ScenarioIdGenerator,
+    generate_enduser_pseudo_id,
+    generate_request_id,
+    generate_session_id,
+)
 from .scenario_loader import Scenario, ScenarioLoader
 
 
@@ -46,13 +51,18 @@ def _sample_to_otel_messages(user_input: str, llm_response: str) -> tuple[list[d
 
 def _get_conversation_from_config(
     workflow: str | None,
-) -> tuple[list[dict] | None, list[dict] | None]:
+) -> tuple[
+    list[dict] | None,
+    list[dict] | None,
+    list[dict] | None,
+    list[dict] | None,
+]:
     """
-    If workflow matches conversation_samples in config, return (input_messages, output_messages).
-    Falls back to "default" when workflow has no samples. Otherwise return (None, None).
+    If workflow matches conversation_samples in config, return (input_messages, output_messages, input_redacted, output_redacted).
+    Redacted pair is (None, None) when sample has no user_input_redacted/llm_response_redacted. Otherwise (None, None, None, None).
     """
     if not workflow or not isinstance(workflow, str):
-        return None, None
+        return None, None, None, None
     samples_by_workflow = _conversation_samples_from_config()
     for key in (workflow, "default"):
         workflow_samples = samples_by_workflow.get(key)
@@ -67,33 +77,65 @@ def _get_conversation_from_config(
         user_input = sample.get("user_input")
         llm_response = sample.get("llm_response")
         if isinstance(user_input, str) and isinstance(llm_response, str):
-            return _sample_to_otel_messages(user_input, llm_response)
-    return None, None
+            inp_msgs, out_msgs = _sample_to_otel_messages(user_input, llm_response)
+            ui_red = sample.get("user_input_redacted")
+            lr_red = sample.get("llm_response_redacted")
+            if isinstance(ui_red, str) and isinstance(lr_red, str):
+                inp_red, out_red = _sample_to_otel_messages(ui_red, lr_red)
+                return inp_msgs, out_msgs, inp_red, out_red
+            return inp_msgs, out_msgs, None, None
+    return None, None, None, None
 
 
 def _context_kwargs_for_scenario(scenario: Scenario, tenant_id: str) -> dict:
-    """Build kwargs for GenerationContext.create using scenario id_generator when set."""
+    """Build kwargs for GenerationContext.create. All correlation IDs from config id_formats (id_generator or standalone generators); no fallbacks."""
     kwargs: dict = {
         "tenant_id": tenant_id,
         "turn_index": 0,
         "redaction_applied": getattr(scenario, "redaction_applied", "none"),
+        "scenario_name": getattr(scenario, "name", None),
     }
     id_gen = getattr(scenario, "id_generator", None)
     if isinstance(id_gen, ScenarioIdGenerator):
         kwargs["session_id"] = id_gen.session_id(tenant_id=tenant_id)
         kwargs["request_id"] = id_gen.request_id(tenant_id=tenant_id)
+        kwargs["user_id"] = id_gen.enduser_pseudo_id(tenant_id=tenant_id)
+    else:
+        kwargs["session_id"] = generate_session_id(tenant_id=tenant_id)
+        kwargs["request_id"] = generate_request_id(tenant_id=tenant_id)
+        kwargs["user_id"] = generate_enduser_pseudo_id(tenant_id=tenant_id)
     # Per convention: one span per LLM call = one interaction (user input → LLM response).
     # When scenario has conversation_turn_pairs, the runner sets llm_* per turn (one trace per turn, same session_id).
-    # Otherwise use a single-turn sample from conversation_samples (workflow) so gen_ai.input/output are realistic.
+    # When scenario has conversation_samples, pick one at random per iteration (each iteration = different session).
+    # Otherwise use a single-turn sample from config conversation_samples (workflow).
     if getattr(scenario, "conversation_turn_pairs", None):
         pass  # runner sets llm_input_messages / llm_output_messages per turn
     else:
-        context = getattr(scenario, "context", None)
-        workflow = context.workflow if context else None
-        input_msgs, output_msgs = _get_conversation_from_config(workflow)
-        if input_msgs is not None and output_msgs is not None:
-            kwargs["llm_input_messages"] = input_msgs
-            kwargs["llm_output_messages"] = output_msgs
+        scenario_samples = getattr(scenario, "conversation_samples", None) or []
+        if scenario_samples:
+            sample = random.choice(scenario_samples)
+            user_input = sample.get("user_input")
+            llm_response = sample.get("llm_response")
+            if isinstance(user_input, str) and isinstance(llm_response, str):
+                input_msgs, output_msgs = _sample_to_otel_messages(user_input, llm_response)
+                kwargs["llm_input_messages"] = input_msgs
+                kwargs["llm_output_messages"] = output_msgs
+                ui_red = sample.get("user_input_redacted")
+                lr_red = sample.get("llm_response_redacted")
+                if isinstance(ui_red, str) and isinstance(lr_red, str):
+                    inp_red, out_red = _sample_to_otel_messages(ui_red, lr_red)
+                    kwargs["llm_input_messages_redacted"] = inp_red
+                    kwargs["llm_output_messages_redacted"] = out_red
+        else:
+            context = getattr(scenario, "context", None)
+            workflow = context.workflow if context else None
+            cfg_inp, cfg_out, cfg_inp_red, cfg_out_red = _get_conversation_from_config(workflow)
+            if cfg_inp is not None and cfg_out is not None:
+                kwargs["llm_input_messages"] = cfg_inp
+                kwargs["llm_output_messages"] = cfg_out
+                if cfg_inp_red is not None and cfg_out_red is not None:
+                    kwargs["llm_input_messages_redacted"] = cfg_inp_red
+                    kwargs["llm_output_messages_redacted"] = cfg_out_red
     return kwargs
 
 
@@ -291,9 +333,7 @@ class ScenarioRunner:
             tenant_id = random.choices(tenants, weights=weights)[0]
             ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id)
             # One session_id per logical session (iteration); all turns in this iteration share it.
-            session_id = (
-                ctx_kwargs.get("session_id") or GenerationContext.create(**ctx_kwargs).session_id
-            )
+            session_id = ctx_kwargs["session_id"]
             id_gen = getattr(scenario, "id_generator", None)
 
             # Control-plane and data-plane flow from config/template/scenario only (trace_flow).
@@ -304,13 +344,28 @@ class ScenarioRunner:
             if use_multi_turn:
                 # Multi-turn: each turn = one new request reaching control-plane (incoming).
                 # Different trace_id per turn; same session_id for the whole session.
+                turn_pairs_redacted = (
+                    getattr(scenario, "conversation_turn_pairs_redacted", None) or []
+                )
                 for turn_index, (input_msgs, output_msgs) in enumerate(turn_pairs):
                     ctx_kwargs["session_id"] = session_id
                     ctx_kwargs["turn_index"] = turn_index
                     ctx_kwargs["llm_input_messages"] = input_msgs
                     ctx_kwargs["llm_output_messages"] = output_msgs
+                    if (
+                        turn_index < len(turn_pairs_redacted)
+                        and turn_pairs_redacted[turn_index] is not None
+                    ):
+                        inp_red, out_red = turn_pairs_redacted[turn_index]
+                        ctx_kwargs["llm_input_messages_redacted"] = inp_red
+                        ctx_kwargs["llm_output_messages_redacted"] = out_red
+                    else:
+                        ctx_kwargs.pop("llm_input_messages_redacted", None)
+                        ctx_kwargs.pop("llm_output_messages_redacted", None)
                     if isinstance(id_gen, ScenarioIdGenerator):
                         ctx_kwargs["request_id"] = id_gen.request_id(tenant_id=tenant_id)
+                    else:
+                        ctx_kwargs["request_id"] = generate_request_id(tenant_id=tenant_id)
                     context = GenerationContext.create(**ctx_kwargs)
                     tids, names = self._emit_traces_for_request(
                         scenario, context, trace_flow, hierarchies, has_data_plane

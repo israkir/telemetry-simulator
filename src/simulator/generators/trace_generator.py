@@ -20,6 +20,7 @@ Example tree:
 
 import json
 import random
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -103,6 +104,13 @@ def get_span_name(span_type: SpanType) -> str:
     if span_type in _VENDOR_SPAN_SUFFIXES:
         return config_span_name(span_type.value)
     return span_type.value
+
+
+def _sanitize_scope_name(name: str) -> str:
+    """Sanitize scenario name for use in otel.scope.name (alphanumeric, underscore, dot, hyphen)."""
+    if not name or not isinstance(name, str):
+        return ""
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", name.strip())[:128]
 
 
 def _context_from_trace_and_span(trace_id_hex: str, span_id_hex: str) -> Any:
@@ -228,45 +236,41 @@ _ERROR_CATEGORY_BY_SPAN_TYPE: dict[SpanType, str] = {
     SpanType.CP_REQUEST: "validation",
 }
 
-# Convention-required attributes per vendor span type.
-# Compose span (response.compose): MUST have span.class, response.format, step.outcome per spec.
-CONVENTION_ATTRIBUTES = {
-    SpanType.A2A_ORCHESTRATE: {config_attr("span.class"): "a2a.orchestrate"},
-    SpanType.PLANNER: {config_attr("span.class"): "planner"},
-    SpanType.TASK_EXECUTE: {
-        config_attr("span.class"): "task.execute",
-        config_attr("step.outcome"): "success",
-    },
-    SpanType.LLM_CALL: {
-        config_attr("span.class"): "llm.call",
-        config_attr("step.outcome"): "success",
-    },
-    SpanType.TOOLS_RECOMMEND: {
-        config_attr("span.class"): "tools.recommend",
-        config_attr("step.outcome"): "success",
-    },
-    SpanType.MCP_TOOL_EXECUTE: {config_attr("span.class"): "mcp.tool.execute"},
-    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: {config_attr("span.class"): "mcp.tool.execute.attempt"},
-    SpanType.LLM_TOOL_RESPONSE_BRIDGE: {config_attr("span.class"): "llm.tool.response.bridge"},
-    SpanType.RESPONSE_COMPOSE: {
-        config_attr("span.class"): "response.compose",
-        config_attr("response.format"): "a2a_json",
-        config_attr("step.outcome"): "success",
-    },
-    # Control-plane: span.class set at runtime only (_CP_SPAN_CLASS_VALUES) so CLI --vendor is applied.
-    SpanType.VALIDATION_PAYLOAD: {},
-    SpanType.VALIDATION_POLICY: {},
-    SpanType.AUGMENTATION: {},
-    SpanType.REQUEST_VALIDATION: {},
-    SpanType.RESPONSE_VALIDATION: {},
-}
-# Control-plane span class values; key resolved at runtime via config_attr() so --vendor is applied.
-_CP_SPAN_CLASS_VALUES = {
+# Single source of truth: span type -> span.class value (prefix applied at runtime via config_attr).
+# All vendor-prefixed and control-plane spans that have a span class are listed here.
+SPAN_CLASS_BY_TYPE: dict[SpanType, str] = {
+    SpanType.A2A_ORCHESTRATE: "a2a.orchestrate",
+    SpanType.PLANNER: "planner",
+    SpanType.TASK_EXECUTE: "task.execute",
+    SpanType.LLM_CALL: "llm.call",
+    SpanType.TOOLS_RECOMMEND: "tools.recommend",
+    SpanType.MCP_TOOL_EXECUTE: "mcp.tool.execute",
+    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: "mcp.tool.execute.attempt",
+    SpanType.LLM_TOOL_RESPONSE_BRIDGE: "llm.tool.response.bridge",
+    SpanType.RESPONSE_COMPOSE: "response.compose",
     SpanType.REQUEST_VALIDATION: "request.validation",
     SpanType.RESPONSE_VALIDATION: "response.validation",
     SpanType.VALIDATION_PAYLOAD: "validation.payload",
     SpanType.VALIDATION_POLICY: "validation.policy",
     SpanType.AUGMENTATION: "augmentation",
+}
+
+# Convention attributes per span type (step.outcome, response.format, etc.). No span.class here.
+CONVENTION_ATTRIBUTES: dict[SpanType, dict[str, Any]] = {
+    SpanType.A2A_ORCHESTRATE: {},
+    SpanType.PLANNER: {},
+    SpanType.TASK_EXECUTE: {},
+    SpanType.LLM_CALL: {},
+    SpanType.TOOLS_RECOMMEND: {},  # step.outcome from hierarchy attribute_overrides (loader)
+    SpanType.MCP_TOOL_EXECUTE: {},
+    SpanType.MCP_TOOL_EXECUTE_ATTEMPT: {},
+    SpanType.LLM_TOOL_RESPONSE_BRIDGE: {},
+    SpanType.RESPONSE_COMPOSE: {},  # response.format, step.outcome from hierarchy attribute_overrides (loader)
+    SpanType.VALIDATION_PAYLOAD: {},
+    SpanType.VALIDATION_POLICY: {},
+    SpanType.AUGMENTATION: {},
+    SpanType.REQUEST_VALIDATION: {},
+    SpanType.RESPONSE_VALIDATION: {},
 }
 
 # Data-plane: resource attribute prefix.component per span type (semconv gentoro.component).
@@ -364,20 +368,21 @@ class SpanBuilder:
             overrides,
             trace_id=tid,
         )
-        # Ensure prefix.span.class and convention attributes are set for vendor spans.
+        # span.class from single source of truth (span type -> value); prefix applied here.
+        if span_type in SPAN_CLASS_BY_TYPE:
+            attrs[config_attr("span.class")] = SPAN_CLASS_BY_TYPE[span_type]
+        # Convention attributes (step.outcome, response.format, etc.).
         convention = CONVENTION_ATTRIBUTES.get(span_type)
         if convention:
             for k, v in convention.items():
                 attrs.setdefault(k, v)
-        # Control-plane: set span.class at runtime so CLI --vendor (prefix) is applied.
-        if span_type in _CP_SPAN_CLASS_VALUES:
-            attrs[config_attr("span.class")] = _CP_SPAN_CLASS_VALUES[span_type]
-        # Control-plane roots: ensure tenant id, request id, enduser pseudo id (configured prefix).
+        # vendor.request.validation: tenant id, request id, enduser pseudo id. vendor.response.validation: tenant id only (no enduser).
         if span_type in (SpanType.REQUEST_VALIDATION, SpanType.RESPONSE_VALIDATION):
             attrs[config_attr("tenant.id")] = context.tenant_id
         if span_type == SpanType.REQUEST_VALIDATION:
             attrs[config_attr("request.id")] = context.request_id
-            attrs[config_attr("enduser.pseudo.id")] = getattr(context, "user_id", None) or ""
+            attrs[config_attr("enduser.pseudo.id")] = context.user_id or ""
+        # vendor.a2a.orchestrate gets enduser.pseudo.id from schema (a2a_orchestrate_attributes)
         # vendor.a2a.orchestrate root: only root-level attrs (no response.format, no route).
         # vendor.response.compose: only compose attrs (no a2a.outcome, a2a.agent.target.id).
         if span_type == SpanType.A2A_ORCHESTRATE:
@@ -386,6 +391,16 @@ class SpanBuilder:
         elif span_type == SpanType.RESPONSE_COMPOSE:
             attrs.pop(config_attr("a2a.outcome"), None)
             attrs.pop(config_attr("a2a.agent.target.id"), None)
+        # When step.outcome or mcp.attempt.outcome is success, do not set error attributes (semantically correct).
+        step_outcome = overrides.get(config_attr("step.outcome"))
+        attempt_outcome = overrides.get(config_attr("mcp.attempt.outcome"))
+        success = (isinstance(step_outcome, str) and step_outcome.strip().lower() == "success") or (
+            isinstance(attempt_outcome, str) and attempt_outcome.strip().lower() == "success"
+        )
+        if success:
+            attrs.pop("error.type", None)
+            attrs.pop(config_attr("error.type"), None)
+            attrs.pop(config_attr("error.category"), None)
         return attrs
 
 
@@ -457,7 +472,9 @@ class TraceGenerator:
         self.attr_generator = AttributeGenerator(self.schema)
 
         tenant_id = get_default_tenant_ids()[0]
-        self._tracers: dict[str | None, Tracer] = {}
+        # Tracers keyed by (component, scenario_name_key); scope name = otelsim.{scenario_name} when set
+        self._tracers: dict[tuple[str | None, str], Tracer] = {}
+        self._provider_by_component: dict[str | None, TracerProvider] = {}
         self._providers: list[TracerProvider] = []
 
         def make_resource(component: str | None) -> Resource:
@@ -470,7 +487,7 @@ class TraceGenerator:
         num_providers = 1 + len(DATA_PLANE_COMPONENT_VALUES)
         ref_count: list[int] = [num_providers]
 
-        # Default provider/tracer for control-plane (no component override)
+        # Default provider for control-plane (no component override)
         default_provider = TracerProvider(resource=make_resource(None))
         if show_full_spans:
             default_provider.add_span_processor(_PrintSpanProcessor())  # type: ignore[arg-type]
@@ -478,24 +495,32 @@ class TraceGenerator:
             BatchSpanProcessor(_RefCountingSpanExporter(exporter, ref_count))
         )
         self._providers.append(default_provider)
-        self._tracers[None] = default_provider.get_tracer(__name__)
+        self._provider_by_component[None] = default_provider
+        self._tracers[(None, "")] = default_provider.get_tracer(__name__)
         trace.set_tracer_provider(default_provider)
 
-        # One provider/tracer per data-plane component so resource attr prefix.component is correct
+        # One provider per data-plane component so resource attr prefix.component is correct
         for comp in DATA_PLANE_COMPONENT_VALUES:
             prov = TracerProvider(resource=make_resource(comp))
             prov.add_span_processor(
                 BatchSpanProcessor(_RefCountingSpanExporter(exporter, ref_count))
             )
             self._providers.append(prov)
-            self._tracers[comp] = prov.get_tracer(__name__)
+            self._provider_by_component[comp] = prov
+            self._tracers[(comp, "")] = prov.get_tracer(__name__)
 
-        self.tracer = self._tracers[None]
+        self.tracer = self._tracers[(None, "")]
         self.span_builder = SpanBuilder(self.schema, self.attr_generator, self.tracer)
 
-    def _get_tracer(self, component: str | None) -> Tracer:
-        """Return tracer for the given data-plane component, or default for control-plane."""
-        return self._tracers.get(component, self._tracers[None])
+    def _get_tracer(self, component: str | None, scenario_name: str | None = None) -> Tracer:
+        """Return tracer for the given component and optional scenario; scope name = otelsim.{scenario_name} when set."""
+        scenario_key = _sanitize_scope_name(scenario_name) if scenario_name else ""
+        key = (component, scenario_key)
+        if key not in self._tracers:
+            provider = self._provider_by_component.get(component, self._provider_by_component[None])
+            scope_name = f"otelsim.{scenario_key}" if scenario_key else __name__
+            self._tracers[key] = provider.get_tracer(scope_name)
+        return self._tracers[key]
 
     def generate_trace(
         self,
@@ -537,6 +562,10 @@ class TraceGenerator:
         _, span_id_orchestrate = self._generate_span_recursive(
             data_plane_hierarchy, context, None, ctx_after_request
         )
+        # Small delay so response_validation root start_time is clearly after data_plane last span
+        # end_time. Avoids Jaeger "clock skew adjustment disabled; not applying calculated delta"
+        # when the backend sees response_validation timestamps as slightly before parent end.
+        time.sleep(0.05)
         ctx_after_orchestrate = _context_from_trace_and_span(trace_id, span_id_orchestrate)
         self._generate_span_recursive(outgoing_hierarchy, context, None, ctx_after_orchestrate)
         return trace_id
@@ -557,7 +586,8 @@ class TraceGenerator:
 
         overrides = config.attribute_overrides or {}
         component = _get_component_for_span_type(config.span_type)
-        tracer = self._get_tracer(component)
+        scenario_name = getattr(context, "scenario_name", None) if context else None
+        tracer = self._get_tracer(component, scenario_name)
         current_trace_id = ""
         current_span_id = ""
         kwargs: dict[str, Any] = {
@@ -585,6 +615,25 @@ class TraceGenerator:
 
             is_error = self.span_builder.should_error(config)
             tool_result = overrides.get(config_attr("tool.status.result"))
+            # When overrides set step.outcome=success or mcp.attempt.outcome=success, do not mark span as error.
+            step_outcome_override = overrides.get(config_attr("step.outcome"))
+            attempt_outcome_override = overrides.get(config_attr("mcp.attempt.outcome"))
+            override_success = (
+                isinstance(step_outcome_override, str)
+                and step_outcome_override.strip().lower() == "success"
+            ) or (
+                isinstance(attempt_outcome_override, str)
+                and attempt_outcome_override.strip().lower() == "success"
+            )
+            if override_success:
+                is_error = False
+            # Spec 5.2: logical call failure — parent MCP span MUST set status.code=ERROR when step.outcome=fail.
+            if (
+                config.span_type == SpanType.MCP_TOOL_EXECUTE
+                and isinstance(step_outcome_override, str)
+                and step_outcome_override.strip().lower() == "fail"
+            ):
+                is_error = True
             # a2a.orchestrate root: status.code UNSET on success/partial, ERROR on error
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 outcome = (overrides.get(config_attr("a2a.outcome")) or "success").lower()
@@ -619,8 +668,10 @@ class TraceGenerator:
                         exception_type=getattr(config, "exception_type", None),
                         exception_message=getattr(config, "exception_message", None),
                     )
-            elif config.span_type == SpanType.RESPONSE_COMPOSE and (
-                is_error or tool_result is False
+            elif (
+                config.span_type == SpanType.RESPONSE_COMPOSE
+                and (is_error or tool_result is False)
+                and not override_success
             ):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
@@ -631,7 +682,11 @@ class TraceGenerator:
                     exception_type=getattr(config, "exception_type", None),
                     exception_message=getattr(config, "exception_message", None),
                 )
-            elif config.span_type == SpanType.TASK_EXECUTE and (is_error or tool_result is False):
+            elif (
+                config.span_type == SpanType.TASK_EXECUTE
+                and (is_error or tool_result is False)
+                and not override_success
+            ):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
                     span,
@@ -640,8 +695,10 @@ class TraceGenerator:
                     exception_type=getattr(config, "exception_type", None),
                     exception_message=getattr(config, "exception_message", None),
                 )
-            elif config.span_type == SpanType.TOOLS_RECOMMEND and (
-                is_error or tool_result is False
+            elif (
+                config.span_type == SpanType.TOOLS_RECOMMEND
+                and (is_error or tool_result is False)
+                and not override_success
             ):
                 span.set_attribute(config_attr("step.outcome"), "fail")
                 _record_span_error(
@@ -679,7 +736,7 @@ class TraceGenerator:
                         attrs[config_attr("validation.error.code")] = str(ev["code"])
                     if attrs:
                         span.add_event(event_name, attrs)
-            elif is_error or tool_result is False:
+            elif (is_error or tool_result is False) and not override_success:
                 _record_span_error(
                     span,
                     config.span_type,

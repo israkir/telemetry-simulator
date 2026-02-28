@@ -20,6 +20,11 @@ from typing import Any
 from ..config import SEMCONV_STEP_OUTCOME_VALUES, schema_version_attr
 from ..config import attr as config_attr
 from ..defaults import get_default_tenant_ids
+from ..scenarios.id_generator import (
+    generate_enduser_pseudo_id,
+    generate_request_id,
+    generate_session_id,
+)
 from .schema_parser import AttributeDefinition, TelemetrySchema
 
 
@@ -34,12 +39,18 @@ class GenerationContext:
     environment: str = "development"
     user_id: str | None = None
     route: str | None = None
-    # Redaction level from scenario (e.g. none, basic, strict). Default none.
+    # Redaction level from scenario (e.g. none, basic, strict). Override per scenario via redaction_applied.
     redaction_applied: str = "none"
     # Optional: precomputed LLM messages for content capture (when scenario
-    # defines conversation.turns and we want consistent gen_ai.* attributes).
+    # defines conversation.turns/samples and we want consistent gen_ai.* attributes).
     llm_input_messages: Any | None = None
     llm_output_messages: Any | None = None
+    # Optional: precomputed redacted messages for gen_ai.input.redacted / gen_ai.output.redacted.
+    # When set (and redaction_applied != "none"), these are used instead of auto-redacting from llm_*_messages.
+    llm_input_messages_redacted: Any | None = None
+    llm_output_messages_redacted: Any | None = None
+    # Optional: scenario name that generated this trace; used for otel.scope.name (e.g. otelsim.new_claim_phone).
+    scenario_name: str | None = None
 
     @classmethod
     def create(
@@ -48,19 +59,21 @@ class GenerationContext:
         session_id: str | None = None,
         **kwargs,
     ) -> "GenerationContext":
-        """Create a generation context with defaults (tenant from config/config.yaml or 'test-tenant-001')."""
+        """Create a generation context. Correlation IDs (session_id, request_id, user_id) come from config id_formats when not passed; no fallbacks."""
         return cls(
             tenant_id=tenant_id or get_default_tenant_ids()[0],
-            session_id=session_id or f"sess_toro_{uuid.uuid4().hex[:12]}",
-            request_id=kwargs.get("request_id") or f"req_{uuid.uuid4().hex[:6]}",
+            session_id=session_id or generate_session_id(),
+            request_id=kwargs.get("request_id") or generate_request_id(),
             turn_index=kwargs.get("turn_index", 0),
             environment=kwargs.get("environment", "development"),
-            user_id=kwargs.get("user_id")
-            or f"usr_sha256:{hashlib.sha256(uuid.uuid4().bytes).hexdigest()[:16]}",
+            user_id=kwargs.get("user_id") or generate_enduser_pseudo_id(),
             route=kwargs.get("route"),
             redaction_applied=kwargs.get("redaction_applied", "none"),
             llm_input_messages=kwargs.get("llm_input_messages"),
             llm_output_messages=kwargs.get("llm_output_messages"),
+            llm_input_messages_redacted=kwargs.get("llm_input_messages_redacted"),
+            llm_output_messages_redacted=kwargs.get("llm_output_messages_redacted"),
+            scenario_name=kwargs.get("scenario_name"),
         )
 
 
@@ -297,8 +310,9 @@ class AttributeGenerator:
             return context.session_id
         if _attr_matches(name, "request.id"):
             return context.request_id
-        if _attr_matches(name, "enduser.id") or "enduser.pseudo.id" in name or "enduser.id" in name:
-            return context.user_id
+        # vendor.enduser.pseudo.id only (on request.validation and a2a.orchestrate). Always from config format.
+        if _attr_matches(name, "enduser.pseudo.id") or name.endswith("enduser.pseudo.id"):
+            return context.user_id if context.user_id else generate_enduser_pseudo_id()
         # deployment.environment.name is resource-level only; do not set on spans.
         if _attr_matches(name, "turn.index"):
             return context.turn_index
@@ -329,15 +343,27 @@ class AttributeGenerator:
                 else _sample_llm_output_messages()
             )
             return json.dumps(val) if isinstance(val, list) else val
-        # Redacted variants: same structure as input/output, but only PII/sensitive parts replaced with placeholders.
+        # Redacted variants: only when content redaction is enabled (redaction_applied != "none").
+        # When llm.content.redaction.enabled is false, do not include gen_ai.input.redacted / gen_ai.output.redacted.
+        # When scenario defines redacted text (llm_*_messages_redacted), use it; else auto-redact from messages.
         if "input.redacted" in name or name.endswith("gen_ai.input.redacted"):
-            if context.redaction_applied != "none" and context.llm_input_messages:
+            if context.redaction_applied == "none":
+                return None
+            if getattr(context, "llm_input_messages_redacted", None) is not None:
+                val = context.llm_input_messages_redacted
+                return json.dumps(val) if isinstance(val, list) else val
+            if context.llm_input_messages:
                 return json.dumps(
                     _redact_messages(context.llm_input_messages, context.redaction_applied)
                 )
             return json.dumps(_sample_llm_redacted("input"))
         if "output.redacted" in name or name.endswith("gen_ai.output.redacted"):
-            if context.redaction_applied != "none" and context.llm_output_messages:
+            if context.redaction_applied == "none":
+                return None
+            if getattr(context, "llm_output_messages_redacted", None) is not None:
+                val = context.llm_output_messages_redacted
+                return json.dumps(val) if isinstance(val, list) else val
+            if context.llm_output_messages:
                 return json.dumps(
                     _redact_messages(context.llm_output_messages, context.redaction_applied)
                 )

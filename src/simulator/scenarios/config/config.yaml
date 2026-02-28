@@ -18,20 +18,87 @@
 #     (planner, task, tools_recommend, new_claim/update_appointment/..., response_compose).
 #   - Code change needed only when: adding a new span type (e.g. new control-plane child or
 #     new data-plane step kind) or a new event/attribute kind not yet supported in code.
+#
+# id_formats: All correlation IDs are generated from these templates only (no fallbacks).
+# Required keys: session_id, conversation_id, request_id, mcp_tool_call_id, enduser_pseudo_id.
 
 id_formats:
   session_id: "sess_toro_{hex:12}"
   conversation_id: "sess_toro_{hex:12}"
   request_id: "req_{hex:6}"
   mcp_tool_call_id: "mcp_call_{hex:12}"
+  enduser_pseudo_id: "user_{hex:6}"
 
-happy_path_latencies_ms:
-  a2a_orchestrate: 1500.0
-  planner: 250.0
-  mcp_tool_execute: 150.0
-  response_compose: 60.0
+# Happy-path latency: mean + variance per span for realistic fluctuation.
+# Generator: latency = mean_ms * (1 + gauss(0, variance)). default_variance used when span or variance omitted.
+# Semantics and targets (meant to reflect real-world spread):
+#   a2a_orchestrate: full turn (planner + tasks + response); aggregate of children + overhead; high variance.
+#   planner: intent/plan step (small model or rules); typically 150–350 ms.
+#   task_execute: wrapper overhead for one task (routing, context); low mean, moderate variance.
+#   llm_call: inference; highly variable (model, queue, length) → higher variance.
+#   tools_recommend: tool/MCP selection (embedding or small model); can spike on cold path.
+#   mcp_tool_execute: external tool (API/DB); network and backend vary → higher variance.
+#   response_compose: format/finalize response; moderate, relatively stable.
+#   request_validation / response_validation: schema + policy gate; lightweight, some variance.
+#   validation_payload / validation_policy: per-phase checks; fast, slight variance.
+#   augmentation: context fetch / RAG; often 50–150 ms with high variance.
+happy_path_latency:
+  default_variance: 0.2
+  spans:
+    a2a_orchestrate: { mean_ms: 1500.0, variance: 0.2 }
+    planner: { mean_ms: 220.0, variance: 0.22 }
+    task_execute: { mean_ms: 75.0, variance: 0.18 }
+    llm_call: { mean_ms: 420.0, variance: 0.35 }
+    tools_recommend: { mean_ms: 52.0, variance: 0.28 }
+    mcp_tool_execute: { mean_ms: 160.0, variance: 0.32 }
+    response_compose: { mean_ms: 58.0, variance: 0.2 }
+    request_validation: { mean_ms: 36.0, variance: 0.25 }
+    response_validation: { mean_ms: 38.0, variance: 0.25 }
+    validation_payload: { mean_ms: 18.0, variance: 0.22 }
+    validation_policy: { mean_ms: 24.0, variance: 0.25 }
+    augmentation: { mean_ms: 85.0, variance: 0.35 }
 
-# Resource (schema_url, attributes) is loaded from config/resource.yaml.
+# -----------------------------------------------------------------------------
+# Tool recommendation (tools.recommend span) attributes. All values from config.
+# Semconv: mcp.tools.available.count (from MCP server tools list), mcp.selection.latency.ms
+# (from happy_path_latency.spans.tools_recommend), and the keys below.
+# -----------------------------------------------------------------------------
+tools_recommend:
+  step_outcome: "success"             # step.outcome on tools.recommend span (success | fail | skipped)
+  selection_strategy: "default"       # capability_match | semantic_match | policy_filtered | hybrid | default
+  selection_constraints: "none"        # policy | permissions | environment | latency_budget | none
+  tools_selected_count: 1             # number of tools selected (typically 1 per step)
+  selection_fallback_used: false      # whether fallback/default selection was used
+
+# -----------------------------------------------------------------------------
+# MCP retry templates. Scenario data_plane.mcp_retry can reference a template by name
+# or define attempts inline. Each attempt: outcome (success | failure), optional error_type,
+# optional latency_mean_ms. Template-driven retry replaces random error_rate for MCP attempts.
+# latency_by_error_type: when an attempt fails with that error_type and no latency_mean_ms
+# is set, use this latency (ms) for realism (e.g. timeout = call ran until timeout threshold).
+# -----------------------------------------------------------------------------
+mcp_retry:
+  retry_policy: "exponential"   # none | fixed | exponential | exponential_jitter | circuit_breaker (SHOULD on parent span)
+  latency_by_error_type:
+    timeout: 5000               # typical client timeout; failed attempt spans show this duration
+    unavailable: 1200           # upstream unreachable after some delay
+    tool_error: 180             # tool returned error after normal-ish latency
+    invalid_arguments: 50       # fast-fail validation
+    protocol_error: 100
+
+mcp_retry_templates:
+  happy_path:
+    attempts:
+      - outcome: success
+  retry_then_success:
+    attempts:
+      - outcome: failure
+        error_type: timeout   # uses mcp_retry.latency_by_error_type.timeout (5000 ms)
+      - outcome: success
+  all_fail:
+    attempts:
+      - outcome: failure
+        error_type: tool_error
 
 # -----------------------------------------------------------------------------
 # Tenants (by key). Scenarios reference context.tenant by key.
@@ -225,7 +292,6 @@ control_plane:
         step.outcome: pass
         augment.conversation_id.action: propagated
         augment.request_id.action: created
-        augment.enduser_id.action: missing
         augment.target_agent_id.action: attached
       error_rate:
         root: 0
@@ -253,7 +319,6 @@ control_plane:
         step.outcome: pass
         augment.conversation_id.action: propagated
         augment.request_id.action: created
-        augment.enduser_id.action: propagated
         augment.target_agent_id.action: attached
       error_rate:
         root: 0
@@ -290,7 +355,6 @@ control_plane:
         step.outcome: skip
         augment.conversation_id.action: missing
         augment.request_id.action: missing
-        augment.enduser_id.action: missing
         augment.target_agent_id.action: missing
       error_rate:
         root: 0
@@ -337,7 +401,6 @@ control_plane:
         step.outcome: skip
         augment.conversation_id.action: missing
         augment.request_id.action: missing
-        augment.enduser_id.action: missing
         augment.target_agent_id.action: missing
       error_rate:
         root: 0
@@ -369,7 +432,6 @@ control_plane:
         step.outcome: skip
         augment.conversation_id.action: missing
         augment.request_id.action: missing
-        augment.enduser_id.action: missing
         augment.target_agent_id.action: missing
       error_rate:
         root: 0
@@ -392,7 +454,6 @@ control_plane:
         step.outcome: fail
         augment.conversation_id.action: missing
         augment.request_id.action: missing
-        augment.enduser_id.action: missing
         augment.target_agent_id.action: missing
       error_rate:
         root: 0
@@ -417,7 +478,6 @@ control_plane:
         block.reason: not_found
         augment.conversation_id.action: propagated
         augment.request_id.action: created
-        augment.enduser_id.action: propagated
         augment.target_agent_id.action: missing
         exception:
           type: AugmentationBindError
@@ -442,7 +502,6 @@ control_plane:
         step.outcome: fail
         augment.conversation_id.action: missing
         augment.request_id.action: missing
-        augment.enduser_id.action: missing
         augment.target_agent_id.action: missing
       error_rate:
         root: 1
@@ -468,7 +527,6 @@ control_plane:
         step.outcome: skip
         augment.conversation_id.action: missing
         augment.request_id.action: missing
-        augment.enduser_id.action: missing
         augment.target_agent_id.action: missing
       error_rate:
         root: 1
@@ -490,13 +548,19 @@ control_plane:
         policy: 0
 
 # -----------------------------------------------------------------------------
-# Conversation samples (workflow -> samples for gen_ai.input/output when no turns)
+# Conversation samples (workflow -> samples for gen_ai.input/output when no turns).
+# Optional: user_input_redacted, llm_response_redacted for gen_ai.input.redacted / gen_ai.output.redacted when redaction_applied != none.
 # -----------------------------------------------------------------------------
 conversation_samples:
   new_claim:
     samples:
       - user_input: "I dropped my phone, how do I start a claim?"
         llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+      # With redaction_applied != none, optional redacted text is used for gen_ai.input.redacted / gen_ai.output.redacted:
+      - user_input: "Start a claim for my phone. My address is 42 High Street and policy number is POL-8892."
+        llm_response: "I've started a claim for your phone at 42 High Street under policy POL-8892. Your claim ID is PH-9900."
+        user_input_redacted: "Start a claim for my phone. My address is <ADDRESS> and policy number is <POLICY_ID>."
+        llm_response_redacted: "I've started a claim for your phone at <ADDRESS> under policy <POLICY_ID>. Your claim ID is PH-9900."
       - user_input: "My TV won't turn on. I want to make a claim."
         llm_response: "I've created a claim for your TV (EV-2291). What happened? I can then show you available repair slots."
       - user_input: "My dishwasher is leaking. Can someone come out?"

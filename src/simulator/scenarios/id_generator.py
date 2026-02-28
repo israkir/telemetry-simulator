@@ -56,12 +56,55 @@ def load_id_formats(config_path: Path | None = None) -> dict[str, str]:
     return result
 
 
+def _generate_id(
+    format_key: str, config_path: Path | None = None, tenant_id: str | None = None
+) -> str:
+    """Generate ID from config id_formats[format_key]. No fallback; raises if key missing."""
+    formats = load_id_formats(config_path)
+    template = formats.get(format_key)
+    if not template:
+        raise ConfigResolutionError(f"id_formats must define {format_key}")
+    return _expand_template(template, tenant_id=tenant_id)
+
+
+def generate_session_id(
+    config_path: Path | None = None,
+    tenant_id: str | None = None,
+) -> str:
+    """Generate session ID from config id_formats.session_id."""
+    return _generate_id("session_id", config_path=config_path, tenant_id=tenant_id)
+
+
+def generate_request_id(
+    config_path: Path | None = None,
+    tenant_id: str | None = None,
+) -> str:
+    """Generate request ID from config id_formats.request_id."""
+    return _generate_id("request_id", config_path=config_path, tenant_id=tenant_id)
+
+
+def generate_mcp_tool_call_id(
+    config_path: Path | None = None,
+    tenant_id: str | None = None,
+) -> str:
+    """Generate MCP tool call ID from config id_formats.mcp_tool_call_id."""
+    return _generate_id("mcp_tool_call_id", config_path=config_path, tenant_id=tenant_id)
+
+
+def generate_enduser_pseudo_id(
+    config_path: Path | None = None,
+    tenant_id: str | None = None,
+) -> str:
+    """Generate pseudonymous end-user ID from config id_formats.enduser_pseudo_id."""
+    return _generate_id("enduser_pseudo_id", config_path=config_path, tenant_id=tenant_id)
+
+
 class ScenarioIdGenerator:
     """
-    Generate IDs from shared format definitions.
+    Generate correlation IDs from config id_formats.
 
-    Use for session_id, request_id, conversation_id, mcp_tool_call_id
-    so all scenarios share the same ID shape from config/config.yaml.
+    Keys: session_id, conversation_id, request_id, mcp_tool_call_id, enduser_pseudo_id.
+    All IDs use the same templates from config/config.yaml; no fallbacks.
     """
 
     def __init__(self, config_path: Path | None = None):
@@ -92,3 +135,7 @@ class ScenarioIdGenerator:
 
     def mcp_tool_call_id(self, tenant_id: str | None = None) -> str:
         return self.generate("mcp_tool_call_id", tenant_id=tenant_id)
+
+    def enduser_pseudo_id(self, tenant_id: str | None = None) -> str:
+        """Pseudonymous end-user ID (non-PII) for vendor.enduser.pseudo.id."""
+        return self.generate("enduser_pseudo_id", tenant_id=tenant_id)
