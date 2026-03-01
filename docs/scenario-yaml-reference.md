@@ -4,11 +4,9 @@ This document describes how to define and extend scenarios with YAML. For config
 
 ## Sample definitions
 
-Scenarios are YAML files. The simulator bundles **sample definitions** in `resource/scenarios/definitions/`:
+Scenarios are YAML files. The simulator bundles **sample definitions** in `resource/scenarios/definitions/`. For the full list by category (happy path, multi-turn, retries, higher-latency, 4xx, agent-confusion, control-plane), see [resource/scenarios/definitions/README.md](../resource/scenarios/definitions/README.md).
 
-- **Data-plane**: `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, `generic_higher_latency_peak_hours.yaml`, `claim_status_phone_higher_latency.yaml`, `update_appointment_phone_higher_latency.yaml`, `new_claim_electronics_tool_4xx_invalid_params.yaml`, `claim_status_appliances_tool_4xx_invalid_params.yaml`
-- **Control-plane**: `request_blocked_by_policy.yaml`, `request_blocked_invalid_payload.yaml`, `request_blocked_rate_limited.yaml`, `request_blocked_invalid_payload_multi.yaml`, `request_allowed_audit_flagged.yaml`, `request_error_policy_runtime.yaml`, `request_blocked_policy_fail_closed.yaml`, `request_blocked_invalid_context_augment_exception.yaml`, `request_error_policy_unavailable.yaml`
-- **Reference**: `_EXAMPLE_SCENARIO_.yaml` documents all YAML options; it is excluded from `list` and mixed workload when using the built-in samples but can be run with `--name _EXAMPLE_SCENARIO_`.
+Representative samples: **Data-plane** — `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, `cancel_claim_appliances.yaml`, `*_higher_latency*.yaml`, `*_tool_4xx_invalid_params.yaml`, `agent_confusion_*.yaml`. **Control-plane** — `request_blocked_by_policy.yaml`, `request_blocked_invalid_payload.yaml`, `request_allowed_audit_flagged.yaml`, `request_error_policy_runtime.yaml`, etc. **Reference** — `_EXAMPLE_SCENARIO_.yaml` documents all YAML options; excluded from `list` and mixed workload but can be run with `--name _EXAMPLE_SCENARIO_`.
 
 You can run these as-is, add your own YAML in that folder, or use a **custom definitions folder** via `--scenarios-dir` (see [README – CLI Reference](../README.md#cli-reference)).
 

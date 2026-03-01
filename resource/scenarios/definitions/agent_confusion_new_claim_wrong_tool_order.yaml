@@ -1,0 +1,69 @@
+# Agent confusion: first tool called is not the first tool in expected sequence.
+# Expected new-claim flow: planner → task → tools_recommend → new_claim → response_compose
+# (new_claim is the only tool and is the correct first/only tool). Agent instead calls
+# update_appointment first, then new_claim. Simulated via goal: partial_workflow and
+# scenario_overrides.actual_steps with update_appointment before new_claim.
+# Cause: no context about sequence — agent invokes tools in wrong order.
+
+name: agent_confusion_new_claim_wrong_tool_order
+description: >
+  First tool not first in sequence: User wants to start a phone claim. Expected flow
+  is planner → task → tools_recommend → new_claim → response_compose. Agent has no
+  context about sequence and calls update_appointment first, then new_claim. Trace
+  shows two MCP tool executions in that order; response_compose is marked fail
+  (partial_workflow). Cause: no context about sequence — agent invokes tools in
+  wrong order.
+
+tags:
+  - data-plane
+  - agent-confusion
+  - partial-workflow
+  - wrong-order
+  - new-claim
+
+workload_weight: 0.6
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 100
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: new_claim
+  goal: partial_workflow
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+# Hierarchy built with update_appointment before new_claim so first MCP span is wrong tool.
+scenario_overrides:
+  actual_steps:
+    - planner
+    - task
+    - tools_recommend
+    - update_appointment
+    - new_claim
+    - response_compose
+  exception_type: "WrongToolOrderError"
+  exception_message: "First tool called was not the first in expected sequence; no context about workflow order."
+
+# Expected (correct) flow has only new_claim; emitted trace shows update_appointment then new_claim.
+expected:
+  mcp_server: phone
+  tools:
+    - new_claim
+
+conversation:
+  samples:
+    - user_input: "I need to start a claim for my phone."
+      llm_response: "I've checked your appointments and started a new claim (PH-8842). You can update the appointment in the next step."
+    - user_input: "My phone is damaged, I want to make a claim."
+      llm_response: "I looked up your existing appointment and created claim PH-7721. Would you like to reschedule?"
+    - user_input: "Start a claim for my cracked screen."
+      llm_response: "I've updated the appointment slot and opened claim PH-6601. Next available: Wednesday 9am or Friday 2pm."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

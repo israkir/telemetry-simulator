@@ -24,7 +24,7 @@ control_plane:
   template: error_policy_runtime
   policy_exception:
     type: PolicyEngineUnavailable
-    message: policy_engine_unavailable
+    message: "Policy engine unavailable; request outcome=error."
 
 context:
   tenant: toro

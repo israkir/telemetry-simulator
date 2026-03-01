@@ -1,0 +1,67 @@
+# Agent confusion: user intent is phone (cancel phone claim) but request is ambiguous.
+# Similar tool names (cancel_claim vs cancel_product) and same action wording across divisions;
+# agent selects electronics MCP instead of correct phone division → wrong mcp.server.uuid / mcp.tool.uuid.
+# Simulated via goal: wrong_division; trace built for phone cancel_claim then modifier swaps to electronics.
+
+name: agent_confusion_cancel_claim_phone_wrong_division_electronics
+description: >
+  Division confusion (cancel): User wants to cancel their phone claim. Ambiguous request
+  (e.g. "Cancel my claim", "I want to cancel") does not specify division; tool names
+  (cancel_claim, cancel_product) are similar across divisions. Agent incorrectly routes
+  to electronics MCP; trace shows electronics cancel_claim tool/server UUID (wrong_division
+  modifier). Cause: same input cluster → similar functionality from different divisions.
+
+tags:
+  - data-plane
+  - division-confusion
+  - wrong-division
+  - agent-confusion
+  - cancel-claim
+
+workload_weight: 0.7
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 100
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: cancel_claim
+  goal: wrong_division
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+scenario_overrides:
+  wrong_division_target: electronics
+  # Optional: exception event on the failed MCP attempt (wrong division → backend error).
+  exception_type: "WrongDivisionError"
+  exception_message: "Claim not found in this division; cancellation context is for another division."
+
+# Expected (correct) division and tool; emitted trace will show electronics due to modifier.
+expected:
+  mcp_server: phone
+  tools:
+    - cancel_claim
+
+# Ambiguous inputs: "cancel" could be claim or product, and division unspecified.
+conversation:
+  samples:
+    - user_input: "I want to cancel my claim."
+      llm_response: "I've cancelled the claim. You'll get a confirmation email shortly."
+    - user_input: "Cancel it please."
+      llm_response: "Done. The claim has been cancelled. Anything else?"
+    - user_input: "Can you cancel that for me?"
+      llm_response: "Cancelled. Confirmation will be sent to your email."
+    - user_input: "I don't need it anymore, cancel."
+      llm_response: "I've cancelled it. You won't receive further updates."
+    - user_input: "Stop the claim."
+      llm_response: "Claim has been cancelled. If you had an appointment, it's been released."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tool_call_arguments:
+    cancel_claim: { claim_id: "clm_abc123", reason: "customer_requested" }

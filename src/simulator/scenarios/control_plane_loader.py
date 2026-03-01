@@ -178,12 +178,15 @@ def build_request_validation_hierarchy_from_template(
     template_id: str,
     config_path: Path | None = None,
     policy_exception_override: dict[str, str] | None = None,
+    augmentation_exception_override: dict[str, str] | None = None,
 ) -> TraceHierarchy:
     """
     Build incoming request validation hierarchy from a config template.
     Template defines root, payload, policy, augmentation attributes and error_rates.
     If policy_exception_override is provided (e.g. from scenario control_plane.policy_exception),
     it overrides the template's policy exception (type, message) for the policy span.
+    If augmentation_exception_override is provided (e.g. from scenario control_plane.augmentation_exception),
+    it overrides the template's augmentation exception (type, message) for the augmentation span.
     """
     cp = _load_control_plane_config(config_path)
     templates = cp.get("request_validation_templates")
@@ -280,6 +283,11 @@ def build_request_validation_hierarchy_from_template(
         if isinstance(aug_exc, dict) and aug_exc.get("message")
         else None
     )
+    if augmentation_exception_override:
+        if augmentation_exception_override.get("type"):
+            aug_exc_type = str(augmentation_exception_override["type"])
+        if augmentation_exception_override.get("message"):
+            aug_exc_msg = str(augmentation_exception_override["message"])
     augment_cfg = SpanConfig(
         span_type=SpanType.AUGMENTATION,
         latency_mean_ms=float(augment_lat),

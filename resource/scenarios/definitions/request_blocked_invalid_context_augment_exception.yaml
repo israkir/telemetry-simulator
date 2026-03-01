@@ -23,6 +23,9 @@ redaction_applied: none
 # Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: blocked_invalid_context_augment_exception
+  augmentation_exception:
+    type: AugmentationBindError
+    message: "Context binding failed; augmentation unavailable."
 
 context:
   tenant: toro

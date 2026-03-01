@@ -255,7 +255,7 @@ class SchemaParser:
     """Parse OTEL semantic conventions from YAML."""
 
     def __init__(self, schema_path: Path | str | None = None):
-        """Initialize parser with schema path (argument, SEMCONV env, or default scenarios/conventions/semconv.yaml)."""
+        """Initialize parser with schema path (argument, SEMCONV env, or default resource/scenarios/conventions/semconv.yaml)."""
         if schema_path is not None:
             self.schema_path = Path(schema_path)
             return
@@ -268,7 +268,7 @@ class SchemaParser:
             return
         raise FileNotFoundError(
             "Schema path is required. Set SEMCONV or pass --semconv with the path to your semantic-conventions YAML, "
-            "or place it at scenarios/conventions/semconv.yaml (project root or TELEMETRY_SIMULATOR_ROOT)."
+            "or place it at resource/scenarios/conventions/semconv.yaml (under project root or TELEMETRY_SIMULATOR_ROOT)."
         )
 
     def parse(self) -> TelemetrySchema:

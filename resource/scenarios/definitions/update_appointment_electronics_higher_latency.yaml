@@ -12,7 +12,7 @@ tags:
   - scheduling
   - electronics
 
-workload_weight: 0.7
+workload_weight: 0.8
 
 mcp_server: electronics
 repeat_count: 3
