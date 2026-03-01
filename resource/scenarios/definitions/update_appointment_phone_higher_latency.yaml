@@ -12,7 +12,7 @@ tags:
   - scheduling
 
 # Higher-latency variants are a minority of data-plane traffic.
-workload_weight: 0.8
+workload_weight: 1.5
 
 mcp_server: phone
 repeat_count: 3

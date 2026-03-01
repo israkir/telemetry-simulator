@@ -911,6 +911,7 @@ _TASK_TYPE_BY_SPAN_TYPE: dict[SpanType, str] = {
 def _ensure_task_execute_parent(
     child_hier: TraceHierarchy,
     parent_span_type: SpanType | None,
+    latency_profile: str | None = None,
 ) -> TraceHierarchy:
     """
     Wrap hierarchy in task.execute when required by conventions.
@@ -932,6 +933,7 @@ def _ensure_task_execute_parent(
             config_attr("step.outcome"): "success",
             config_attr("task.type"): task_type,
         },
+        latency_profile=(latency_profile or "").strip().lower() or None,
     )
     return TraceHierarchy(root_config=task_config, children=[child_hier])
 
@@ -969,6 +971,7 @@ def _hierarchy_from_context(
             "context.correct_flow.steps or context.actual_steps required to build hierarchy from context"
         )
 
+    profile_val = (latency_profile or "happy_path").strip().lower()
     mean_ms, variance = _get_latency_for_profile(latency_profile or "happy_path")
 
     root_config = SpanConfig(
@@ -977,6 +980,7 @@ def _hierarchy_from_context(
         latency_variance=variance[SpanType.A2A_ORCHESTRATE],
         error_rate=0.0,
         attribute_overrides={config_attr("a2a.outcome"): "success"},
+        latency_profile=profile_val,
     )
     children: list[TraceHierarchy] = []
     steps = list(steps)
@@ -1000,6 +1004,7 @@ def _hierarchy_from_context(
                         latency_variance=variance[SpanType.PLANNER],
                         error_rate=0.0,
                         attribute_overrides={config_attr("step.outcome"): "success"},
+                        latency_profile=profile_val,
                     ),
                     children=[],
                 )
@@ -1017,6 +1022,7 @@ def _hierarchy_from_context(
                             config_attr("response.format"): "a2a_json",
                             config_attr("step.outcome"): "success",
                         },
+                        latency_profile=profile_val,
                     ),
                     children=[],
                 )
@@ -1039,6 +1045,7 @@ def _hierarchy_from_context(
                     latency_variance=variance[SpanType.LLM_CALL],
                     error_rate=0.0,
                     attribute_overrides=llm_overrides,
+                    latency_profile=profile_val,
                 ),
                 children=[],
             )
@@ -1050,6 +1057,7 @@ def _hierarchy_from_context(
                         latency_variance=variance[SpanType.TASK_EXECUTE],
                         error_rate=0.0,
                         attribute_overrides=task_overrides,
+                        latency_profile=profile_val,
                     ),
                     children=[llm_call_hierarchy],
                 )
@@ -1064,6 +1072,7 @@ def _hierarchy_from_context(
                     latency_variance=variance[SpanType.TOOLS_RECOMMEND],
                     error_rate=0.0,
                     attribute_overrides={},
+                    latency_profile=profile_val,
                 ),
                 children=[],
             )
@@ -1076,6 +1085,7 @@ def _hierarchy_from_context(
                     config_attr("step.outcome"): "success",
                     config_attr("task.type"): "tool_recommendation",
                 },
+                latency_profile=profile_val,
             )
             children.append(
                 TraceHierarchy(root_config=task_config, children=[tools_recommend_hierarchy])
@@ -1123,6 +1133,7 @@ def _hierarchy_from_context(
                 latency_variance=0.0,
                 error_rate=0.0 if any_success else 1.0,
                 attribute_overrides=parent_overrides,
+                latency_profile=profile_val,
             )
             attempt_children: list[TraceHierarchy] = []
             latency_by_error = _MCP_RETRY_CONFIG.get("latency_by_error_type") or {}
@@ -1171,10 +1182,13 @@ def _hierarchy_from_context(
                     latency_variance=mcp_variance,
                     error_rate=0.0 if outcome == "success" else 1.0,
                     attribute_overrides=att_overrides,
+                    latency_profile=profile_val,
                 )
                 attempt_children.append(TraceHierarchy(root_config=attempt_config, children=[]))
             mcp_hierarchy = TraceHierarchy(root_config=execute_config, children=attempt_children)
-            wrapped = _ensure_task_execute_parent(mcp_hierarchy, SpanType.A2A_ORCHESTRATE)
+            wrapped = _ensure_task_execute_parent(
+                mcp_hierarchy, SpanType.A2A_ORCHESTRATE, latency_profile=profile_val
+            )
             children.append(wrapped)
             i += 1
 

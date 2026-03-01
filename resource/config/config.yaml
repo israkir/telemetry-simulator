@@ -273,6 +273,22 @@ latency_profiles:
       validation_payload: { mean_ms: 18.0, variance: 0.22 }
       validation_policy: { mean_ms: 24.0, variance: 0.25 }
       augmentation: { mean_ms: 85.0, variance: 0.35 }
+  # Peak hours / post long weekend: higher than base higher_latency for realistic peak load.
+  higher_latency_peak:
+    default_variance: 0.22
+    spans:
+      a2a_orchestrate: { mean_ms: 3000.0, variance: 0.28 }
+      planner: { mean_ms: 280.0, variance: 0.22 }
+      task_execute: { mean_ms: 95.0, variance: 0.2 }
+      llm_call: { mean_ms: 520.0, variance: 0.35 }
+      tools_recommend: { mean_ms: 68.0, variance: 0.28 }
+      mcp_tool_execute: { mean_ms: 1100.0, variance: 0.4 }
+      response_compose: { mean_ms: 72.0, variance: 0.2 }
+      request_validation: { mean_ms: 36.0, variance: 0.25 }
+      response_validation: { mean_ms: 38.0, variance: 0.25 }
+      validation_payload: { mean_ms: 18.0, variance: 0.22 }
+      validation_policy: { mean_ms: 24.0, variance: 0.25 }
+      augmentation: { mean_ms: 85.0, variance: 0.35 }
 
 # -----------------------------------------------------------------------------
 # Control-plane (semconv-aligned). Add new templates here; no code change needed.

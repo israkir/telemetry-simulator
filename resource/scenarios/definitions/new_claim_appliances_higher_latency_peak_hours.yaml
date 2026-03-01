@@ -1,10 +1,10 @@
 # Higher latency during peak hours (weekdays 9–14 PT) or post long weekend.
-# Division: appliances. Same condition structure as generic_higher_latency_peak_hours.
+# Division: appliances. Same condition and latency profile as generic_higher_latency_peak_hours.
 
 name: new_claim_appliances_higher_latency_peak_hours
 description: >
   Tool calls have higher latency during peak hours (weekdays 9am–2pm PT) or post long weekends.
-  Appliances division (dishwasher, fridge, washer). Condition is defined in this file.
+  Appliances division. Latencies: higher_latency_peak (peak and reasonably high). Condition in this file.
 
 tags:
   - data-plane
@@ -12,7 +12,7 @@ tags:
   - peak-hours
   - appliances
 
-workload_weight: 0.8
+workload_weight: 1.2
 
 mcp_server: appliances
 repeat_count: 3
@@ -24,7 +24,7 @@ redaction_applied: none
 data_plane:
   workflow: new_claim
   goal: higher_latency
-  latency_profile: higher_latency
+  latency_profile: higher_latency_peak
   control_plane_template: allowed
   higher_latency_condition:
     peak_hours:

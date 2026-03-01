@@ -1,10 +1,11 @@
 # Higher latency during peak hours (weekdays 9–14 PT) or post long weekend.
-# Latencies: config latency_profiles.higher_latency. Condition (peak_hours, post_long_weekend) in this file.
+# Latencies: config latency_profiles.higher_latency_peak (peak and reasonably high for this context).
+# Condition (peak_hours, post_long_weekend) in this file.
 
 name: generic_higher_latency_peak_hours
 description: >
   Tool calls have higher latency during peak hours (weekdays 9am–2pm PT) or post long weekends.
-  Condition is defined in this file; no config edit needed.
+  Latencies use the higher_latency_peak profile (peak and reasonably high). Condition in this file.
 
 tags:
   - data-plane
@@ -12,7 +13,7 @@ tags:
   - peak-hours
 
 # Higher-latency variants are a minority of data-plane traffic.
-workload_weight: 0.8
+workload_weight: 2.0
 
 mcp_server: phone
 repeat_count: 3
@@ -24,7 +25,7 @@ redaction_applied: none
 data_plane:
   workflow: new_claim
   goal: higher_latency
-  latency_profile: higher_latency
+  latency_profile: higher_latency_peak
   control_plane_template: allowed
   higher_latency_condition:
     peak_hours:
