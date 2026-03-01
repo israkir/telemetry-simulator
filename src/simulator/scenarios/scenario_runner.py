@@ -466,7 +466,7 @@ class ScenarioRunner:
             raise ValueError(
                 f"No YAML scenarios found in {dir_path}. "
                 "Add at least one .yaml file there, or pass --scenarios-dir to use a custom folder. "
-                "Sample definitions live in scenarios/definitions/ (project root or TELEMETRY_SIMULATOR_ROOT)."
+                "Sample definitions live in resource/scenarios/definitions/ (under project root or TELEMETRY_SIMULATOR_ROOT)."
             )
 
         trace_ids: list[str] = []
