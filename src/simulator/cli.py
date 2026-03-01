@@ -324,7 +324,7 @@ def cmd_run(args: argparse.Namespace):
             scenarios_dir=getattr(args, "scenarios_dir", None),
         )
 
-        trace_ids = runner.run_mixed_workload(
+        trace_ids, traces_by_scenario = runner.run_mixed_workload(
             count=args.count,
             interval_ms=args.interval,
             progress_callback=progress_callback,
@@ -336,6 +336,11 @@ def cmd_run(args: argparse.Namespace):
 
         print()
         print(f"Generated {len(trace_ids)} traces")
+        if traces_by_scenario:
+            total_from_scenarios = sum(traces_by_scenario.values())
+            print(f"   Traces per scenario (total: {total_from_scenarios}):")
+            for name in sorted(traces_by_scenario.keys()):
+                print(f"      {name}: {traces_by_scenario[name]}")
         if (
             not (getattr(args, "show_spans", False) or getattr(args, "show_all_attributes", False))
             and trace_ids

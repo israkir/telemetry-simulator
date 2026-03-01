@@ -241,7 +241,7 @@ class AttributeGenerator:
         attr_defs = self.schema.get_span_attributes(span_name)
         if not attr_defs:
             base = {
-                "tenant.id": context.tenant_id,
+                config_attr("tenant.id"): context.tenant_id,
                 config_attr("session.id"): context.session_id,
                 "gen_ai.conversation.id": context.session_id,
                 config_attr("request.id"): context.request_id,
@@ -389,6 +389,11 @@ class AttributeGenerator:
         # SemConv-aligned: step.outcome use only allowed values from schema/conventions.
         if _attr_matches(name, "step.outcome"):
             return random.choice(SEMCONV_STEP_OUTCOME_VALUES)
+        # gen_ai.tool.name: never use schema examples (e.g. claims.getClaimStatus, slack.sendMessage).
+        # Tool names must come from config (scenario workflow + mcp_servers.<key>.tools); when no override
+        # is set, use a safe placeholder so traces only reflect config-driven tool set (new_claim, claim_status, update_appointment).
+        if name == "gen_ai.tool.name":
+            return "unknown_tool"
 
         if attr.examples:
             return random.choice(attr.examples)

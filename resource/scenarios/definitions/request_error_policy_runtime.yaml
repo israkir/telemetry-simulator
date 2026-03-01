@@ -1,6 +1,5 @@
-# Policy engine runtime exception → request outcome error.
-# Incoming request validation only: root outcome=error, payload pass, policy fail with exception event.
-# Uses config template error_policy_runtime (policy.exception.type/message in config).
+# Policy engine runtime exception → request outcome=error. Policy span status=ERROR with exception.
+# Template: config control_plane.request_validation_templates.error_policy_runtime.
 
 name: request_error_policy_runtime
 description: >
@@ -18,6 +17,7 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: error_policy_runtime
 

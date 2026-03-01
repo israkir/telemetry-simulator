@@ -1316,11 +1316,23 @@ def _apply_context_to_hierarchy(
     # Tool step names in workflow order (from config/template); used to set correct mcp.server.uuid / mcp.tool.uuid per span.
     tool_step_names = _tool_step_names_from_flow(context.correct_flow)
     tools_by_name = {t.name: t for t in tools_by_index}
+    # Single source for gen_ai.tool.name: resolve first tool from config (workflow step -> config tool name)
+    # so LLM, tools_recommend, and MCP spans all use the same tool name for the same workflow step.
+    first_step = tool_step_names[0] if tool_step_names else None
+    first_tool = (tools_by_name.get(first_step) if first_step else None) or (
+        tools_by_index[0] if tools_by_index else None
+    )
+    resolved_primary_tool_name = first_tool.name if first_tool else ""
     mcp_index = [0]
 
     def walk(h: TraceHierarchy) -> None:
         cfg = h.root_config
-        if cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
+        if cfg.span_type == SpanType.LLM_CALL:
+            if resolved_primary_tool_name:
+                overrides = dict(cfg.attribute_overrides or {})
+                overrides["gen_ai.tool.name"] = resolved_primary_tool_name
+                cfg.attribute_overrides = overrides
+        elif cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
             if id_generator:
                 call_id = id_generator.mcp_tool_call_id(tenant_id=context.tenant_uuid)
             else:
@@ -1363,12 +1375,10 @@ def _apply_context_to_hierarchy(
                 attempt_cfg.attribute_overrides = attempt_overrides
         elif cfg.span_type == SpanType.TOOLS_RECOMMEND:
             # All tools.recommend attributes from config (MCP tools list, latency_profiles, tools_recommend section).
+            # Use same resolved_primary_tool_name as LLM/MCP so gen_ai.tool.name is consistent across spans.
             overrides = dict(cfg.attribute_overrides or {})
-            primary_tool_name = (tool_step_names[0] if tool_step_names else "") or (
-                tools_by_index[0].name if tools_by_index else ""
-            )
-            if primary_tool_name:
-                overrides["gen_ai.tool.name"] = primary_tool_name
+            if resolved_primary_tool_name:
+                overrides["gen_ai.tool.name"] = resolved_primary_tool_name
             overrides[config_attr("mcp.tools.available.count")] = len(tools_by_index)
             overrides[config_attr("mcp.tools.selected.count")] = _TOOLS_RECOMMEND_CONFIG[
                 "tools_selected_count"
@@ -1563,7 +1573,15 @@ class ScenarioLoader:
             root_raw = root_raw[0]
         root_step = self._parse_step(root_raw if isinstance(root_raw, dict) else {})
 
-        scenario_context = _parse_and_resolve_context(data.get("context"), CONFIG_PATH)
+        # Resolve context; use scenario top-level mcp_server when context block omits it
+        # so control-plane scenarios (e.g. request_allowed_audit_flagged) get agents with MCP
+        # when trace_flow includes data_plane and default data-plane hierarchy is used.
+        context_data = data.get("context")
+        if isinstance(context_data, dict) and "mcp_server" not in context_data:
+            top_mcp = data.get("mcp_server")
+            if isinstance(top_mcp, str) and top_mcp.strip():
+                context_data = {**context_data, "mcp_server": top_mcp.strip()}
+        scenario_context = _parse_and_resolve_context(context_data, CONFIG_PATH)
         if scenario_context:
             tenant_dist = {scenario_context.tenant_uuid: 1.0}
         else:

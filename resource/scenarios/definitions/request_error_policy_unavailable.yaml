@@ -1,6 +1,5 @@
-# Policy engine runtime exception variant: same template as error_policy_runtime,
-# but override exception type/message in scenario (no config change).
-# Demonstrates: standard in config (template), variant in scenario (policy_exception override).
+# Policy engine unavailable: same template as error_policy_runtime, override via control_plane.policy_exception.
+# Template: config error_policy_runtime; scenario overrides policy exception type/message.
 
 name: request_error_policy_unavailable
 description: >
@@ -20,6 +19,7 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: error_policy_runtime
   policy_exception:

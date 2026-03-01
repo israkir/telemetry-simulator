@@ -450,6 +450,14 @@ class SpanBuilder:
             attrs.pop("error.type", None)
             attrs.pop(config_attr("error.type"), None)
             attrs.pop(config_attr("error.category"), None)
+        # task.execute: success implies no retries and no fallback used (semantic consistency).
+        if span_type == SpanType.TASK_EXECUTE:
+            step_outcome_val = attrs.get(config_attr("step.outcome")) or overrides.get(
+                config_attr("step.outcome")
+            )
+            if isinstance(step_outcome_val, str) and step_outcome_val.strip().lower() == "success":
+                attrs[config_attr("task.retry.count")] = 0
+                attrs[config_attr("task.fallback.used")] = False
         # When mcp.tool.execute has retry.count 0 there is only one attempt (index 1); do not set retry.reason.
         # retry.reason is only for retries (attempt index > 1).
         if span_type == SpanType.MCP_TOOL_EXECUTE_ATTEMPT:
@@ -605,7 +613,7 @@ class TraceGenerator:
         if context is None:
             context = GenerationContext.create()
 
-        trace_id, _, _ = self._generate_span_recursive(hierarchy, context, None, None)
+        trace_id, _, _, _ = self._generate_span_recursive(hierarchy, context, None, None)
         return trace_id
 
     def generate_unified_request_trace(
@@ -623,11 +631,11 @@ class TraceGenerator:
         separate call, yielding a different trace_id; use the same context.session_id for
         all calls that belong to the same session.
         """
-        trace_id, span_id_req, _ = self._generate_span_recursive(
+        trace_id, span_id_req, _, _ = self._generate_span_recursive(
             incoming_hierarchy, context, None, None
         )
         ctx_after_request = _context_from_trace_and_span(trace_id, span_id_req)
-        _, span_id_orchestrate, _ = self._generate_span_recursive(
+        _, span_id_orchestrate, _, _ = self._generate_span_recursive(
             data_plane_hierarchy, context, None, ctx_after_request
         )
         # Small delay so response_validation root start_time is clearly after data_plane last span
@@ -644,9 +652,10 @@ class TraceGenerator:
         context: GenerationContext,
         parent_span: Any,
         parent_context: Any | None = None,
-    ) -> tuple[str, str, int]:
-        """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns).
+    ) -> tuple[str, str, int, float]:
+        """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns, tool_latency_ms).
         end_time_ns is the span's logical end timestamp so parents can ensure end >= last child end.
+        tool_latency_ms is the gentoro.tool.latency_ms value for this span (non-zero only for MCP tool execute/attempt).
         """
         config = hierarchy.root_config
         span_name = get_span_name(config.span_type)
@@ -677,9 +686,14 @@ class TraceGenerator:
             current_span_id = format(span.get_span_context().span_id, "016x")
 
             # Record simulated latency/duration as span attribute so telemetry reflects config/modifier.
+            # MCP_TOOL_EXECUTE parent gets tool.latency_ms set after children (sum of attempt latencies).
             latency_attr_ms = round(latency_ms)
-            if config.span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
+            tool_latency_ms_return = 0.0
+            if config.span_type == SpanType.MCP_TOOL_EXECUTE_ATTEMPT:
                 span.set_attribute(config_attr("tool.latency_ms"), latency_attr_ms)
+                tool_latency_ms_return = float(latency_attr_ms)
+            elif config.span_type == SpanType.MCP_TOOL_EXECUTE:
+                pass  # parent: set tool.latency_ms after children
             elif config.span_type == SpanType.A2A_ORCHESTRATE:
                 span.set_attribute(config_attr("orchestration.duration_ms"), latency_attr_ms)
             elif config.span_type == SpanType.LLM_CALL:
@@ -941,21 +955,57 @@ class TraceGenerator:
 
             # Generate children and collect their logical end times so parent end >= last child end.
             last_child_end_ns = start_time_ns
+            child_tool_latencies: list[float] = []
             for child_hierarchy in hierarchy.children:
-                _, _, child_end_ns = self._generate_span_recursive(
+                _, _, child_end_ns, child_tool_latency_ms = self._generate_span_recursive(
                     child_hierarchy, context, span, None
                 )
                 last_child_end_ns = max(last_child_end_ns, child_end_ns)
+                child_tool_latencies.append(child_tool_latency_ms)
+
+            # MCP_TOOL_EXECUTE parent: set tool.latency_ms to sum of attempt latencies (not the 10ms floor).
+            if config.span_type == SpanType.MCP_TOOL_EXECUTE and child_tool_latencies:
+                parent_tool_latency_ms = sum(child_tool_latencies)
+                span.set_attribute(config_attr("tool.latency_ms"), round(parent_tool_latency_ms))
+                tool_latency_ms_return = parent_tool_latency_ms
 
             # Set span end time so exported duration matches simulated latency (config + modifier).
             # Parent end must be >= last child end so trace timestamps are logical (no child after parent).
             span_end_from_latency_ns = start_time_ns + int(latency_ms * 1_000_000)
             end_time_ns = max(span_end_from_latency_ns, last_child_end_ns)
+            # Align duration attribute with actual span duration (end - start) before ending span.
+            actual_duration_ms = round((end_time_ns - start_time_ns) / 1_000_000)
+            if config.span_type == SpanType.A2A_ORCHESTRATE:
+                span.set_attribute(config_attr("orchestration.duration_ms"), actual_duration_ms)
+            elif config.span_type == SpanType.REQUEST_VALIDATION:
+                span.set_attribute(config_attr("request.validation.duration_ms"), actual_duration_ms)
+            elif config.span_type == SpanType.RESPONSE_VALIDATION:
+                span.set_attribute(config_attr("response.validation.duration_ms"), actual_duration_ms)
+            elif config.span_type == SpanType.CP_REQUEST:
+                span.set_attribute(config_attr("cp.request.duration_ms"), actual_duration_ms)
+            elif config.span_type == SpanType.MCP_TOOL_EXECUTE and child_tool_latencies:
+                pass  # already set to sum of attempt latencies above
+            elif config.span_type == SpanType.TOOLS_RECOMMEND:
+                span.set_attribute(config_attr("mcp.selection.latency.ms"), actual_duration_ms)
+            elif config.span_type == SpanType.RAG_RETRIEVE:
+                span.set_attribute(config_attr("rag.latency_ms"), actual_duration_ms)
+            elif config.span_type == SpanType.A2A_CALL:
+                span.set_attribute(config_attr("a2a.latency_ms"), actual_duration_ms)
+            elif config.span_type in (
+                SpanType.LLM_CALL,
+                SpanType.PLANNER,
+                SpanType.TASK_EXECUTE,
+                SpanType.RESPONSE_COMPOSE,
+                SpanType.VALIDATION_PAYLOAD,
+                SpanType.VALIDATION_POLICY,
+                SpanType.AUGMENTATION,
+            ):
+                span.set_attribute(config_attr("span.duration_ms"), actual_duration_ms)
             span.end(end_time=end_time_ns)
 
             time.sleep(latency_ms / 1000.0 * 0.01)
 
-        return current_trace_id, current_span_id, end_time_ns
+        return current_trace_id, current_span_id, end_time_ns, tool_latency_ms_return
 
     def shutdown(self):
         """Shutdown all tracer providers. Flush all before any shutdown so OTLP

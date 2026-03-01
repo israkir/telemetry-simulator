@@ -1,6 +1,11 @@
 # Policy allows but flags → request allowed + audit flag set.
-# Incoming request validation: outcome=allowed, audit.flag=true, audit.source=policy;
-# policy span decision=allow_with_audit with rule/reason/severity (e.g. unusual_geo, medium).
+# Template: config control_plane.request_validation_templates.allowed_but_flagged (or request_scenarios).
+#
+# Trace flow: outcome is "allowed" so config trace_flow emits incoming_validation + data_plane
+# + response_validation. The data-plane trace uses the default workflow (no data_plane.workflow
+# here) with latency_profile happy_path (config latency_profiles.happy_path), not higher_latency.
+# Total trace duration is higher than control-plane-only scenarios because the data-plane trace
+# includes full orchestration (orchestrate, planner, LLM, tools_recommend, MCP, response_compose).
 
 name: request_allowed_audit_flagged
 description: >
@@ -22,6 +27,11 @@ redaction_applied: none
 
 control_plane:
   template: allowed_but_flagged
+
+# Default data-plane trace: same latency intent as other happy_path scenarios (simulation_goal + latency_profile aligned).
+data_plane:
+  simulation_goal: happy_path
+  latency_profile: happy_path
 
 context:
   tenant: toro
