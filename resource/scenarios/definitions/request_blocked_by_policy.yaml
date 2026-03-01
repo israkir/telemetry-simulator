@@ -1,5 +1,5 @@
 # Control-plane blocks the request (request_policy). No data-plane or response validation.
-# Incoming request validation trace only. Minimal context: tenant + agent (no workflow/error_pattern).
+# Template resolved from request_outcome + block_reason via config request_validation_templates (blocked_request_policy).
 
 name: request_blocked_by_policy
 description: >
@@ -18,6 +18,7 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   request_outcome: blocked
   block_reason: request_policy

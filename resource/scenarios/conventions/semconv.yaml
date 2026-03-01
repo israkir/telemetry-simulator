@@ -1213,13 +1213,19 @@ common_attributes:
     applies_to: ["a2a.orchestrate", "llm.tool.response.bridge", "context.augment"]
 
 # -----------------------------------------------------------------------------
-# Higher-latency condition (Gentoro vendor; not in OTEL semantic conventions)
-# Set on root spans (gentoro.request.validation, gentoro.a2a.orchestrate) when
-# the trace was generated with a higher-latency scenario so analytics can filter
-# or correlate by condition (e.g. peak_hours, claim_status_output, zip_code).
+# Higher-latency condition (vendor extension; OTEL-aligned custom attributes)
+# OpenTelemetry semantic conventions do not define attributes for "reason for
+# elevated latency" or simulation/scenario context. Per OTEL "How to define
+# semantic conventions" and "Defining attributes", custom attributes MUST use a
+# namespaced prefix, appropriate types, and clear documentation. These attributes
+# follow that practice (gentoro.* namespace) for observability/simulation context.
+# Set on root spans (gentoro.request.validation, gentoro.a2a.orchestrate,
+# gentoro.cp.request) when the trace was generated with a higher-latency scenario
+# so analytics can filter or correlate by condition.
+# Reference: https://opentelemetry.io/docs/specs/semconv/general/how-to-define-semantic-conventions/
 # -----------------------------------------------------------------------------
 higher_latency_condition_attributes:
-  note: "Vendor-specific (gentoro.*). OpenTelemetry does not define these; they are for observability/simulation context."
+  note: "Vendor extension (gentoro.*). No OTEL standard exists for this use case; these attributes follow OTEL guidance for custom attributes: namespaced prefix, typed, documented, optional."
   applies_to: ["request.validation", "a2a.orchestrate", "cp.request"]
 
   gentoro.higher_latency.condition.keys:

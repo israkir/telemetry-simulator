@@ -20,10 +20,13 @@ repeat_count: 2
 interval_ms: 80
 emit_metrics: false
 emit_logs: false
+redaction_applied: none
 
 # Cycle through samples so each run produces both cases (generic + technician-on-route).
 cycle_conversation_samples: true
 
+# Latency profile: higher_latency (config latency_profiles.higher_latency). MCP tool and
+# orchestrate means are higher than happy_path so traces clearly reflect "higher latency" semantics.
 data_plane:
   workflow: claim_status
   simulation_goal: higher_latency

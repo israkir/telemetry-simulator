@@ -1,5 +1,5 @@
-# Tool calls have higher latency during peak hours (weekdays 9am–2pm PT) or post long weekends.
-# Latency from config latency_profiles.higher_latency; condition in this file. Add variants by copying.
+# Higher latency during peak hours (weekdays 9–14 PT) or post long weekend.
+# Latencies: config latency_profiles.higher_latency. Condition (peak_hours, post_long_weekend) in this file.
 
 name: generic_higher_latency_peak_hours
 description: >
@@ -19,6 +19,7 @@ repeat_count: 3
 interval_ms: 80
 emit_metrics: false
 emit_logs: false
+redaction_applied: none
 
 data_plane:
   workflow: new_claim
@@ -30,7 +31,7 @@ data_plane:
       timezone: "America/Los_Angeles"
       start_hour: 9
       end_hour: 14
-      weekdays: [1, 2, 3, 4, 5]  # Monday=1 .. Friday=5
+      weekdays: [1, 2, 3, 4, 5]  # Mon=1 .. Fri=5 (ISO weekday)
     post_long_weekend:
       days_after: 1
 

@@ -236,8 +236,9 @@ realistic_scenarios:
 
 # -----------------------------------------------------------------------------
 # Latency profiles: scenario selects one via data_plane.latency_profile (or simulation_goal: higher_latency).
-# All profiles (happy_path, higher_latency, etc.). Scenario chooses via data_plane.latency_profile.
-# Order: single-turn happy_path < multi-turn (more traces) < higher_latency (slower).
+# Scenario mapping: new_claim_phone (happy_path) vs claim_status_phone_higher_latency (higher_latency).
+# Exported trace duration attributes align with actual span duration so happy_path vs higher_latency
+# are clearly distinguishable (e.g. mcp_tool_execute 160ms vs 800ms, a2a_orchestrate 1500 vs 2200).
 # -----------------------------------------------------------------------------
 latency_profiles:
   happy_path:

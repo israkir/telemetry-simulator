@@ -1,5 +1,5 @@
-# Rate limited early → request blocked (rate_limited).
-# Block happens before policy evaluation; no policy or augmentation spans emitted.
+# Rate limited early → request blocked (rate_limited). No policy or augmentation spans.
+# Template: config control_plane.request_validation_templates.blocked_rate_limited.
 
 name: request_blocked_rate_limited
 description: >
@@ -19,6 +19,7 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: blocked_rate_limited
 
