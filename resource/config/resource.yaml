@@ -13,7 +13,7 @@ control_plane:
     service.name: "gentoro-enterprise"
     service.version: "1.0.0"
     service.instance.id: "pod-7f9c6d4b8d-xyz12"
-    deployment.environment.name: "prod"
+    deployment.environment.name: "development"
     module: "control-plane"
     component: "gateway-ext"
     otel.source: "propagated"
@@ -23,7 +23,7 @@ data_plane:
     service.name: "gentoro-enterprise"
     service.version: "1.0.0"
     service.instance.id: "pod-7f9c6d4b8d-xyz12"
-    deployment.environment.name: "prod"
+    deployment.environment.name: "development"
     module: "data-plane"
     # component: set at runtime per span (orchestrator | planning | retrieval | llm | mcp_client | tool_recommender)
     otel.source: "propagated"

@@ -22,9 +22,12 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: basic
 
+# Latency profile: happy_path (config latency_profiles.happy_path). Keeps MCP/orchestrate
+# latencies lower than higher_latency scenarios (e.g. claim_status_phone_higher_latency).
 data_plane:
   workflow: new_claim
   simulation_goal: happy_path
+  latency_profile: happy_path
   control_plane_template: allowed
 
 # Expected MCP server and tools for this scenario (keys only; UUIDs resolved from config).

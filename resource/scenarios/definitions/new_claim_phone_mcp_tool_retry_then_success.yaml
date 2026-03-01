@@ -1,6 +1,6 @@
-# Phone MCP context: new_claim tool with MCP retry (first attempt timeout, second success).
-# Demonstrates template-driven MCP retry per Gentoro spec: parent mcp.tool.execute with
-# attempt children, retry.count, retry.policy, retry.reason, step.outcome success.
+# Phone MCP: new_claim with MCP retry (first attempt timeout, second success).
+# MCP retry template from config: mcp_retry_templates.retry_then_success (data_plane.mcp_retry).
+# Parent mcp.tool.execute has attempt children; retry.count, retry.policy, step.outcome from spec.
 
 name: new_claim_phone_mcp_tool_retry_then_success
 description: >
@@ -26,8 +26,9 @@ redaction_applied: basic
 data_plane:
   workflow: new_claim
   simulation_goal: happy_path
+  latency_profile: happy_path
   control_plane_template: allowed
-  # Template: first attempt fails with timeout (realistic latency from config), second succeeds.
+  # config mcp_retry_templates.retry_then_success: first attempt timeout, second success.
   mcp_retry: retry_then_success
 
 expected:
