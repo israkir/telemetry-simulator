@@ -1,0 +1,59 @@
+# Agent confusion: user intent is cancel_claim but agent calls cancel_product (similar names).
+# Same input cluster ("cancel my claim" / "cancel it") maps to both cancel_claim and cancel_product
+# across divisions; agent picks wrong tool. This scenario emits the incorrect tool (cancel_product).
+# No modifier: we simulate what the agent did (cancel_product) for an ambiguous user request.
+
+name: agent_confusion_cancel_product_instead_of_claim
+description: >
+  Tool confusion (cancel_product vs cancel_claim): User wants to cancel a claim. Ambiguous
+  phrasing ("cancel my claim", "cancel it") can match both cancel_claim and cancel_product;
+  tool descriptions are similar. Agent incorrectly invokes cancel_product (e.g. electronics
+  division). Trace shows cancel_product tool call. Cause: same input cluster → tools with
+  similar functionality (cancel_claim vs cancel_product) from same or different divisions.
+
+tags:
+  - data-plane
+  - tool-confusion
+  - agent-confusion
+  - cancel-product
+  - cancel-claim
+
+workload_weight: 0.5
+
+mcp_server: electronics
+repeat_count: 2
+interval_ms: 100
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: cancel_product
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+# Emitted trace shows cancel_product (what agent called); correct intent was cancel_claim.
+expected:
+  mcp_server: electronics
+  tools:
+    - cancel_product
+
+# User wording suggests cancel_claim; agent responds as if cancel_product was executed.
+conversation:
+  samples:
+    - user_input: "I want to cancel my claim."
+      llm_response: "I've cancelled the product. Your cover will end at the next billing date."
+    - user_input: "Cancel the claim please."
+      llm_response: "Done. The product has been cancelled. No further charges."
+    - user_input: "Can you cancel it? I don't need the repair anymore."
+      llm_response: "Cancelled. Your policy for this product will not renew."
+    - user_input: "Stop my claim."
+      llm_response: "I've cancelled the product. You'll get a confirmation email."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tool_call_arguments:
+    cancel_product: { policy_id: "pol_xyz789", reason: "replacement" }
