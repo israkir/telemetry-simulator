@@ -171,6 +171,41 @@ def _record_span_error(
         span.record_exception(exc)
 
 
+def _response_compose_exception_defaults(
+    config: "SpanConfig",
+    overrides: dict[str, Any],
+    attr_fn: Any,
+    error_type_override: str | None,
+) -> tuple[str | None, str | None]:
+    """Default exception type and message for response.compose when in error.
+    When config has exception_type/exception_message (e.g. from scenario), use those.
+    Otherwise derive from error.type so the exception event is SemConv-aligned.
+    """
+    if getattr(config, "exception_type", None) and getattr(config, "exception_message", None):
+        return (
+            config.exception_type,
+            config.exception_message,
+        )
+    raw = (
+        error_type_override
+        or overrides.get("error.type")
+        or overrides.get(attr_fn("error.type"))
+        or "protocol_error"
+    )
+    # Map error.type to exception class name and message (OTEL exception event).
+    _RESPONSE_COMPOSE_EXCEPTION_BY_ERROR_TYPE: dict[str, tuple[str, str]] = {
+        "protocol_error": ("JsonSerializationError", "Failed to serialize A2A response payload"),
+        "unavailable": ("ResponseCompositionError", "Response composition failed"),
+        "tool_error": ("ResponseCompositionError", "Response composition failed"),
+        "timeout": ("TimeoutError", "Response composition timed out"),
+        "invalid_arguments": ("ValidationError", "Invalid response structure"),
+    }
+    exc_type, exc_msg = _RESPONSE_COMPOSE_EXCEPTION_BY_ERROR_TYPE.get(
+        raw, ("ResponseCompositionError", "Response composition failed")
+    )
+    return exc_type, exc_msg
+
+
 def _set_higher_latency_condition_attributes(
     span: Any,
     context: GenerationContext,
@@ -389,7 +424,7 @@ class SpanBuilder:
         self.tracer = tracer
 
     def generate_latency(self, config: SpanConfig) -> float:
-        """Generate realistic latency based on config."""
+        """Generate latency based on config."""
         latency = config.latency_mean_ms * (1 + random.gauss(0, config.latency_variance))
         if random.random() < 0.05:
             latency *= random.uniform(2.0, 4.0)
@@ -798,13 +833,20 @@ class TraceGenerator:
                 and not override_success
             ):
                 span.set_attribute(config_attr("step.outcome"), "fail")
+                # Use error.type from overrides (e.g. ungrounded_response=unavailable, partial_workflow=tool_error).
+                error_type_override = overrides.get("error.type") or overrides.get(
+                    config_attr("error.type")
+                )
+                exc_type, exc_msg = _response_compose_exception_defaults(
+                    config, overrides, config_attr, error_type_override
+                )
                 _record_span_error(
                     span,
                     config.span_type,
                     overrides,
-                    error_type_override="protocol_error",
-                    exception_type=getattr(config, "exception_type", None),
-                    exception_message=getattr(config, "exception_message", None),
+                    error_type_override=error_type_override,
+                    exception_type=exc_type,
+                    exception_message=exc_msg,
                 )
             elif (
                 config.span_type == SpanType.TASK_EXECUTE
@@ -978,9 +1020,13 @@ class TraceGenerator:
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 span.set_attribute(config_attr("orchestration.duration_ms"), actual_duration_ms)
             elif config.span_type == SpanType.REQUEST_VALIDATION:
-                span.set_attribute(config_attr("request.validation.duration_ms"), actual_duration_ms)
+                span.set_attribute(
+                    config_attr("request.validation.duration_ms"), actual_duration_ms
+                )
             elif config.span_type == SpanType.RESPONSE_VALIDATION:
-                span.set_attribute(config_attr("response.validation.duration_ms"), actual_duration_ms)
+                span.set_attribute(
+                    config_attr("response.validation.duration_ms"), actual_duration_ms
+                )
             elif config.span_type == SpanType.CP_REQUEST:
                 span.set_attribute(config_attr("cp.request.duration_ms"), actual_duration_ms)
             elif config.span_type == SpanType.MCP_TOOL_EXECUTE and child_tool_latencies:

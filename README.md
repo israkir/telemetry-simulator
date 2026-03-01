@@ -1,13 +1,13 @@
 # Telemetry Simulator
 
-Schema-driven OpenTelemetry telemetry simulator for LLM observability. Generates realistic traces, metrics, and logs aligned with configurable semantic conventions.
+Schema-driven OpenTelemetry telemetry simulator for LLM observability. Generates traces, metrics, and logs aligned with configurable semantic conventions.
 
 ## Overview
 
 The telemetry simulator produces OTEL-compliant telemetry for testing and validating observability pipelines:
 
 - **Schema-Driven**: Reads your semantic-conventions YAML (path required); the schema defines which attributes exist per span type (types, allowed values, defaults). Scenario YAML overrides or supplies distribution-based values.
-- **Realism + Randomness + SemConv**: Combines realistic scenario content (conversation samples, failure modes like 4xx or wrong division) with controlled randomness (latency distributions, which scenario/sample runs). All enum-like values (e.g. `error.type`, `step.outcome`) are chosen only from semantic-convention allowed values so traces stay valid and queryable. See [Generating Telemetry](docs/generating-telemetry.md#realism-randomness-and-semantic-conventions).
+- **Scenario + Randomness + SemConv**: Combines scenario-driven content (conversation samples, failure modes like 4xx or wrong division) with controlled randomness (latency distributions, which scenario/sample runs). All enum-like values (e.g. `error.type`, `step.outcome`) are chosen only from semantic-convention allowed values so traces stay valid and queryable. See [Generating Telemetry](docs/generating-telemetry.md#realism-randomness-and-semantic-conventions) (scenario content, randomness, SemConv).
 - **Full Trace Hierarchies**: Generates canonical span types (e.g. a2a.orchestrate, planner, task.execute, llm.call, mcp.tool.execute, response.compose) with proper parent-child relationships and `{prefix}.span.class` per type
 - **Multi-Signal**: Emits correlated traces, metrics, and logs
 - **Scenario-Based**: YAML-defined scenarios for reproducible testing
@@ -33,7 +33,7 @@ src/simulator/
 - Python 3.11+
 - **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand, e.g. `otelsim scenario --vendor=your_vendor --name foo --semconv /path/to/conventions.yaml`).
 - OpenTelemetry Collector running (port 4318) or use `--output-file` to export to file
-- **Tenant ID** is read from `src/simulator/scenarios/config/config.yaml` (`tenants`; scenarios reference `context.tenant` by key, e.g. `toro`); no env vars required for tenants.
+- **Tenant ID** is read from `resource/config/config.yaml` (`tenants`; scenarios reference `context.tenant` by key, e.g. `toro`); no env vars required for tenants.
 
 ### Setup
 
@@ -55,7 +55,7 @@ otelsim run --vendor=your_vendor --count 100 --interval 50
 
 ### Run Specific Scenarios
 
-The simulator ships with **sample scenario definitions** in `src/simulator/scenarios/definitions/`. You can use these as-is or point to your own folder with `--scenarios-dir` (or `SCENARIOS_DIR` with make).
+The simulator ships with **sample scenario definitions** in `resource/scenarios/definitions/`. You can use these as-is or point to your own folder with `--scenarios-dir` (or `SCENARIOS_DIR` with make).
 
 ```bash
 # List available scenarios (uses sample definitions by default)
@@ -68,7 +68,7 @@ otelsim scenario --vendor=your_vendor --name new_claim_phone
 otelsim scenario --vendor=your_vendor --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
 ```
 
-**Note:** Tenant IDs come from `config/config.yaml` (`tenants`; scenario sets `context.tenant` by key, e.g. `toro`). Use `otelsim run --vendor=your_vendor` for a mixed workload (varied trace patterns); use `otelsim scenario --vendor=your_vendor --name <name>` for a single reproducible pattern.
+**Note:** Tenant IDs come from `resource/config/config.yaml` (`tenants`; scenario sets `context.tenant` by key, e.g. `toro`). Use `otelsim run --vendor=your_vendor` for a mixed workload (varied trace patterns); use `otelsim scenario --vendor=your_vendor --name <name>` for a single reproducible pattern.
 
 ### Live trace visualization
 
@@ -116,7 +116,7 @@ Set `VENDOR` to your vendor name (e.g. `acme`) so span names and vendor attribut
 
 ## YAML Scenarios
 
-Scenarios are YAML files in `src/simulator/scenarios/definitions/` (or a custom folder via `--scenarios-dir`). Bundled samples include data-plane flows (e.g. `new_claim_phone`, `new_claim_phone_mcp_tool_retry_then_success`) and control-plane outcomes (e.g. `request_blocked_by_policy`, `request_allowed_audit_flagged`). Use `make list-scenarios` or `otelsim list` to see names.
+Scenarios are YAML files in `resource/scenarios/definitions/` (or a custom folder via `--scenarios-dir`). Bundled samples include data-plane flows (e.g. `new_claim_phone`, `new_claim_phone_mcp_tool_retry_then_success`) and control-plane outcomes (e.g. `request_blocked_by_policy`, `request_allowed_audit_flagged`). Use `make list-scenarios` or `otelsim list` to see names.
 
 For **YAML structure**, **adding new scenarios**, and **tags/workflow/mcp_retry**, see [Scenario YAML Reference](docs/scenario-yaml-reference.md). For config (tenants, workflows, latency, MCP retry templates), see [Generating Telemetry](docs/generating-telemetry.md#configuration-reference-what-exists).
 
@@ -159,7 +159,7 @@ otelsim run --vendor=your_vendor --count 5 --show-full-spans
 | `TELEMETRY_SIMULATOR_VENDOR_NAME` | *(capitalized prefix)* | Display name used in validation messages. |
 | `SEMCONV` | *(optional)* | Full path to your semantic-conventions YAML. Default: `scenarios/conventions/semconv.yaml` (or pass `--semconv`). |
 
-Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read from `src/simulator/scenarios/config/resource.yaml`. Configure them there; env vars are not used for these.
+Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read from `resource/config/resource.yaml`. Configure them there; env vars are not used for these.
 
 The schema defines which attributes exist and their types; scenario `attributes` override those values or supply distribution-based values. Use the same prefix as `VENDOR` (e.g. `vendor.turn.status.code` when prefix is `vendor`). Bundled scenarios use the default `vendor.*` namespace.
 
@@ -302,6 +302,6 @@ make install
 
 ## See Also
 
-- [Generating Telemetry](docs/generating-telemetry.md) – Guide, realism/randomness/SemConv, and scenario examples
+- [Generating Telemetry](docs/generating-telemetry.md) – Guide, scenario/randomness/SemConv, and scenario examples
 
 When using this simulator inside another repo, provide your schema YAML path (`SEMCONV`, `--semconv`, or default `scenarios/conventions/semconv.yaml`) and set `VENDOR` to your project’s attribute namespace.

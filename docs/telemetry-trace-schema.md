@@ -1,6 +1,6 @@
 # Telemetry Data Trace: Schema and Examples
 
-This document describes the structure of telemetry trace data produced by the simulator: span schema, trace hierarchy, attribute semantics, and examples. When exporting to file (e.g. `otelsim run --vendor=your_vendor --output-file traces.jsonl`), each line is one span in JSON Lines format. The schema is aligned with the **Gentoro LLM Observability Semantic Conventions** in `src/simulator/scenarios/conventions/semconv.yaml` (schema version **1.0.0**).
+This document describes the structure of telemetry trace data produced by the simulator: span schema, trace hierarchy, attribute semantics, and examples. When exporting to file (e.g. `otelsim run --vendor=your_vendor --output-file traces.jsonl`), each line is one span in JSON Lines format. The schema is aligned with the **Gentoro LLM Observability Semantic Conventions** in `resource/scenarios/conventions/semconv.yaml` (schema version **1.0.0**).
 
 **Vendor prefix:** Span and attribute names use the configurable vendor prefix (`VENDOR` env or `--vendor`, default `vendor`). The bundled config and semconv use the same structure; examples below use the `gentoro.*` prefix as in the convention. Replace with your prefix (e.g. `vendor.*`) when validating or querying.
 
@@ -132,7 +132,7 @@ Attributes are span-specific and aligned with semconv. **REQUIRED** = MUST be pr
 
 ### 4.1 Common / Session (multiple span types)
 
-In the simulator, **all correlation IDs** (session, conversation, request, mcp_tool_call_id, enduser_pseudo_id) are generated from format templates in `config/config.yaml` under **id_formats** only; there are no fallbacks. When a scenario has `ScenarioIdGenerator`, it uses those formats; otherwise standalone generators read the same config. Multi-turn scenarios reuse the same session_id for all turns in one iteration. See [Generating Telemetry – Trace, session, and conversation IDs](./generating-telemetry.md#trace-session-and-conversation-ids) for details.
+In the simulator, **all correlation IDs** (session, conversation, request, mcp_tool_call_id, enduser_pseudo_id) are generated from format templates in `resource/config/config.yaml` under **id_formats** only; there are no fallbacks. When a scenario has `ScenarioIdGenerator`, it uses those formats; otherwise standalone generators read the same config. Multi-turn scenarios reuse the same session_id for all turns in one iteration. See [Generating Telemetry – Trace, session, and conversation IDs](./generating-telemetry.md#trace-session-and-conversation-ids) for details.
 
 | Attribute | Type | Semconv | Description |
 |-----------|------|---------|-------------|
@@ -475,4 +475,4 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 
 ---
 
-This schema is aligned with **`src/simulator/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect the normative conventions and representative simulator output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane and data-plane shapes, see sample scenarios such as `new_claim_phone` (data-plane happy path), `new_claim_phone_mcp_tool_retry_then_success` (MCP retry), `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple validation error events on the payload span).
+This schema is aligned with **`resource/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect the normative conventions and representative simulator output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane and data-plane shapes, see sample scenarios such as `new_claim_phone` (data-plane happy path), `new_claim_phone_mcp_tool_retry_then_success` (MCP retry), `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple validation error events on the payload span).

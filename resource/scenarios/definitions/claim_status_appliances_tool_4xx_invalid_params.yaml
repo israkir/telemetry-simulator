@@ -1,0 +1,58 @@
+# Agent calls claim_status (correct tool) with claim ID in wrong format → 4xx.
+# Cause: how input entities were specified — e.g. claim ID without dash (7733 vs HA-7733),
+# wrong prefix, or malformed ID. One MCP attempt gets error.type=invalid_arguments and
+# http.response.status_code in [400, 404, 422].
+# Division: appliances (dishwasher, fridge, etc.). Template-driven; no code change to add similar scenarios.
+
+name: claim_status_appliances_tool_4xx_invalid_params
+description: >
+  Agent calls claim_status for appliances with claim ID in wrong format (e.g. without dash,
+  wrong prefix), resulting in 4xx. Cause: how the user specified the claim ID.
+
+tags:
+  - data-plane
+  - 4xx
+  - invalid-params
+  - claim-id-format
+  - appliances
+
+workload_weight: 0.5
+
+mcp_server: appliances
+repeat_count: 2
+interval_ms: 60
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: claim_status
+  goal: 4xx_invalid_arguments
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+# Exception event on the failing MCP attempt (avoids generic "RuntimeError: Error occurred").
+scenario_overrides:
+  exception_type: "InvalidClaimIdFormat"
+  exception_message: "Claim ID must include division prefix (e.g. HA-7733). Received malformed or missing claim_id."
+# Optional: fix which tool step gets 4xx (0 = first MCP call).
+#   step_index_for_4xx: 0
+
+expected:
+  mcp_server: appliances
+  tools:
+    - claim_status
+
+conversation:
+  samples:
+    - user_input: "What's the status of my dishwasher claim 7733?"
+      llm_response: "I couldn't find that claim. Please use the full claim ID (e.g. HA-7733) so I can look it up."
+    - user_input: "Status for my fridge repair — the number is 5521."
+      llm_response: "The system expects the claim ID with division prefix, e.g. HA-5521. I've got 5521 but need the full format."
+    - user_input: "How's my washing machine claim? Claim 4412."
+      llm_response: "I tried looking up 4412 but the tool needs the full ID like HA-4412. Can you confirm your claim ID from the email we sent?"
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances

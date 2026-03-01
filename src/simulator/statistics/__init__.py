@@ -1,4 +1,4 @@
-"""Statistical distributions and sampling for realistic telemetry generation."""
+"""Statistical distributions and sampling for telemetry generation."""
 
 from .correlations import (
     CorrelatedSampler,

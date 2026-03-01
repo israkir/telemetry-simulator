@@ -324,6 +324,12 @@ class AttributeGenerator:
             return context.route if context.route is not None else "default"
         if _attr_matches(name, "redaction.applied"):
             return context.redaction_applied
+        # LLM content flags: must match scenario redaction_applied (semconv: redaction.enabled when redacted variants emitted).
+        if name.endswith("llm.content.redaction.enabled"):
+            return (context.redaction_applied or "none").strip().lower() not in ("none", "")
+        if name.endswith("llm.content.capture.enabled"):
+            # We emit gen_ai.input.messages / gen_ai.output.messages on LLM spans, so capture is enabled.
+            return True
         if _attr_matches(name, "schema.version") or name == schema_version_attr():
             return self.schema.schema_version
         if name == "service.name":

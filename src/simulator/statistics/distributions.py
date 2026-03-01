@@ -1,5 +1,5 @@
 """
-Statistical distributions for realistic telemetry data generation.
+Statistical distributions for telemetry data generation.
 
 Provides various probability distributions that model real-world latency,
 token counts, retry attempts, and other telemetry characteristics.
