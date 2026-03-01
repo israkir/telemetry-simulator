@@ -1,23 +1,32 @@
 # =============================================================================
-# Example / reference scenario: all available and possible configs
+# Example / reference scenario: all available configs and settings
 # =============================================================================
-# - IDs (tenant, agent, MCP server, tools) are defined in config/config.yaml;
-#   this file uses keys only; the loader resolves to UUIDs.
-# - Resource attributes (service.name, schema_url, etc.) come from
-#   config/resource.yaml (control_plane vs data_plane per trace type).
-# - Workflow step lists: config/config.yaml → realistic_scenarios.workflow_templates.
-# - Control-plane templates: config/config.yaml → control_plane.request_validation_templates.
-# - Default conversation samples (when no conversation.samples/turns here):
-#   config/config.yaml → conversation_samples[data_plane.workflow].
-# - Span latencies (mean + variance): config/config.yaml → latency_profiles.<data_plane.latency_profile>.
-#   Convention: simulation_goal and latency_profile must match (happy_path or higher_latency) so all scenarios run in harmony when mixed.
-# - Resource (all spans): config/resource.yaml → control_plane.attributes or data_plane.attributes
-#   (schema_url, service.name, service.version, deployment.environment.name, module, component, otel.source).
-#   Data-plane component is set per span at runtime (orchestrator, planning, llm, mcp_client, etc.).
-# Run: otelsim run --scenario example_scenario  (or include in mixed run; workload_weight applies).
+# Config files (project paths):
+#   resource/config/config.yaml  – IDs, workflows, latency, control-plane, conversation samples
+#   resource/config/resource.yaml – OTEL resource attributes (service.name, schema_url, etc.)
+#
+# resource/config/config.yaml sections used by scenarios:
+#   id_formats          – session_id, conversation_id, request_id, mcp_tool_call_id, enduser_pseudo_id (placeholders: {hex:N}, {uuid}, {tenant_id})
+#   tenants             – context.tenant key → id (e.g. toro)
+#   agents              – context.agent id (e.g. toro-customer-assistant-001); must match a2a.agent.target.id
+#   mcp_servers         – context.mcp_server key → mcp_server_uuid + tools (name, tool_uuid)
+#   tool_call_arguments – optional; keyed by tool name → JSON object for gen_ai.tool.call.arguments
+#   scenarios           – divisions, error_templates (goal → error_type, http_status_codes), workflow_templates (workflow name → step list)
+#   latency_profiles    – <profile>.spans (a2a_orchestrate, planner, mcp_tool_execute, etc.) with mean_ms, variance; scenario sets data_plane.latency_profile
+#   control_plane      – trace_flow, request_validation_templates, request_scenarios, latencies_ms
+#   conversation_samples – per workflow key; used when scenario has no conversation.samples/turns
+#   mcp_retry           – retry_policy, latency_by_error_type; used when building MCP attempt spans
+#   mcp_retry_templates – named templates (e.g. retry_then_success); scenario data_plane.mcp_retry can reference by name or define attempts inline
+#   tools_recommend     – step_outcome, selection_strategy, etc. for tools.recommend span
+#
+# resource/config/resource.yaml:
+#   schema_url, control_plane.attributes, data_plane.attributes (service.name, service.version, deployment.environment.name, module, component, otel.source).
+#   Data-plane component is set per span at runtime (orchestrator, planning, llm, mcp_client, tool_recommender).
+#
+# Run: otelsim scenario --name _EXAMPLE_SCENARIO_  (excluded from list and mixed workload; reference only).
 # =============================================================================
 
-name: example_scenario
+name: _EXAMPLE_SCENARIO_
 description: >
   Reference scenario showing every supported YAML option.
   Use as template; adjust for data-plane, control-plane, or mixed.
@@ -37,7 +46,7 @@ tags:
 # Baseline weight for examples; other scenarios use relative weights for realistic mix.
 workload_weight: 1.0
 
-# MCP server key; UUID resolved from config/config.yaml → mcp_servers.<key>.
+# MCP server key; UUID resolved from resource/config/config.yaml → mcp_servers.<key>.
 # Required for data-plane; control-plane-only can omit or set for registry.
 mcp_server: phone
 
@@ -56,20 +65,24 @@ redaction_applied: none
 
 # -----------------------------------------------------------------------------
 # Data-plane (a2a.orchestrate hierarchy: planner, task, tools_recommend, tool, response_compose)
-# All keys reference config/config.yaml.
+# All keys reference resource/config/config.yaml.
 # -----------------------------------------------------------------------------
 data_plane:
-  # Workflow key → step list from config: realistic_scenarios.workflow_templates
+  # Workflow key → step list from resource/config/config.yaml → scenarios.workflow_templates
   # Example keys: new_claim, update_appointment, claim_status, pay (see config for full list).
   workflow: new_claim
-  # Simulation goal and latency_profile must align (happy_path ↔ happy_path, higher_latency ↔ higher_latency).
-  simulation_goal: happy_path
+  # Goal and latency_profile must align (happy_path ↔ happy_path, higher_latency ↔ higher_latency).
+  goal: happy_path
   latency_profile: happy_path
+  # Optional: MCP retry template name (resource/config/config.yaml → mcp_retry_templates) or inline { attempts: [{ outcome, optional error_type, optional latency_mean_ms }] }
+  # mcp_retry: retry_then_success
+  # Optional: when latency_profile is higher_latency, condition (e.g. peak_hours, zip_code) for span attributes
+  # higher_latency_condition: { reason: "peak_hours" }
   # Which request-validation outcome to assume (allowed | blocked | error).
-  # Used when trace_flow includes incoming_validation; template resolved from control_plane.
+  # Used when trace_flow includes incoming_validation; template from resource/config/config.yaml → control_plane.request_validation_templates.
   control_plane_template: allowed
 
-# Expected MCP server and tools (keys only; UUIDs resolved from config mcp_servers.<mcp_server>.tools).
+# Expected MCP server and tools (keys only; UUIDs resolved from resource/config/config.yaml → mcp_servers.<mcp_server>.tools).
 # Must match data_plane.workflow tool steps (e.g. new_claim → tools: [new_claim]).
 expected:
   mcp_server: phone
@@ -78,9 +91,10 @@ expected:
 
 # -----------------------------------------------------------------------------
 # Conversation: single-turn (samples) OR multi-turn (turns)
-# - If neither: config/config.yaml → conversation_samples[data_plane.workflow] is used (one random sample per iteration).
+# - If neither: resource/config/config.yaml → conversation_samples[data_plane.workflow] is used (one random sample per iteration).
 # - samples: one random sample per iteration; optional user_input_redacted / llm_response_redacted when redaction_applied != none.
 # - turns: multi-turn; one trace per turn, same session_id; optional redacted per turn.
+# - cycle_conversation_samples: when true and samples set, use (iteration_index % len(samples)) so each run cycles through all.
 # -----------------------------------------------------------------------------
 conversation:
   samples:
@@ -93,11 +107,11 @@ conversation:
       llm_response_redacted: "I've started a claim at <ADDRESS> under policy <POLICY_ID>. Claim ID PH-9900."
 
 # -----------------------------------------------------------------------------
-# Context: keys only; IDs from config/config.yaml
+# Context: keys only; IDs from resource/config/config.yaml
 # -----------------------------------------------------------------------------
-# - tenant: config → tenants.<key>.id (e.g. toro)
-# - agent: config → agents[].id (e.g. toro-customer-assistant-001); must match a2a.agent.target.id
-# - mcp_server: config → mcp_servers.<key> (mcp_server_uuid + tools with name, tool_uuid)
+# - tenant: resource/config/config.yaml → tenants.<key> (e.g. toro)
+# - agent: resource/config/config.yaml → agents[].id (e.g. toro-customer-assistant-001); must match a2a.agent.target.id
+# - mcp_server: resource/config/config.yaml → mcp_servers.<key> (mcp_server_uuid + tools with name, tool_uuid)
 # Optional (advanced): workflow, correct_flow.steps, error_pattern, redaction_applied, error_config, actual_steps (partial_workflow)
 context:
   tenant: toro
@@ -107,8 +121,9 @@ context:
 # -----------------------------------------------------------------------------
 # Control-plane (optional in this file)
 # Use for control-plane-only scenarios (no data_plane.workflow) or to override.
-# Templates: config/config.yaml → control_plane.request_validation_templates
+# Templates: resource/config/config.yaml → control_plane.request_validation_templates
 # (e.g. allowed, allowed_but_flagged, blocked_rate_limited, blocked_request_policy, error_policy_runtime).
+# Registry: control_plane.request_scenarios (name → template + description) for built-in control-plane scenarios.
 # -----------------------------------------------------------------------------
 # control_plane:
 #   # Option A: explicit template id (overrides outcome/block_reason)
@@ -120,10 +135,14 @@ context:
 #   # policy_exception: { type: "PolicyEngineTimeout", message: "policy_engine_timeout" }
 
 # -----------------------------------------------------------------------------
-# Realistic overrides (optional; for simulation_goal != happy_path)
-# Config: realistic_scenarios.error_templates, realistic_scenarios.divisions
+# Scenario overrides (optional; for goal != happy_path)
+# resource/config/config.yaml → scenarios.error_templates, scenarios.divisions
+# For goal: 4xx_invalid_arguments, set exception_type and exception_message so the
+# failing MCP attempt records a concrete exception event (not generic "Error occurred").
 # -----------------------------------------------------------------------------
-# realistic_overrides:
+# scenario_overrides:
+#   exception_type: "InvalidArgumentsError"   # For 4xx_invalid_arguments (e.g. claim ID or date format)
+#   exception_message: "Invalid or missing parameters."
 #   step_index_for_4xx: 0        # Which MCP step gets 4xx (for 4xx_invalid_arguments)
 #   wrong_division_target: electronics   # Division key for wrong_division
 #   actual_steps: [planner, task, new_claim, response_compose]  # For partial_workflow
@@ -138,5 +157,5 @@ context:
 #   context:
 #     tenant: toro
 #     agent: toro-customer-assistant-001
-# See definitions/request_allowed_audit_flagged.yaml and config control_plane.request_scenarios.
+# See definitions/request_allowed_audit_flagged.yaml and resource/config/config.yaml → control_plane.request_scenarios.
 # -----------------------------------------------------------------------------

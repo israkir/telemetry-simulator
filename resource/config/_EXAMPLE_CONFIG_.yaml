@@ -1,0 +1,234 @@
+# =============================================================================
+# Example / reference: structure of resource/config/config.yaml
+# =============================================================================
+# This file is for reference only. The simulator loads resource/config/config.yaml.
+# Use this to see all top-level sections and keys; copy patterns into config.yaml.
+#
+# Related: resource/config/resource.yaml (OTEL resource attributes),
+#          resource/scenarios/definitions/_EXAMPLE_SCENARIO_.yaml (scenario YAML reference).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# id_formats – All correlation IDs are generated from these templates only (no fallbacks).
+# Required keys: session_id, conversation_id, request_id, mcp_tool_call_id, enduser_pseudo_id.
+# Placeholders: {hex:N}, {uuid}, {tenant_id}. ScenarioIdGenerator and standalone generators use these.
+# -----------------------------------------------------------------------------
+id_formats:
+  session_id: "sess_toro_{hex:12}"
+  conversation_id: "sess_toro_{hex:12}"
+  request_id: "req_{hex:6}"
+  mcp_tool_call_id: "mcp_call_{hex:12}"
+  enduser_pseudo_id: "user_{hex:6}"
+
+# -----------------------------------------------------------------------------
+# tools_recommend – Attributes for tools.recommend span (SemConv). All values from config.
+# Step outcome, selection_strategy, selection_constraints, tools_selected_count, selection_fallback_used.
+# -----------------------------------------------------------------------------
+tools_recommend:
+  step_outcome: "success"             # success | fail | skipped
+  selection_strategy: "default"       # capability_match | semantic_match | policy_filtered | hybrid | default
+  selection_constraints: "none"       # policy | permissions | environment | latency_budget | none
+  tools_selected_count: 1
+  selection_fallback_used: false
+
+# -----------------------------------------------------------------------------
+# mcp_retry – Used when building MCP attempt spans. retry_policy (e.g. exponential); latency_by_error_type
+# (timeout, unavailable, tool_error, invalid_arguments, protocol_error) in ms for failed attempts.
+# -----------------------------------------------------------------------------
+mcp_retry:
+  retry_policy: "exponential"   # none | fixed | exponential | exponential_jitter | circuit_breaker
+  latency_by_error_type:
+    timeout: 5000
+    unavailable: 1200
+    tool_error: 180
+    invalid_arguments: 50
+    protocol_error: 100
+
+# -----------------------------------------------------------------------------
+# mcp_retry_templates – Named templates. Scenario data_plane.mcp_retry can reference by name or define attempts inline.
+# Each attempt: outcome (success | failure), optional error_type, optional latency_mean_ms.
+# -----------------------------------------------------------------------------
+mcp_retry_templates:
+  happy_path:
+    attempts:
+      - outcome: success
+  retry_then_success:
+    attempts:
+      - outcome: failure
+        error_type: timeout
+      - outcome: success
+  all_fail:
+    attempts:
+      - outcome: failure
+        error_type: tool_error
+
+# -----------------------------------------------------------------------------
+# tenants – By key. Scenarios reference context.tenant by key (e.g. toro).
+# -----------------------------------------------------------------------------
+tenants:
+  toro:
+    id: "9cafa427-504f-4bb7-a09f-ec1f5524facf"
+    display_name: "Toro Insurance"
+
+# -----------------------------------------------------------------------------
+# agents – List of { id }. Scenarios reference context.agent by id. id must match a2a.agent.target.id.
+# -----------------------------------------------------------------------------
+agents:
+  - id: "toro-customer-assistant-001"
+
+# -----------------------------------------------------------------------------
+# mcp_servers – By key. Scenarios reference context.mcp_server by key.
+# Each server: mcp_server_uuid, optional description, tools: [ { name, tool_uuid } ].
+# -----------------------------------------------------------------------------
+mcp_servers:
+  phone:
+    mcp_server_uuid: "11111111-1111-4eec-8001-000000000001"
+    description: "Mobile phone (loss, damage, breakdown, screen repair, replacement)"
+    tools:
+      - name: new_claim
+        tool_uuid: "11111111-1111-4eec-8001-000000000011"
+      - name: update_appointment
+        tool_uuid: "11111111-1111-4eec-8001-000000000012"
+      - name: claim_status
+        tool_uuid: "11111111-1111-4eec-8001-000000000013"
+  # electronics:, appliances: ... (see config.yaml for full list)
+
+# -----------------------------------------------------------------------------
+# tool_call_arguments – Optional. Keyed by tool name; object serialized as JSON → gen_ai.tool.call.arguments on mcp.tool.execute span.
+# -----------------------------------------------------------------------------
+tool_call_arguments:
+  new_claim:
+    product_type: "phone"
+    description: "Screen cracked after drop"
+    incident_date: "2025-02-15"
+  claim_status:
+    claim_id: "clm_abc123"
+
+# -----------------------------------------------------------------------------
+# scenarios – Scenario modifier: divisions, error_templates (goal → error_type, http_status_codes), workflow_templates (name → step list).
+# Scenario YAML sets data_plane.workflow (key here), data_plane.goal; scenario_overrides can set exception_type, exception_message, etc.
+# -----------------------------------------------------------------------------
+scenarios:
+  divisions:
+    phone: phone
+    home_electronics: electronics
+    home_appliances: appliances
+  error_templates:
+    happy_path: {}
+    4xx_invalid_arguments:
+      error_type: invalid_arguments
+      http_status_codes: [400, 404, 422]
+    wrong_division:
+      error_type: tool_error
+    partial_workflow:
+      error_type: tool_error
+    ungrounded_response:
+      error_type: unavailable
+  workflow_templates:
+    new_claim: [planner, task, tools_recommend, new_claim, response_compose]
+    update_appointment: [planner, task, tools_recommend, update_appointment, response_compose]
+    claim_status: [planner, task, tools_recommend, claim_status, response_compose]
+    pay: [planner, task, tools_recommend, pay, response_compose]
+
+# -----------------------------------------------------------------------------
+# latency_profiles – Scenario sets data_plane.latency_profile (e.g. happy_path, higher_latency).
+# Each profile: default_variance, spans: { a2a_orchestrate, planner, task_execute, llm_call, tools_recommend, mcp_tool_execute, response_compose, request_validation, response_validation, validation_payload, validation_policy, augmentation } with mean_ms and variance.
+# -----------------------------------------------------------------------------
+latency_profiles:
+  happy_path:
+    default_variance: 0.2
+    spans:
+      a2a_orchestrate: { mean_ms: 1500.0, variance: 0.2 }
+      planner: { mean_ms: 220.0, variance: 0.22 }
+      mcp_tool_execute: { mean_ms: 160.0, variance: 0.32 }
+      response_compose: { mean_ms: 58.0, variance: 0.2 }
+      # ... request_validation, validation_payload, validation_policy, augmentation (see config.yaml)
+  higher_latency:
+    default_variance: 0.2
+    spans:
+      a2a_orchestrate: { mean_ms: 2200.0, variance: 0.2 }
+      mcp_tool_execute: { mean_ms: 800.0, variance: 0.32 }
+      # ...
+
+# -----------------------------------------------------------------------------
+# control_plane – Trace flow, validation templates, request_scenarios, latencies_ms.
+#   latencies_ms: request_validation, validation_payload, validation_policy, augmentation, response_validation
+#   default_data_plane_workflow: workflow key when control-plane scenario doesn't set data_plane.workflow
+#   trace_flow: allowed | blocked | error → list of phases (incoming_validation, data_plane, response_validation)
+#   request_scenarios: name → { template, description [, workload_weight] }; loader exposes as scenarios without YAML
+#   request_validation_templates: template id → { _defaults?, root, payload, policy, augmentation, error_rate, include_policy?, include_augmentation?, validation_errors? }
+#     root: request.outcome, block.reason, policy.fail_mode?; payload: step.outcome, validation.result, validation_errors?;
+#     policy: step.outcome, error.type?, policy.engine, policy.decision, exception? { type, message };
+#     augmentation: step.outcome, error.type?, block.reason?, augment.*, exception? { type, message }
+#   response_validation_templates: template id → root, policy, error_rate
+# See config.yaml for full request_validation_templates and request_scenarios.
+# -----------------------------------------------------------------------------
+control_plane:
+  latencies_ms:
+    request_validation: 40
+    validation_payload: 20
+    validation_policy: 20
+    augmentation: 20
+    response_validation: 40
+  default_data_plane_workflow: new_claim
+  trace_flow:
+    allowed: [incoming_validation, data_plane, response_validation]
+    blocked: [incoming_validation]
+    error: [incoming_validation]
+  request_scenarios:
+    request_blocked_by_policy:
+      template: blocked_request_policy
+      description: "Control-plane policy blocks the request."
+    request_error_policy_runtime:
+      template: error_policy_runtime
+      description: "Policy engine runtime exception; request.outcome=error, policy span ERROR with exception."
+    # ... (see config.yaml for full list)
+  request_validation_templates:
+    _defaults:
+      error_rate: { root: 0, payload: 0, policy: 0, augmentation: 0 }
+    allowed:
+      root: { request.outcome: allowed }
+      payload: { step.outcome: pass, validation.result: valid }
+      policy: { step.outcome: pass, policy.engine: dlp, policy.decision: allow }
+      augmentation: { step.outcome: pass, augment.conversation_id.action: propagated, augment.request_id.action: created, augment.target_agent_id.action: attached }
+      error_rate: { root: 0, payload: 0, policy: 0, augmentation: 0 }
+    error_policy_runtime:
+      root: { request.outcome: error }
+      payload: { step.outcome: pass, validation.result: valid }
+      policy:
+        step.outcome: fail
+        error.type: unavailable
+        policy.engine: dlp
+        policy.decision: allow
+        exception: { type: PolicyEngineTimeout, message: policy_engine_timeout }
+      augmentation: { step.outcome: skip, augment.conversation_id.action: missing, augment.request_id.action: missing, augment.target_agent_id.action: missing }
+      error_rate: { root: 1, payload: 0, policy: 1, augmentation: 0 }
+    # ... (see config.yaml for all templates)
+  response_validation_templates:
+    allowed:
+      root: { response.outcome: allowed }
+      policy: { step.outcome: pass, policy.engine: dlp, policy.decision: allow }
+      error_rate: { root: 0, policy: 0 }
+
+# -----------------------------------------------------------------------------
+# conversation_samples – Per workflow key. Used when scenario has no conversation.samples or conversation.turns.
+# Structure: <workflow_key>: { samples: [ { user_input, llm_response [, user_input_redacted, llm_response_redacted ] } ], optional status_enum? }
+# default: fallback when workflow key not found. See config.yaml for full samples.
+# -----------------------------------------------------------------------------
+conversation_samples:
+  new_claim:
+    samples:
+      - user_input: "I dropped my phone, how do I start a claim?"
+        llm_response: "I've started a claim (PH-8842). Describe what happened..."
+      - user_input: "Start a claim. My address is 42 High Street and policy POL-8892."
+        llm_response: "I've started a claim at 42 High Street under policy POL-8892."
+        user_input_redacted: "Start a claim. My address is <ADDRESS> and policy <POLICY_ID>."
+        llm_response_redacted: "I've started a claim at <ADDRESS> under policy <POLICY_ID>."
+  claim_status:
+    samples:
+      - user_input: "What's the status of my claim PH-8842?"
+        llm_response: "Claim PH-8842: appointment scheduled for Thursday 10am."
+  default:
+    samples:
+      - user_input: "What can you help me with?"
+        llm_response: "I can help with claims, document uploads, insurance quotes, and payments."

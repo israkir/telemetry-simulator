@@ -130,15 +130,27 @@ def _context_kwargs_for_scenario(
                 input_msgs, output_msgs = _sample_to_otel_messages(user_input, llm_response)
                 kwargs["llm_input_messages"] = input_msgs
                 kwargs["llm_output_messages"] = output_msgs
-                ui_red = sample.get("user_input_redacted")
-                lr_red = sample.get("llm_response_redacted")
-                if isinstance(ui_red, str) and isinstance(lr_red, str):
-                    inp_red, out_red = _sample_to_otel_messages(ui_red, lr_red)
-                    kwargs["llm_input_messages_redacted"] = inp_red
-                    kwargs["llm_output_messages_redacted"] = out_red
+            # Per-sample tool_call_arguments (e.g. 4xx invalid-params) override scenario default so MCP args match conversation.
+            sample_tool_args = sample.get("tool_call_arguments")
+            if isinstance(sample_tool_args, dict) and sample_tool_args:
+                kwargs["tool_call_arguments"] = sample_tool_args
+            else:
+                scenario_ctx = getattr(scenario, "context", None)
+                if scenario_ctx is not None:
+                    ctx_tool_args = getattr(scenario_ctx, "tool_call_arguments", None)
+                    if isinstance(ctx_tool_args, dict) and ctx_tool_args:
+                        kwargs["tool_call_arguments"] = ctx_tool_args
+            ui_red = sample.get("user_input_redacted")
+            lr_red = sample.get("llm_response_redacted")
+            if isinstance(ui_red, str) and isinstance(lr_red, str):
+                inp_red, out_red = _sample_to_otel_messages(ui_red, lr_red)
+                kwargs["llm_input_messages_redacted"] = inp_red
+                kwargs["llm_output_messages_redacted"] = out_red
         else:
             context = getattr(scenario, "context", None)
             workflow = context.workflow if context else None
+            if context and getattr(context, "tool_call_arguments", None):
+                kwargs["tool_call_arguments"] = context.tool_call_arguments
             cfg_inp, cfg_out, cfg_inp_red, cfg_out_red = _get_conversation_from_config(workflow)
             if cfg_inp is not None and cfg_out is not None:
                 kwargs["llm_input_messages"] = cfg_inp
@@ -475,8 +487,8 @@ class ScenarioRunner:
             )
             trace_ids.extend(iteration_trace_ids)
             scenario_name = getattr(scenario, "name", "unknown")
-            traces_by_scenario[scenario_name] = (
-                traces_by_scenario.get(scenario_name, 0) + len(iteration_trace_ids)
+            traces_by_scenario[scenario_name] = traces_by_scenario.get(scenario_name, 0) + len(
+                iteration_trace_ids
             )
             primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
             if progress_callback:

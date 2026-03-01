@@ -23,7 +23,7 @@ redaction_applied: none
 
 data_plane:
   workflow: new_claim
-  simulation_goal: higher_latency
+  goal: higher_latency
   latency_profile: higher_latency
   control_plane_template: allowed
   higher_latency_condition:
@@ -40,7 +40,7 @@ expected:
   tools:
     - new_claim
 
-# Realistic single-turn conversation (peak hours / post long weekend higher-latency).
+# Single-turn conversation (peak hours / post long weekend higher-latency).
 conversation:
   samples:
     - user_input: "I dropped my phone, how do I start a claim?"

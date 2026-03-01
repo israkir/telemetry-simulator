@@ -23,7 +23,7 @@ redaction_applied: none
 
 data_plane:
   workflow: update_appointment
-  simulation_goal: higher_latency
+  goal: higher_latency
   latency_profile: higher_latency
   control_plane_template: allowed
   higher_latency_condition:
@@ -34,7 +34,7 @@ expected:
   tools:
     - update_appointment
 
-# Realistic single-turn conversation (zip-code higher-latency).
+# Single-turn conversation (zip-code higher-latency).
 conversation:
   samples:
     - user_input: "I need to move my phone repair to next week. Claim PH-8842."

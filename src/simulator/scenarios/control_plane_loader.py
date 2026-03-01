@@ -137,7 +137,7 @@ def get_default_data_plane_workflow_steps(config_path: Path | None = None) -> li
         workflow_key = cp.get("default_data_plane_workflow")
         if isinstance(workflow_key, str):
             workflow_key = workflow_key.strip() or None
-    rs = data.get("realistic_scenarios")
+    rs = data.get("scenarios") or data.get("realistic_scenarios")
     workflow_templates = rs.get("workflow_templates") if isinstance(rs, dict) else {}
     if not isinstance(workflow_templates, dict):
         workflow_templates = {}

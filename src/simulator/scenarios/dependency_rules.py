@@ -1,5 +1,5 @@
 """
-Dependency rules for realistic rule-based telemetry generation.
+Dependency rules for rule-based telemetry generation.
 
 These invariants are enforced by the simulator; trace validation can check them
 against emitted spans.

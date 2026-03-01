@@ -124,6 +124,22 @@ def _context_from_trace_and_span(trace_id_hex: str, span_id_hex: str) -> Any:
     return trace.set_span_in_context(NonRecordingSpan(span_context))
 
 
+# Exception type and message derived from error.type when not set on config (e.g. failed MCP attempts).
+# Aligned with semconv error.type allowed_values; used for exception event on any failing span.
+_EXCEPTION_FROM_ERROR_TYPE: dict[str, tuple[str, str]] = {
+    "timeout": ("TimeoutError", "Call exceeded latency budget"),
+    "unavailable": ("UnavailableError", "Server or tool unreachable"),
+    "invalid_arguments": ("InvalidArgumentsError", "Invalid or missing parameters"),
+    "tool_error": ("ToolError", "Tool returned failure"),
+    "protocol_error": ("ProtocolError", "Protocol or serialization error"),
+}
+
+
+def _exception_from_error_type(error_type: str, _span_type: SpanType) -> tuple[str, str]:
+    """Return (exception_type, exception_message) for a given error.type (SemConv-aligned)."""
+    return _EXCEPTION_FROM_ERROR_TYPE.get(error_type, ("RuntimeError", "Error occurred"))
+
+
 def _record_span_error(
     span: Any,
     span_type: SpanType,
@@ -139,6 +155,7 @@ def _record_span_error(
     event with exception.type, exception.message, exception.stacktrace (OpenTelemetry).
     error.type must be one of SEMCONV_ERROR_TYPE_VALUES from conventions/semconv.yaml.
     If exception_type/exception_message are provided (e.g. from control-plane template), use them for the exception event.
+    Otherwise derive from error.type so failed MCP attempts and other spans get SemConv-aligned exception events.
     """
     raw = (
         error_type_override
@@ -161,14 +178,57 @@ def _record_span_error(
     if raw_category:
         span.set_attribute(config_attr("error.category"), raw_category)
     span.set_status(Status(StatusCode.ERROR, message))
-    msg = exception_message or message
-    if exception_type:
-        exc_cls = type(exception_type, (RuntimeError,), {})
+    # Exception event: use provided type/message or derive from error.type (e.g. timeout → TimeoutError).
+    if not exception_type or not exception_message:
+        derived = _exception_from_error_type(error_type, span_type)
+        exc_type = exception_type or derived[0]
+        exc_msg = exception_message or derived[1]
+    else:
+        exc_type = exception_type
+        exc_msg = exception_message
+    msg = exc_msg or message
+    if exc_type:
+        exc_cls = type(exc_type, (RuntimeError,), {})
         exc = exc_cls(msg)
     else:
         exc = RuntimeError(msg)
     if hasattr(span, "record_exception"):
         span.record_exception(exc)
+
+
+def _response_compose_exception_defaults(
+    config: "SpanConfig",
+    overrides: dict[str, Any],
+    attr_fn: Any,
+    error_type_override: str | None,
+) -> tuple[str | None, str | None]:
+    """Default exception type and message for response.compose when in error.
+    When config has exception_type/exception_message (e.g. from scenario), use those.
+    Otherwise derive from error.type so the exception event is SemConv-aligned.
+    """
+    if getattr(config, "exception_type", None) and getattr(config, "exception_message", None):
+        return (
+            config.exception_type,
+            config.exception_message,
+        )
+    raw = (
+        error_type_override
+        or overrides.get("error.type")
+        or overrides.get(attr_fn("error.type"))
+        or "protocol_error"
+    )
+    # Map error.type to exception class name and message (OTEL exception event).
+    _RESPONSE_COMPOSE_EXCEPTION_BY_ERROR_TYPE: dict[str, tuple[str, str]] = {
+        "protocol_error": ("JsonSerializationError", "Failed to serialize A2A response payload"),
+        "unavailable": ("ResponseCompositionError", "Response composition failed"),
+        "tool_error": ("ResponseCompositionError", "Response composition failed"),
+        "timeout": ("TimeoutError", "Response composition timed out"),
+        "invalid_arguments": ("ValidationError", "Invalid response structure"),
+    }
+    exc_type, exc_msg = _RESPONSE_COMPOSE_EXCEPTION_BY_ERROR_TYPE.get(
+        raw, ("ResponseCompositionError", "Response composition failed")
+    )
+    return exc_type, exc_msg
 
 
 def _set_higher_latency_condition_attributes(
@@ -374,6 +434,38 @@ class TraceHierarchy:
         return names
 
 
+def _subtree_has_configured_failure(hierarchy: TraceHierarchy) -> tuple[bool, str | None]:
+    """Return (True, error_type) if this subtree or any descendant has logical failure.
+
+    Logical failure is per node: step.outcome=fail or (for attempts) mcp.attempt.outcome=fail.
+    We recurse so task.execute wrapping MCP is detected (task root=success, MCP root=fail).
+    For MCP_TOOL_EXECUTE we do not recurse into attempts: the parent's step.outcome is the
+    logical call outcome (retry-then-success has parent step.outcome=success).
+    """
+    cfg = hierarchy.root_config
+    overrides = cfg.attribute_overrides or {}
+    step_outcome = (overrides.get(config_attr("step.outcome")) or "").strip().lower()
+    attempt_outcome = (overrides.get(config_attr("mcp.attempt.outcome")) or "").strip().lower()
+    root_has_fail = cfg.error_rate >= 1.0 or step_outcome == "fail" or attempt_outcome == "fail"
+    if root_has_fail:
+        error_type = overrides.get("error.type") or overrides.get(config_attr("error.type"))
+        if isinstance(error_type, str):
+            return True, error_type
+        for child in hierarchy.children:
+            child_fail, child_err = _subtree_has_configured_failure(child)
+            if child_fail and child_err:
+                return True, child_err
+        return True, _ERROR_TYPE_BY_SPAN_TYPE.get(cfg.span_type)
+    # Root success: recurse so task->mcp (task success, mcp fail) is detected; do not recurse into MCP attempts.
+    if cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
+        return False, None
+    for child in hierarchy.children:
+        found, child_err = _subtree_has_configured_failure(child)
+        if found:
+            return True, child_err or "tool_error"
+    return False, None
+
+
 class SpanBuilder:
     """Build individual spans with proper attributes and timing."""
 
@@ -389,7 +481,7 @@ class SpanBuilder:
         self.tracer = tracer
 
     def generate_latency(self, config: SpanConfig) -> float:
-        """Generate realistic latency based on config."""
+        """Generate latency based on config."""
         latency = config.latency_mean_ms * (1 + random.gauss(0, config.latency_variance))
         if random.random() < 0.05:
             latency *= random.uniform(2.0, 4.0)
@@ -477,6 +569,16 @@ class SpanBuilder:
                 for key in list(attrs.keys()):
                     if "higher_latency" in key:
                         attrs.pop(key, None)
+        # When context has tool_call_arguments (e.g. 4xx invalid-params), use them so gen_ai.tool.call.arguments
+        # on MCP spans match the conversation (wrong claim_id format, wrong date, missing params).
+        if span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
+            tool_name = overrides.get("gen_ai.tool.name")
+            ctx_tool_args = getattr(context, "tool_call_arguments", None)
+            if isinstance(ctx_tool_args, dict) and tool_name and tool_name in ctx_tool_args:
+                args_val = ctx_tool_args[tool_name]
+                attrs["gen_ai.tool.call.arguments"] = (
+                    json.dumps(args_val) if isinstance(args_val, dict) else str(args_val)
+                )
         return attrs
 
 
@@ -652,12 +754,27 @@ class TraceGenerator:
         context: GenerationContext,
         parent_span: Any,
         parent_context: Any | None = None,
+        compose_accumulated_failure: str | None = None,
     ) -> tuple[str, str, int, float]:
         """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns, tool_latency_ms).
         end_time_ns is the span's logical end timestamp so parents can ensure end >= last child end.
         tool_latency_ms is the gentoro.tool.latency_ms value for this span (non-zero only for MCP tool execute/attempt).
+        compose_accumulated_failure: when set, response.compose accumulates this error (step.outcome=fail, status, exception).
         """
         config = hierarchy.root_config
+        # When at A2A root, detect if any upstream (sibling of response_compose) is configured to fail;
+        # pass so response.compose accumulates step.outcome, status, error.type, and exception.
+        child_compose_failure = compose_accumulated_failure
+        if config.span_type == SpanType.A2A_ORCHESTRATE:
+            for ch in hierarchy.children:
+                if ch.root_config.span_type != SpanType.RESPONSE_COMPOSE:
+                    has_fail, err_type = _subtree_has_configured_failure(ch)
+                    if has_fail:
+                        child_compose_failure = (err_type or "tool_error").strip()
+                        if child_compose_failure not in SEMCONV_ERROR_TYPE_VALUES:
+                            child_compose_failure = "tool_error"
+                        break
+
         span_name = get_span_name(config.span_type)
         span_kind = SPAN_KIND_MAP.get(config.span_type, SpanKind.INTERNAL)
 
@@ -794,17 +911,26 @@ class TraceGenerator:
                     )
             elif (
                 config.span_type == SpanType.RESPONSE_COMPOSE
-                and (is_error or tool_result is False)
-                and not override_success
+                and (is_error or tool_result is False or compose_accumulated_failure)
+                and (not override_success or compose_accumulated_failure)
             ):
                 span.set_attribute(config_attr("step.outcome"), "fail")
+                # Use error.type from overrides or accumulated from upstream (e.g. MCP 4xx → invalid_arguments).
+                error_type_override = (
+                    overrides.get("error.type")
+                    or overrides.get(config_attr("error.type"))
+                    or compose_accumulated_failure
+                )
+                exc_type, exc_msg = _response_compose_exception_defaults(
+                    config, overrides, config_attr, error_type_override
+                )
                 _record_span_error(
                     span,
                     config.span_type,
                     overrides,
-                    error_type_override="protocol_error",
-                    exception_type=getattr(config, "exception_type", None),
-                    exception_message=getattr(config, "exception_message", None),
+                    error_type_override=error_type_override,
+                    exception_type=exc_type,
+                    exception_message=exc_msg,
                 )
             elif (
                 config.span_type == SpanType.TASK_EXECUTE
@@ -958,7 +1084,11 @@ class TraceGenerator:
             child_tool_latencies: list[float] = []
             for child_hierarchy in hierarchy.children:
                 _, _, child_end_ns, child_tool_latency_ms = self._generate_span_recursive(
-                    child_hierarchy, context, span, None
+                    child_hierarchy,
+                    context,
+                    span,
+                    None,
+                    compose_accumulated_failure=child_compose_failure,
                 )
                 last_child_end_ns = max(last_child_end_ns, child_end_ns)
                 child_tool_latencies.append(child_tool_latency_ms)
@@ -978,9 +1108,13 @@ class TraceGenerator:
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 span.set_attribute(config_attr("orchestration.duration_ms"), actual_duration_ms)
             elif config.span_type == SpanType.REQUEST_VALIDATION:
-                span.set_attribute(config_attr("request.validation.duration_ms"), actual_duration_ms)
+                span.set_attribute(
+                    config_attr("request.validation.duration_ms"), actual_duration_ms
+                )
             elif config.span_type == SpanType.RESPONSE_VALIDATION:
-                span.set_attribute(config_attr("response.validation.duration_ms"), actual_duration_ms)
+                span.set_attribute(
+                    config_attr("response.validation.duration_ms"), actual_duration_ms
+                )
             elif config.span_type == SpanType.CP_REQUEST:
                 span.set_attribute(config_attr("cp.request.duration_ms"), actual_duration_ms)
             elif config.span_type == SpanType.MCP_TOOL_EXECUTE and child_tool_latencies:

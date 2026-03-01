@@ -1,0 +1,49 @@
+# =============================================================================
+# Example / reference: structure of resource/config/resource.yaml
+# =============================================================================
+# This file is for reference only. The simulator loads resource/config/resource.yaml
+# for OTEL resource attributes (service.name, schema_url, etc.).
+# Use this to see all keys; copy patterns into resource.yaml.
+#
+# Related: resource/config/config.yaml (scenarios, tenants, workflows, etc.),
+#          resource/config/_EXAMPLE_CONFIG_.yaml (config structure reference),
+#          resource/scenarios/definitions/_EXAMPLE_SCENARIO_.yaml (scenario YAML reference).
+#
+# Prefix-relative keys (module, component, otel.source) are expanded with the
+# vendor attribute prefix (e.g. gentoro.module, vendor.component) at load time.
+#
+# Data-plane: component is set at runtime per span to one of (SemConv 5.3):
+#   orchestrator, planning, retrieval, llm, mcp_client, tool_recommender.
+# Do not set component under data_plane.attributes; it is always overridden per span.
+# =============================================================================
+
+# Schema URL for schema-aware ingestion (optional but recommended).
+schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
+
+# -----------------------------------------------------------------------------
+# control_plane – Resource attributes for control-plane traces (incoming_validation, etc.).
+# Applied to all spans when trace_flow is control-plane only or for control-plane phases.
+# -----------------------------------------------------------------------------
+control_plane:
+  attributes:
+    service.name: "gentoro-enterprise"
+    service.version: "1.0.0"
+    service.instance.id: "pod-7f9c6d4b8d-xyz12"
+    deployment.environment.name: "development"   # development | staging | production (SemConv)
+    module: "control-plane"
+    component: "gateway-ext"                     # Canonical: orchestrator | planning | retrieval | llm | mcp_client | tool_recommender; gateway-ext treated as orchestrator
+    otel.source: "propagated"
+
+# -----------------------------------------------------------------------------
+# data_plane – Resource attributes for data-plane traces (a2a.orchestrate, planner, mcp.tool.execute, etc.).
+# component is NOT set here; it is set per span at runtime (orchestrator, planning, llm, mcp_client, tool_recommender).
+# -----------------------------------------------------------------------------
+data_plane:
+  attributes:
+    service.name: "gentoro-enterprise"
+    service.version: "1.0.0"
+    service.instance.id: "pod-7f9c6d4b8d-xyz12"
+    deployment.environment.name: "development"
+    module: "data-plane"
+    # component: set at runtime per span – do not set here
+    otel.source: "propagated"
