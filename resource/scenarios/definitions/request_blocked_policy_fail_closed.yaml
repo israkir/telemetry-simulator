@@ -24,6 +24,9 @@ redaction_applied: none
 # Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: blocked_request_policy_fail_closed
+  policy_exception:
+    type: PolicyEngineTimeout
+    message: "Policy engine timed out; fail-closed so request blocked."
 
 context:
   tenant: toro

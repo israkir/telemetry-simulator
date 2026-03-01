@@ -1,0 +1,65 @@
+# Agent confusion: does not call the full set of tools in new claim workflow.
+# User intent is to start a claim; expected flow is planner → task → tools_recommend → new_claim → response_compose.
+# Agent runs planner, task, tools_recommend, then response_compose without ever calling new_claim (partial tool set).
+# Simulated via goal: partial_workflow and scenario_overrides.actual_steps omitting the new_claim step.
+# Cause: no context about sequence — agent composes response without executing the required tool.
+
+name: agent_confusion_new_claim_partial_tools
+description: >
+  Partial tool set in new-claim workflow: User wants to start a phone claim. Expected flow
+  is planner → task → tools_recommend → new_claim → response_compose. Agent runs planner,
+  task, tools_recommend, then response_compose without calling new_claim. Trace shows
+  orchestration with no MCP tool execution for new_claim; response_compose is marked
+  fail (partial_workflow). Cause: no context about sequence — agent proceeds to respond
+  without executing the required tool.
+
+tags:
+  - data-plane
+  - agent-confusion
+  - partial-workflow
+  - new-claim
+
+workload_weight: 0.6
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 100
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: new_claim
+  goal: partial_workflow
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+# Hierarchy is built from actual_steps (no new_claim); modifier marks response_compose as fail.
+scenario_overrides:
+  actual_steps:
+    - planner
+    - task
+    - tools_recommend
+    - response_compose
+  exception_type: "PartialWorkflowError"
+  exception_message: "Required tool not called in workflow; no context about sequence."
+
+# Expected (correct) flow would include new_claim; emitted trace has no new_claim tool call.
+expected:
+  mcp_server: phone
+  tools:
+    - new_claim
+
+conversation:
+  samples:
+    - user_input: "I dropped my phone, how do I start a claim?"
+      llm_response: "You can start a claim in the app under Claims, or I can guide you through the steps."
+    - user_input: "My phone screen is cracked. I need to make a claim."
+      llm_response: "For a cracked screen, go to the Claims section and select New Claim. You'll need your policy details."
+    - user_input: "I want to file a claim for my phone."
+      llm_response: "To file a claim, please open the app and choose File a claim. If you have your policy number ready, the process is quick."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone

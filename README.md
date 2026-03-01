@@ -157,7 +157,7 @@ otelsim run --vendor=your_vendor --count 5 --show-full-spans
 |----------|---------|-------------|
 | `VENDOR` | `vendor` | Vendor prefix for span names and attributes (e.g. `vendor` → `vendor.a2a.orchestrate`, `vendor.session.id`). Set to your vendor name (e.g. `acme`) so no specific vendor is hardcoded. |
 | `TELEMETRY_SIMULATOR_VENDOR_NAME` | *(capitalized prefix)* | Display name used in validation messages. |
-| `SEMCONV` | *(optional)* | Full path to your semantic-conventions YAML. Default: `scenarios/conventions/semconv.yaml` (or pass `--semconv`). |
+| `SEMCONV` | *(optional)* | Full path to your semantic-conventions YAML. Default: `resource/scenarios/conventions/semconv.yaml` (or pass `--semconv`). |
 
 Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read from `resource/config/resource.yaml`. Configure them there; env vars are not used for these.
 
@@ -170,7 +170,7 @@ All spans/metrics/logs are emitted with resource attributes per the OTEL resourc
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--endpoint` | `http://localhost:4318` | OTLP HTTP endpoint |
-| `--semconv` | *(optional)* | Path to your semantic-conventions YAML (default: scenarios/conventions/semconv.yaml; or set `SEMCONV`) |
+| `--semconv` | *(optional)* | Path to your semantic-conventions YAML (default: resource/scenarios/conventions/semconv.yaml; or set `SEMCONV`) |
 | `--count` | `100` | Number of traces |
 | `--interval` | `500` | Interval in ms |
 | `--output-file` | None | Export to file instead of OTLP |
@@ -185,7 +185,7 @@ All spans/metrics/logs are emitted with resource attributes per the OTEL resourc
 
 ## Schema Validation
 
-The simulator validates all telemetry against the schema file you provide (via `SEMCONV`, `--semconv`, or the default `scenarios/conventions/semconv.yaml`):
+The simulator validates all telemetry against the schema file you provide (via `SEMCONV`, `--semconv`, or the default `resource/scenarios/conventions/semconv.yaml`):
 
 ```bash
 # Show schema summary
@@ -304,4 +304,4 @@ make install
 
 - [Generating Telemetry](docs/generating-telemetry.md) – Guide, scenario/randomness/SemConv, and scenario examples
 
-When using this simulator inside another repo, provide your schema YAML path (`SEMCONV`, `--semconv`, or default `scenarios/conventions/semconv.yaml`) and set `VENDOR` to your project’s attribute namespace.
+When using this simulator inside another repo, provide your schema YAML path (`SEMCONV`, `--semconv`, or default `resource/scenarios/conventions/semconv.yaml`) and set `VENDOR` to your project’s attribute namespace.

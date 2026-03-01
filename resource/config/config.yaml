@@ -233,6 +233,7 @@ scenarios:
     update_appointment: [planner, task, tools_recommend, update_appointment, response_compose]
     claim_status: [planner, task, tools_recommend, claim_status, response_compose]
     cancel_claim: [planner, task, tools_recommend, cancel_claim, response_compose]
+    cancel_product: [planner, task, tools_recommend, cancel_product, response_compose]
     pay: [planner, task, tools_recommend, pay, response_compose]
 
 # -----------------------------------------------------------------------------

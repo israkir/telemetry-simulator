@@ -16,7 +16,7 @@ tags:
   - entity-format
   - electronics
 
-workload_weight: 0.5
+workload_weight: 0.6
 
 mcp_server: electronics
 repeat_count: 2

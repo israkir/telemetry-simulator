@@ -20,6 +20,9 @@ redaction_applied: none
 # Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: error_policy_runtime
+  policy_exception:
+    type: PolicyEngineTimeout
+    message: "Policy engine timed out; request outcome=error."
 
 context:
   tenant: toro

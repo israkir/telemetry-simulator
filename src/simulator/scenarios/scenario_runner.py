@@ -224,8 +224,13 @@ class ScenarioRunner:
         policy_exception_override = getattr(
             scenario, "control_plane_policy_exception_override", None
         )
+        augmentation_exception_override = getattr(
+            scenario, "control_plane_augmentation_exception_override", None
+        )
         return build_request_validation_hierarchy_from_template(
-            template_id, policy_exception_override=policy_exception_override
+            template_id,
+            policy_exception_override=policy_exception_override,
+            augmentation_exception_override=augmentation_exception_override,
         )
 
     def _response_validation_hierarchy(self, scenario: Scenario) -> TraceHierarchy:
@@ -461,7 +466,7 @@ class ScenarioRunner:
             raise ValueError(
                 f"No YAML scenarios found in {dir_path}. "
                 "Add at least one .yaml file there, or pass --scenarios-dir to use a custom folder. "
-                "Sample definitions live in scenarios/definitions/ (project root or TELEMETRY_SIMULATOR_ROOT)."
+                "Sample definitions live in resource/scenarios/definitions/ (under project root or TELEMETRY_SIMULATOR_ROOT)."
             )
 
         trace_ids: list[str] = []

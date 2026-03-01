@@ -1,0 +1,67 @@
+# Agent confusion: user intent is phone (pay for phone claim) but request is ambiguous.
+# Same input cluster (pay balance / pay claim) maps to same tool name across divisions;
+# agent selects electronics MCP instead of correct phone division → wrong mcp.server.uuid / mcp.tool.uuid.
+# Simulated via goal: wrong_division; trace is built for phone then modifier swaps MCP span to electronics.
+
+name: agent_confusion_pay_phone_wrong_division_electronics
+description: >
+  Division confusion (pay): User has a phone claim and wants to pay. Ambiguous request
+  (e.g. "I want to pay my balance", "Can I pay for my claim?") does not specify division.
+  Agent incorrectly routes to electronics MCP; trace shows electronics pay tool/server UUID
+  (wrong_division modifier). Cause: same input cluster → tools with same functionality
+  (pay) from different divisions; tool descriptions similar across divisions.
+
+tags:
+  - data-plane
+  - division-confusion
+  - wrong-division
+  - agent-confusion
+  - pay
+
+workload_weight: 0.9
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 120
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: pay
+  goal: wrong_division
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+scenario_overrides:
+  wrong_division_target: electronics
+  # Optional: exception event on the failed MCP attempt (wrong division → backend error).
+  exception_type: "WrongDivisionError"
+  exception_message: "Claim or order not found in this division; payment context is for another division."
+
+# Expected (correct) division and tool; emitted trace will show electronics due to modifier.
+expected:
+  mcp_server: phone
+  tools:
+    - pay
+
+# Ambiguous user inputs: could apply to phone or electronics; agent picks wrong division.
+conversation:
+  samples:
+    - user_input: "I want to pay my balance."
+      llm_response: "Here is your secure payment link for the balance. Complete payment to confirm."
+    - user_input: "Can I pay for my claim?"
+      llm_response: "I've looked up your balance. You can pay here: <SECURE_PAYMENT_LINK>."
+    - user_input: "How do I pay what I owe?"
+      llm_response: "Your outstanding amount is ready. Use this link to pay: <SECURE_PAYMENT_LINK>."
+    - user_input: "I'd like to pay the outstanding amount."
+      llm_response: "Payment link sent. Complete before the due date to avoid reminders."
+    - user_input: "Pay my dues."
+      llm_response: "Here is your payment link. Let me know once done."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tool_call_arguments:
+    pay: { claim_id: "clm_abc123", amount_cents: 19900, method: "card" }
