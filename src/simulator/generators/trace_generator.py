@@ -417,6 +417,9 @@ class SpanConfig:
     exception_message: str | None = None
     # Optional: for VALIDATION_PAYLOAD fail, emit gentoro.validation.error events (list of {path, rule, code}).
     validation_errors: list[dict[str, Any]] | None = None
+    # Optional: latency profile name (e.g. happy_path, higher_latency). Used to allow 5% spikes only for
+    # higher_latency and retry contexts so happy_path stays below them.
+    latency_profile: str | None = None
 
 
 @dataclass
@@ -481,9 +484,19 @@ class SpanBuilder:
         self.tracer = tracer
 
     def generate_latency(self, config: SpanConfig) -> float:
-        """Generate latency based on config."""
+        """Generate latency based on config.
+
+        Apply a 5% random spike (2x--4x) only when it is meaningful and does not invert
+        ordering: skip the spike for happy_path spans (so they stay below higher_latency
+        traces), but allow it for higher_latency scenarios and for MCP retry / error
+        contexts (high mean from latency_by_error_type). Rule: skip spike only when
+        latency_profile == "happy_path" and latency_mean_ms < 2000 (so retry timeouts
+        and higher_latency spans still get meaningful spikes).
+        """
         latency = config.latency_mean_ms * (1 + random.gauss(0, config.latency_variance))
-        if random.random() < 0.05:
+        profile = (config.latency_profile or "").strip().lower()
+        allow_spike = profile != "happy_path" or config.latency_mean_ms >= 2000.0
+        if allow_spike and random.random() < 0.05:
             latency *= random.uniform(2.0, 4.0)
         return max(10.0, latency)
 
@@ -556,19 +569,17 @@ class SpanBuilder:
             attempt_index = overrides.get(config_attr("mcp.attempt.index"))
             if attempt_index == 1:
                 attrs.pop(config_attr("retry.reason"), None)
-        # Higher-latency condition is set only from context by _set_higher_latency_condition_attributes on root spans.
-        # Strip any schema-driven higher_latency.* attributes so generic scenarios don't get example values
-        # (e.g. claim_status_output) from the schema.
+        # Higher-latency condition is set only on a2a.orchestrate by _set_higher_latency_condition_attributes.
+        # Strip schema-driven higher_latency.* from all root span types; real values set only on a2a.orchestrate.
         if span_type in (
             SpanType.CP_REQUEST,
             SpanType.REQUEST_VALIDATION,
             SpanType.A2A_ORCHESTRATE,
+            SpanType.RESPONSE_VALIDATION,
         ):
-            hlc = getattr(context, "higher_latency_condition", None)
-            if hlc is not None and isinstance(hlc, dict):
-                for key in list(attrs.keys()):
-                    if "higher_latency" in key:
-                        attrs.pop(key, None)
+            for key in list(attrs.keys()):
+                if "higher_latency" in key:
+                    attrs.pop(key, None)
         # When context has tool_call_arguments (e.g. 4xx invalid-params), use them so gen_ai.tool.call.arguments
         # on MCP spans match the conversation (wrong claim_id format, wrong date, missing params).
         if span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
@@ -846,12 +857,8 @@ class TraceGenerator:
                 ]:
                     span.set_attribute(config_attr("cp.outgoing_trace_id"), current_trace_id)
 
-            # Capture higher_latency_condition on root spans for filtering/correlation.
-            if config.span_type in (
-                SpanType.CP_REQUEST,
-                SpanType.REQUEST_VALIDATION,
-                SpanType.A2A_ORCHESTRATE,
-            ):
+            # Capture higher_latency_condition on a2a.orchestrate only (same span as orchestration.duration_ms).
+            if config.span_type == SpanType.A2A_ORCHESTRATE:
                 _set_higher_latency_condition_attributes(span, context, config_attr)
 
             is_error = self.span_builder.should_error(config)

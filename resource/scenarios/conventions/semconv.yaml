@@ -1219,14 +1219,13 @@ common_attributes:
 # semantic conventions" and "Defining attributes", custom attributes MUST use a
 # namespaced prefix, appropriate types, and clear documentation. These attributes
 # follow that practice (gentoro.* namespace) for observability/simulation context.
-# Set on root spans (gentoro.request.validation, gentoro.a2a.orchestrate,
-# gentoro.cp.request) when the trace was generated with a higher-latency scenario
-# so analytics can filter or correlate by condition.
+# Set on gentoro.a2a.orchestrate only when the trace was generated with a
+# higher-latency scenario (same span as gentoro.orchestration.duration_ms).
 # Reference: https://opentelemetry.io/docs/specs/semconv/general/how-to-define-semantic-conventions/
 # -----------------------------------------------------------------------------
 higher_latency_condition_attributes:
   note: "Vendor extension (gentoro.*). No OTEL standard exists for this use case; these attributes follow OTEL guidance for custom attributes: namespaced prefix, typed, documented, optional."
-  applies_to: ["request.validation", "a2a.orchestrate", "cp.request"]
+  applies_to: ["a2a.orchestrate"]
 
   gentoro.higher_latency.condition.keys:
     type: string
