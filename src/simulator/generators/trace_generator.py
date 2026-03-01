@@ -446,11 +446,7 @@ def _subtree_has_configured_failure(hierarchy: TraceHierarchy) -> tuple[bool, st
     overrides = cfg.attribute_overrides or {}
     step_outcome = (overrides.get(config_attr("step.outcome")) or "").strip().lower()
     attempt_outcome = (overrides.get(config_attr("mcp.attempt.outcome")) or "").strip().lower()
-    root_has_fail = (
-        cfg.error_rate >= 1.0
-        or step_outcome == "fail"
-        or attempt_outcome == "fail"
-    )
+    root_has_fail = cfg.error_rate >= 1.0 or step_outcome == "fail" or attempt_outcome == "fail"
     if root_has_fail:
         error_type = overrides.get("error.type") or overrides.get(config_attr("error.type"))
         if isinstance(error_type, str):
@@ -573,6 +569,16 @@ class SpanBuilder:
                 for key in list(attrs.keys()):
                     if "higher_latency" in key:
                         attrs.pop(key, None)
+        # When context has tool_call_arguments (e.g. 4xx invalid-params), use them so gen_ai.tool.call.arguments
+        # on MCP spans match the conversation (wrong claim_id format, wrong date, missing params).
+        if span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
+            tool_name = overrides.get("gen_ai.tool.name")
+            ctx_tool_args = getattr(context, "tool_call_arguments", None)
+            if isinstance(ctx_tool_args, dict) and tool_name and tool_name in ctx_tool_args:
+                args_val = ctx_tool_args[tool_name]
+                attrs["gen_ai.tool.call.arguments"] = (
+                    json.dumps(args_val) if isinstance(args_val, dict) else str(args_val)
+                )
         return attrs
 
 
@@ -1078,7 +1084,11 @@ class TraceGenerator:
             child_tool_latencies: list[float] = []
             for child_hierarchy in hierarchy.children:
                 _, _, child_end_ns, child_tool_latency_ms = self._generate_span_recursive(
-                    child_hierarchy, context, span, None, compose_accumulated_failure=child_compose_failure
+                    child_hierarchy,
+                    context,
+                    span,
+                    None,
+                    compose_accumulated_failure=child_compose_failure,
                 )
                 last_child_end_ns = max(last_child_end_ns, child_end_ns)
                 child_tool_latencies.append(child_tool_latency_ms)

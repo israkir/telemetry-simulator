@@ -2,11 +2,11 @@
 # Cause: how input entities were specified — e.g. date of loss in wrong format (13/31/2024,
 # "March 15" vs ISO), missing required fields, or malformed payload. One MCP attempt gets
 # error.type=invalid_arguments and http.response.status_code in [400, 404, 422].
-# Division: electronics (TV, laptop, home electronics). Template-driven; no code change to add similar scenarios.
+# Division: appliances (dishwasher, fridge, washing machine). Template-driven; no code change to add similar scenarios.
 
-name: new_claim_electronics_tool_4xx_invalid_params
+name: new_claim_appliances_tool_4xx_invalid_params
 description: >
-  Agent calls new_claim for electronics with wrong format or missing parameters (e.g. date format,
+  Agent calls new_claim for appliances with wrong format or missing parameters (e.g. date format,
   missing required field), resulting in 4xx. Cause: how input entities were specified by the user.
 
 tags:
@@ -14,11 +14,11 @@ tags:
   - 4xx
   - invalid-params
   - entity-format
-  - electronics
+  - appliances
 
 workload_weight: 0.5
 
-mcp_server: electronics
+mcp_server: appliances
 repeat_count: 2
 interval_ms: 60
 emit_metrics: false
@@ -39,7 +39,7 @@ scenario_overrides:
 #   step_index_for_4xx: 0
 
 expected:
-  mcp_server: electronics
+  mcp_server: appliances
   tools:
     - new_claim
 
@@ -48,34 +48,34 @@ expected:
 context:
   tenant: toro
   agent: toro-customer-assistant-001
-  mcp_server: electronics
+  mcp_server: appliances
   tool_call_arguments:
     new_claim:
-      product_type: "TV"
+      product_type: "dishwasher"
       description: "Damage"
       incident_date: "13/31/2024"
 
 conversation:
   samples:
-    - user_input: "I need to claim my TV. Date of damage 13/31/2024."
+    - user_input: "I need to claim my dishwasher. Date of damage 13/31/2024."
       llm_response: "I tried to start the claim but the system didn't accept that date. Please use a format like 15 March 2024 or 2024-03-15."
       tool_call_arguments:
         new_claim:
-          product_type: "TV"
+          product_type: "dishwasher"
           description: "Damage"
           incident_date: "13/31/2024"
-    - user_input: "Start a claim for my laptop. Date of loss: March 15."
+    - user_input: "Start a claim for my fridge. Date of loss: March 15."
       llm_response: "The claim tool needs the full date (e.g. 2024-03-15). I've requested that — please try again with the full date."
       tool_call_arguments:
         new_claim:
-          product_type: "laptop"
+          product_type: "fridge"
           description: "Date of loss"
           incident_date: "March 15"
-    - user_input: "My soundbar stopped working, I want to file a claim. I didn't give the date yet."
+    - user_input: "My washing machine broke, I want to file a claim. I didn't give the date yet."
       llm_response: "I attempted to create the claim but a required field (date of loss) was missing. Could you provide the date of loss?"
       tool_call_arguments:
         new_claim:
-          product_type: "soundbar"
-          description: "Stopped working"
+          product_type: "washing_machine"
+          description: "Broke"
           # incident_date omitted → missing required field → 4xx
 
