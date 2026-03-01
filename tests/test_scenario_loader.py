@@ -50,4 +50,4 @@ def test_loader_can_load_new_claim_phone() -> None:
     assert scenario.context.correct_flow is not None
     assert scenario.context.correct_flow.steps
     assert scenario.mcp_server == "phone"
-    assert scenario.simulation_goal == "happy_path"
+    assert scenario.goal == "happy_path"

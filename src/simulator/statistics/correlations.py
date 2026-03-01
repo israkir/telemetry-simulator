@@ -1,5 +1,5 @@
 """
-Correlation models for realistic error propagation and dependent sampling.
+Correlation models for error propagation and dependent sampling.
 
 Models how errors cascade through trace hierarchies and how related
 attributes (e.g., input/output tokens) correlate with each other.
@@ -62,7 +62,7 @@ class ErrorPropagation:
     """
     Models how errors propagate through span hierarchies.
 
-    Error correlation is important for realistic telemetry:
+    Error correlation is important for telemetry:
     - If a child span fails, the parent often fails too
     - Cascading failures affect sibling spans
     - Recovery patterns show decreasing error rates on retries

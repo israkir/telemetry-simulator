@@ -28,9 +28,9 @@ redaction_applied: none
 control_plane:
   template: allowed_but_flagged
 
-# Default data-plane trace: same latency intent as other happy_path scenarios (simulation_goal + latency_profile aligned).
+# Default data-plane trace: same latency intent as other happy_path scenarios (goal + latency_profile aligned).
 data_plane:
-  simulation_goal: happy_path
+  goal: happy_path
   latency_profile: happy_path
 
 context:

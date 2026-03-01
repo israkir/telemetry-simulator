@@ -1,5 +1,5 @@
 """
-Apply realistic scenario modifiers to trace hierarchies.
+Apply scenario goal modifiers to trace hierarchies.
 
 Drives scenario-based telemetry for:
 - 4xx from bad/missing parameters: error.type=invalid_arguments, optional http.response.status_code 4xx
@@ -7,7 +7,7 @@ Drives scenario-based telemetry for:
 - Partial/wrong-order workflows: hierarchy built from actual_steps (fewer or reordered steps)
 - Ungrounded answers: response_compose or RAG span with error (retrieval_error / composition)
 
-Config is read from config/config.yaml (realistic_scenarios, mcp_servers).
+Config is read from config/config.yaml (scenarios, mcp_servers).
 SemConv-aligned: error.type and attribute names follow conventions/semconv.yaml.
 """
 
@@ -26,19 +26,19 @@ from ..generators.trace_generator import (
 
 @dataclass
 class ErrorTemplate:
-    """Error semantics for a simulation goal (SemConv-aligned)."""
+    """Error semantics for a scenario goal (SemConv-aligned)."""
 
     error_type: str = "tool_error"
     http_status_codes: list[int] = field(default_factory=list)
 
 
 @dataclass
-class RealisticScenarioConfig:
+class ScenarioConfig:
     """
-    Loaded from config/config.yaml realistic_scenarios and mcp_servers.
+    Loaded from config/config.yaml scenarios and mcp_servers.
 
     - divisions: division name -> mcp_servers key (for wrong_division resolution)
-    - error_templates: simulation_goal -> ErrorTemplate
+    - error_templates: goal -> ErrorTemplate
     - mcp_servers_by_key: mcp_servers key -> { mcp_server_uuid, tools: [{ name, tool_uuid }] }
 
     Latency is driven by config latency_profiles and scenario data_plane.latency_profile (no modifier).
@@ -49,13 +49,13 @@ class RealisticScenarioConfig:
     mcp_servers_by_key: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
-    def load(cls, config_path: Path | None = None) -> "RealisticScenarioConfig":
+    def load(cls, config_path: Path | None = None) -> "ScenarioConfig":
         path = config_path or CONFIG_PATH
         data = load_yaml(path)
         if not isinstance(data, dict):
             return cls()
 
-        rs = data.get("realistic_scenarios")
+        rs = data.get("scenarios") or data.get("realistic_scenarios")
         if not isinstance(rs, dict):
             rs = {}
 
@@ -128,7 +128,10 @@ def _apply_4xx_invalid_arguments(
     overrides: dict[str, Any],
     attr_prefix: str,
 ) -> None:
-    """Set one MCP attempt span to error with invalid_arguments and optional http.response.status_code."""
+    """Set one MCP attempt span to error with invalid_arguments and optional http.response.status_code.
+    Also set step.outcome=fail on the parent MCP span and mcp.attempt.outcome=fail on the attempt
+    so the trace generator marks both spans with status=ERROR (override_success is False).
+    """
     mcp_list = _collect_mcp_hierarchies(hierarchy)
     if not mcp_list:
         return
@@ -142,13 +145,27 @@ def _apply_4xx_invalid_arguments(
         return
     attempt = mcp_h.children[0]
     attempt.root_config.error_rate = 1.0
+    # Attempt: error semantics and outcome=fail so trace generator sets status=ERROR.
     attrs = dict(attempt.root_config.attribute_overrides or {})
     attrs["error.type"] = template.error_type
     if template.http_status_codes:
         attrs["http.response.status_code"] = random.choice(template.http_status_codes)
-    # Ensure prefixed attribute for tenant/schema consistency when used
     attrs[config_attr("error.type")] = template.error_type
+    attrs[config_attr("mcp.attempt.outcome")] = "fail"
     attempt.root_config.attribute_overrides = attrs
+    # Parent MCP span: step.outcome=fail so trace generator sets status=ERROR on the MCP span.
+    parent_attrs = dict(mcp_h.root_config.attribute_overrides or {})
+    parent_attrs[config_attr("step.outcome")] = "fail"
+    mcp_h.root_config.attribute_overrides = parent_attrs
+    # Exception event: use scenario_overrides.exception_type / exception_message when set.
+    exc_type = overrides.get("exception_type")
+    exc_msg = overrides.get("exception_message")
+    if exc_type or exc_msg:
+        attempt.root_config.exception_type = exc_type or "InvalidArgumentsError"
+        attempt.root_config.exception_message = exc_msg or "Invalid or missing parameters"
+    else:
+        attempt.root_config.exception_type = "InvalidArgumentsError"
+        attempt.root_config.exception_message = "Invalid or missing parameters"
 
 
 def _apply_wrong_division(
@@ -156,7 +173,7 @@ def _apply_wrong_division(
     correct_server_uuid: str,
     correct_tool_name: str,
     mcp_server_key: str,
-    config: RealisticScenarioConfig,
+    config: ScenarioConfig,
     overrides: dict[str, Any],
 ) -> None:
     """
@@ -259,40 +276,40 @@ def _apply_partial_workflow(
     comp.root_config.attribute_overrides = attrs
 
 
-def apply_realistic_scenario(
+def apply_scenario_goal(
     hierarchy: TraceHierarchy,
-    simulation_goal: str | None,
-    realistic_overrides: dict[str, Any] | None,
+    goal: str | None,
+    scenario_overrides: dict[str, Any] | None,
     context: Any,
     mcp_server_key: str | None = None,
-    config: RealisticScenarioConfig | None = None,
+    config: ScenarioConfig | None = None,
     config_path: Path | None = None,
 ) -> None:
     """
-    Apply realistic scenario modifiers in place to hierarchy.
+    Apply scenario goal modifiers in place to hierarchy.
 
-    - simulation_goal: happy_path | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response
-    - realistic_overrides: optional step_index_for_4xx, wrong_division_target, etc.
+    - goal: happy_path | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response
+    - scenario_overrides: optional step_index_for_4xx, wrong_division_target, exception_type, exception_message, etc.
     - context: ScenarioContext (for correct server UUID and tool name; agents[0].mcp[0])
     - mcp_server_key: scenario's MCP server key (e.g. "phone") for wrong_division correct division.
-    - config: loaded RealisticScenarioConfig; if None, loads from config_path.
+    - config: loaded ScenarioConfig; if None, loads from config_path.
     """
-    if not simulation_goal or (simulation_goal or "").lower() in ("happy_path", "none", ""):
+    if not goal or (goal or "").lower() in ("happy_path", "none", ""):
         return
-    overrides = dict(realistic_overrides or {})
+    overrides = dict(scenario_overrides or {})
     if config is None:
-        config = RealisticScenarioConfig.load(config_path)
-    goal = (simulation_goal or "").lower()
+        config = ScenarioConfig.load(config_path)
+    goal_lower = (goal or "").lower()
     attr_prefix = ATTR_PREFIX or "vendor"
 
-    if goal == "4xx_invalid_arguments":
+    if goal_lower == "4xx_invalid_arguments":
         template = config.error_templates.get("4xx_invalid_arguments") or ErrorTemplate(
             error_type="invalid_arguments", http_status_codes=[400, 404, 422]
         )
         _apply_4xx_invalid_arguments(hierarchy, template, overrides, attr_prefix)
         return
 
-    if goal == "wrong_division":
+    if goal_lower == "wrong_division":
         correct_server_uuid = ""
         correct_tool_name = ""
         if context and getattr(context, "agents", None):
@@ -313,14 +330,14 @@ def apply_realistic_scenario(
         )
         return
 
-    if goal == "ungrounded_response":
+    if goal_lower == "ungrounded_response":
         template = config.error_templates.get("ungrounded_response") or ErrorTemplate(
             error_type="unavailable"
         )
         _apply_ungrounded_response(hierarchy, template, attr_prefix)
         return
 
-    if goal == "partial_workflow":
+    if goal_lower == "partial_workflow":
         template = config.error_templates.get("partial_workflow") or ErrorTemplate(
             error_type="tool_error"
         )

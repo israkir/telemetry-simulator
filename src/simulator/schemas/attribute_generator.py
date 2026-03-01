@@ -54,6 +54,9 @@ class GenerationContext:
     # Optional: when scenario uses higher_latency profile, condition from data_plane.higher_latency_condition.
     # Captured as span attributes (higher_latency.condition.*) for filtering/correlation.
     higher_latency_condition: dict[str, Any] | None = None
+    # Optional: tool call arguments (keyed by tool name) for gen_ai.tool.call.arguments on MCP spans.
+    # When set (e.g. 4xx invalid-params scenarios), overrides hierarchy so args match the conversation.
+    tool_call_arguments: dict[str, Any] | None = None
 
     @classmethod
     def create(
@@ -78,6 +81,7 @@ class GenerationContext:
             llm_output_messages_redacted=kwargs.get("llm_output_messages_redacted"),
             scenario_name=kwargs.get("scenario_name"),
             higher_latency_condition=kwargs.get("higher_latency_condition"),
+            tool_call_arguments=kwargs.get("tool_call_arguments"),
         )
 
 
@@ -324,6 +328,12 @@ class AttributeGenerator:
             return context.route if context.route is not None else "default"
         if _attr_matches(name, "redaction.applied"):
             return context.redaction_applied
+        # LLM content flags: must match scenario redaction_applied (semconv: redaction.enabled when redacted variants emitted).
+        if name.endswith("llm.content.redaction.enabled"):
+            return (context.redaction_applied or "none").strip().lower() not in ("none", "")
+        if name.endswith("llm.content.capture.enabled"):
+            # We emit gen_ai.input.messages / gen_ai.output.messages on LLM spans, so capture is enabled.
+            return True
         if _attr_matches(name, "schema.version") or name == schema_version_attr():
             return self.schema.schema_version
         if name == "service.name":

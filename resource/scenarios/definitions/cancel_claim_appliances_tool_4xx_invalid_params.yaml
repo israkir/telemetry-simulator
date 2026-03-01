@@ -1,0 +1,64 @@
+# Agent calls cancel_claim (correct tool) with invalid or missing reason → 4xx.
+# Cause: reason must be from an allowed set (e.g. customer_requested, duplicate, no_longer_needed);
+# user gave free text or empty reason, so MCP returns error.type=invalid_arguments and 4xx.
+# Division: appliances (dishwasher, fridge, washer, etc.).
+
+name: cancel_claim_appliances_tool_4xx_invalid_params
+description: >
+  Agent calls cancel_claim for appliances with invalid or missing reason (e.g. free text or empty),
+  resulting in 4xx. Cause: cancel_claim requires a reason from the allowed set.
+
+tags:
+  - data-plane
+  - 4xx
+  - invalid-params
+  - cancel-reason
+  - cancel-claim
+  - appliances
+
+workload_weight: 0.5
+
+mcp_server: appliances
+repeat_count: 2
+interval_ms: 60
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: cancel_claim
+  goal: 4xx_invalid_arguments
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+scenario_overrides:
+  exception_type: "InvalidCancelReason"
+  exception_message: "Reason must be one of: customer_requested, duplicate, no_longer_needed, resolved_elsewhere. Received invalid or missing reason."
+
+expected:
+  mcp_server: appliances
+  tools:
+    - cancel_claim
+
+# Valid claim_id (HA-7733); invalid reason (empty or free text) so MCP returns 4xx.
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tool_call_arguments:
+    cancel_claim: { claim_id: "HA-7733", reason: "" }
+
+conversation:
+  samples:
+    - user_input: "Just cancel my dishwasher claim HA-7733. I don't want to give a reason."
+      llm_response: "I need a reason to cancel (e.g. 'no longer needed', 'duplicate claim'). Which applies? Then I can complete the cancellation."
+      tool_call_arguments:
+        cancel_claim: { claim_id: "HA-7733", reason: "" }
+    - user_input: "Cancel my fridge claim HA-5521. I changed my mind."
+      llm_response: "The system requires a standard reason. I'll use 'customer requested' to cancel HA-5521—one moment."
+      tool_call_arguments:
+        cancel_claim: { claim_id: "HA-5521", reason: "changed my mind" }
+    - user_input: "Please cancel claim HA-4412. I fixed the washer myself so don't need the visit."
+      llm_response: "The system didn't accept that reason. Please choose one: 'no longer needed', 'customer requested', 'duplicate', or 'resolved elsewhere' and I'll complete the cancellation."
+      tool_call_arguments:
+        cancel_claim: { claim_id: "HA-4412", reason: "fixed it myself" }
