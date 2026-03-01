@@ -220,6 +220,8 @@ def _apply_wrong_division(
     overrides_root[config_attr("mcp.server.uuid")] = wrong_server_uuid
     if wrong_tool_uuid:
         overrides_root[config_attr("mcp.tool.uuid")] = wrong_tool_uuid
+    # Parent MCP span: step.outcome=fail so trace shows logical failure and status=ERROR.
+    overrides_root[config_attr("step.outcome")] = "fail"
     mcp_h.root_config.attribute_overrides = overrides_root
     if mcp_h.children:
         attempt_overrides = dict(mcp_h.children[0].root_config.attribute_overrides or {})
@@ -227,18 +229,25 @@ def _apply_wrong_division(
         if wrong_tool_uuid:
             attempt_overrides[config_attr("mcp.tool.uuid")] = wrong_tool_uuid
         mcp_h.children[0].root_config.attribute_overrides = attempt_overrides
-    # Optionally mark this tool call as failed (wrong division often returns error)
+    # Mark this tool call as failed (wrong division → backend error / wrong context).
     template = config.error_templates.get("wrong_division") or ErrorTemplate(
         error_type="tool_error"
     )
     if mcp_h.children:
         mcp_h.children[0].root_config.error_rate = 1.0
-        att = mcp_h.children[0].root_config.attribute_overrides
-        if att is None:
-            att = {}
+        att = dict(mcp_h.children[0].root_config.attribute_overrides or {})
         att["error.type"] = template.error_type
         att[config_attr("error.type")] = template.error_type
+        att[config_attr("mcp.attempt.outcome")] = "fail"
         mcp_h.children[0].root_config.attribute_overrides = att
+        # Optional exception event (e.g. WrongDivisionError) from scenario_overrides.
+        exc_type = overrides.get("exception_type")
+        exc_msg = overrides.get("exception_message")
+        if exc_type or exc_msg:
+            mcp_h.children[0].root_config.exception_type = exc_type or "WrongDivisionError"
+            mcp_h.children[0].root_config.exception_message = (
+                exc_msg or "Tool executed against wrong division; claim/context not found."
+            )
 
 
 def _apply_ungrounded_response(
