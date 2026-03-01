@@ -10,10 +10,11 @@
 # - Default conversation samples (when no conversation.samples/turns here):
 #   config/config.yaml → conversation_samples[data_plane.workflow].
 # - Span latencies (mean + variance): config/config.yaml → latency_profiles.<data_plane.latency_profile>.
+#   Convention: simulation_goal and latency_profile must match (happy_path or higher_latency) so all scenarios run in harmony when mixed.
 # - Resource (all spans): config/resource.yaml → control_plane.attributes or data_plane.attributes
 #   (schema_url, service.name, service.version, deployment.environment.name, module, component, otel.source).
 #   Data-plane component is set per span at runtime (orchestrator, planning, llm, mcp_client, etc.).
-# Run explicitly: otelsim scenario --name example_scenario
+# Run: otelsim run --scenario example_scenario  (or include in mixed run; workload_weight applies).
 # =============================================================================
 
 name: example_scenario
@@ -59,17 +60,17 @@ redaction_applied: none
 # -----------------------------------------------------------------------------
 data_plane:
   # Workflow key → step list from config: realistic_scenarios.workflow_templates
-  # Example keys: new_claim, update_appointment, pay (see config for full list).
+  # Example keys: new_claim, update_appointment, claim_status, pay (see config for full list).
   workflow: new_claim
-  # Simulation goal → semantics from config: realistic_scenarios.error_templates
-  # (happy_path, 4xx_invalid_arguments, wrong_division, partial_workflow, ungrounded_response).
+  # Simulation goal and latency_profile must align (happy_path ↔ happy_path, higher_latency ↔ higher_latency).
   simulation_goal: happy_path
+  latency_profile: happy_path
   # Which request-validation outcome to assume (allowed | blocked | error).
   # Used when trace_flow includes incoming_validation; template resolved from control_plane.
   control_plane_template: allowed
 
-# Expected MCP server and tools (keys only; UUIDs from config mcp_servers.<key>.tools).
-# Used for validation/assertions; must match context.mcp_server and workflow tool steps.
+# Expected MCP server and tools (keys only; UUIDs resolved from config mcp_servers.<mcp_server>.tools).
+# Must match data_plane.workflow tool steps (e.g. new_claim → tools: [new_claim]).
 expected:
   mcp_server: phone
   tools:

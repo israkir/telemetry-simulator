@@ -423,10 +423,11 @@ class ScenarioRunner:
         progress_callback: Callable[[int, int, str, str, list[str]], None] | None = None,
         tags: list[str] | None = None,
         each_once: bool = False,
-    ) -> list[str]:
+    ) -> tuple[list[str], dict[str, int]]:
         """Run a mixed workload by picking at random from YAML-defined scenarios.
         If tags is non-empty, only scenarios that have at least one of these tags are included.
         If each_once is True, run each (filtered) scenario exactly once instead of count random picks.
+        Returns (trace_ids, traces_by_scenario) where traces_by_scenario maps scenario name to trace count.
         """
         scenarios = self.scenario_loader.load_all()
         if tags:
@@ -452,6 +453,7 @@ class ScenarioRunner:
             )
 
         trace_ids: list[str] = []
+        traces_by_scenario: dict[str, int] = {}
         total = len(scenarios) if each_once else count
 
         # When workload_weight is set on scenarios, use it as a relative sampling weight
@@ -472,6 +474,10 @@ class ScenarioRunner:
                 scenario, context, trace_flow, hierarchies, has_data_plane
             )
             trace_ids.extend(iteration_trace_ids)
+            scenario_name = getattr(scenario, "name", "unknown")
+            traces_by_scenario[scenario_name] = (
+                traces_by_scenario.get(scenario_name, 0) + len(iteration_trace_ids)
+            )
             primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
             if progress_callback:
                 progress_callback(
@@ -497,7 +503,7 @@ class ScenarioRunner:
                 if interval_ms > 0 and i < count - 1:
                     time.sleep(interval_ms / 1000.0)
 
-        return trace_ids
+        return trace_ids, traces_by_scenario
 
     def _emit_metrics_for_hierarchy(
         self,

@@ -1,5 +1,5 @@
-# Tool calls have higher latency when scheduling appointments in certain zip codes.
-# Latency from config latency_profiles.higher_latency; condition (zip_code) in this file. Add zips by copying.
+# Higher latency when scheduling in certain zip codes (condition in higher_latency_condition).
+# Latencies: config latency_profiles.higher_latency. Condition keys/values in this file (e.g. zip_code).
 
 name: update_appointment_phone_higher_latency
 description: >
@@ -19,6 +19,7 @@ repeat_count: 3
 interval_ms: 80
 emit_metrics: false
 emit_logs: false
+redaction_applied: none
 
 data_plane:
   workflow: update_appointment

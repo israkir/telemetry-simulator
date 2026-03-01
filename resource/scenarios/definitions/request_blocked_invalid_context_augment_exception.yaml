@@ -1,5 +1,5 @@
-# Augmentation fails (exception) → request is NOT accepted; root blocked (invalid_context).
-# Augmentation span has status=ERROR and exception event (AugmentationBindError).
+# Augmentation fails (exception) → blocked (invalid_context). Augmentation span status=ERROR with exception.
+# Template: config control_plane.request_validation_templates.blocked_invalid_context_augment_exception.
 
 name: request_blocked_invalid_context_augment_exception
 description: >
@@ -20,6 +20,7 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: blocked_invalid_context_augment_exception
 

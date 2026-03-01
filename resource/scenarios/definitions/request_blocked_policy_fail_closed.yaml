@@ -1,5 +1,5 @@
-# Policy engine throws exception, system is fail-closed → blocked (request_policy).
-# Root outcome=blocked, block.reason=request_policy, policy.fail_mode=closed; policy span status=ERROR with exception event.
+# Policy engine throws; fail-closed → blocked (request_policy). Policy span status=ERROR with exception.
+# Template: config control_plane.request_validation_templates.blocked_request_policy_fail_closed.
 
 name: request_blocked_policy_fail_closed
 description: >
@@ -21,10 +21,10 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: blocked_request_policy_fail_closed
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
-

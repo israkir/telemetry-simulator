@@ -1,5 +1,5 @@
 # Payload validation fails with multiple errors → blocked (invalid_payload).
-# Root + payload only; payload span has status ERROR and multiple gentoro.validation.error events.
+# Template: config control_plane.request_validation_templates.blocked_invalid_payload_multi.
 
 name: request_blocked_invalid_payload_multi
 description: >
@@ -20,6 +20,7 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: blocked_invalid_payload_multi
 
