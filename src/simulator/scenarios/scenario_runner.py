@@ -475,8 +475,8 @@ class ScenarioRunner:
             )
             trace_ids.extend(iteration_trace_ids)
             scenario_name = getattr(scenario, "name", "unknown")
-            traces_by_scenario[scenario_name] = (
-                traces_by_scenario.get(scenario_name, 0) + len(iteration_trace_ids)
+            traces_by_scenario[scenario_name] = traces_by_scenario.get(scenario_name, 0) + len(
+                iteration_trace_ids
             )
             primary_trace_id = iteration_trace_ids[-1] if iteration_trace_ids else ""
             if progress_callback:

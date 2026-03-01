@@ -37,7 +37,7 @@ View generated traces in a browser using Jaeger while the simulator runs on your
 ## Environment
 
 - **OTLP endpoint**: The simulator uses `http://localhost:4318` by default (use `--endpoint` to change; the Makefile uses `OTLP_ENDPOINT` when set).
-- **Schema and tenant**: Set `SEMCONV` as in the [README](../README.md). Tenant ID is resolved from `config/config.yaml` (`tenants`; scenario sets `context.tenant` by key).
+- **Schema and tenant**: Set `SEMCONV` as in the [README](../README.md). Tenant ID is resolved from `resource/config/config.yaml` (`tenants`; scenario sets `context.tenant` by key).
 
 ## See Also
 

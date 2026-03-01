@@ -1,22 +1,22 @@
 # Generating Telemetry Data
 
-This guide describes how to generate realistic OpenTelemetry data with the telemetry simulator. Use this for pipeline testing, dashboard validation, and load testing.
+This guide describes how to generate OpenTelemetry data with the telemetry simulator. Use this for pipeline testing, dashboard validation, and load testing.
 
 ## Overview
 
 The simulator produces OTEL-compliant **traces**, **metrics**, and **logs** with configurable semantic conventions (attribute prefix set via `VENDOR`). It combines:
 
 - **Semantic conventions**: Attribute definitions—names, types, and **allowed values**—come from the semantic conventions YAML (`SEMCONV` / `--semconv`). Emitted values for enum-like attributes (e.g. `error.type`, `step.outcome`) are always chosen from these allowed values so that both happy-path and error-path data are valid and queryable.
-- **Realism**: Scenario-driven content (conversation samples, failure modes such as 4xx or wrong division, partial workflows) is configured in `config/config.yaml` and per-scenario YAML. Realistic modifiers inject the right attributes while staying within SemConv allowed values.
+- **Scenario-driven content**: Conversation samples, failure modes (e.g. 4xx or wrong division), and partial workflows are configured in `resource/config/config.yaml` and per-scenario YAML. The scenario modifier injects the right attributes while staying within SemConv allowed values.
 - **Randomness**: Which scenario runs, which conversation sample is used, latency, and optional probabilistic spans are varied using distributions and random choice over allowed values.
 
-See [Realism, randomness, and semantic conventions](#realism-randomness-and-semantic-conventions) for how these three work together in detail.
+See [Scenario content, randomness, and semantic conventions](#realism-randomness-and-semantic-conventions) for how these three work together in detail.
 
 - **Traces**: A tree of spans using the configured vendor prefix (e.g. `{prefix}.a2a.orchestrate` → `{prefix}.planner`, `{prefix}.mcp.tool.execute`, `{prefix}.llm.call`)
 - **Metrics**: Correlated with spans (e.g. turn duration, tool call counts)
 - **Logs**: Emitted for span events where configured
 
-Tenant IDs come from `config/config.yaml` (`tenants`; scenarios set `context.tenant` by key, e.g. `toro`).
+Tenant IDs come from `resource/config/config.yaml` (`tenants`; scenarios set `context.tenant` by key, e.g. `toro`).
 
 ### Trace, session, and conversation IDs
 
@@ -30,7 +30,7 @@ So: one trace = one trace_id (SDK); one logical session can have multiple traces
 
 **How session and correlation IDs are generated:**
 
-- **Config**: `config/config.yaml` defines **id_formats** for all correlation IDs: `session_id`, `conversation_id`, `request_id`, `mcp_tool_call_id`, `enduser_pseudo_id`. Placeholders: `{hex:N}`, `{uuid}`, `{tenant_id}`. Example: `session_id: "sess_toro_{hex:12}"`. **All IDs are generated from these templates only; there are no fallbacks.**
+- **Config**: `resource/config/config.yaml` defines **id_formats** for all correlation IDs: `session_id`, `conversation_id`, `request_id`, `mcp_tool_call_id`, `enduser_pseudo_id`. Placeholders: `{hex:N}`, `{uuid}`, `{tenant_id}`. Example: `session_id: "sess_toro_{hex:12}"`. **All IDs are generated from these templates only; there are no fallbacks.**
 - **With ScenarioIdGenerator**: When a scenario has an id_generator (from the loader), the runner uses `id_gen.session_id()`, `id_gen.request_id()`, `id_gen.enduser_pseudo_id()` (and `id_gen.mcp_tool_call_id()` in the hierarchy) to produce values from config.
 - **Without ScenarioIdGenerator**: The runner and `GenerationContext.create()` use standalone helpers (`generate_session_id()`, `generate_request_id()`, `generate_enduser_pseudo_id()`, etc.) that read the same **id_formats** from config. Same format, same single source of truth.
 - **Where**: The runner calls `_context_kwargs_for_scenario(scenario, tenant_id)`, which sets `session_id`, `request_id`, and `user_id` (from id_gen or from the standalone generators) and passes them into `GenerationContext.create(**ctx_kwargs)`. That context is used for all spans in that logical request.
@@ -48,21 +48,21 @@ In Jaeger, Tempo, or your backend: query spans where `session.id` (or `gen_ai.co
 
 ## Configuration reference (what exists)
 
-The simulator is driven by **`src/simulator/scenarios/config/config.yaml`**. What exists today:
+The simulator is driven by **`resource/config/config.yaml`**. What exists today:
 
 | Section | Purpose |
 |--------|---------|
 | **id_formats** | Templates for all correlation IDs: `session_id`, `conversation_id`, `request_id`, `mcp_tool_call_id`, `enduser_pseudo_id` (placeholders: `{hex:N}`, `{uuid}`, `{tenant_id}`). Used by `ScenarioIdGenerator` and by standalone generators when no id_generator. |
 | **latency_profiles** | Named profiles (e.g. `happy_path`, `higher_latency`). Each has `default_variance` and `spans` (a2a_orchestrate, planner, tools_recommend, mcp_tool_execute, response_compose, etc.) with `mean_ms` and `variance`. Scenario sets `data_plane.latency_profile` (default `happy_path`). Trace generator uses mean × (1 + gauss(0, variance)) per span type. |
 | **tools_recommend** | Tool recommendation (tools.recommend span) attributes: `selection_strategy`, `selection_constraints`, `tools_selected_count`, `selection_fallback_used`. Together with MCP server tools list and `latency_profiles.<profile>.spans.tools_recommend` (mcp.selection.latency.ms), all tools.recommend span attributes come from config. |
-| **mcp_retry** | `retry_policy` (e.g. none, exponential) and `latency_by_error_type` (timeout, unavailable, tool_error, etc.) for realistic latency on failed MCP attempts. Used when building MCP hierarchies from templates. |
+| **mcp_retry** | `retry_policy` (e.g. none, exponential) and `latency_by_error_type` (timeout, unavailable, tool_error, etc.) for latency on failed MCP attempts. Used when building MCP hierarchies from templates. |
 | **mcp_retry_templates** | Named templates for MCP tool retry behavior. Each template has `attempts`: list of `{ outcome: success \| failure, optional error_type, optional latency_mean_ms }`. Scenario `data_plane.mcp_retry` can reference a template by name or define `attempts` inline. When set, MCP spans get one child per attempt with deterministic outcomes. |
 | **tool_call_arguments** | Optional. Keyed by tool name (e.g. `new_claim`, `update_appointment`). Each value is an object of arguments; serialized as JSON and set as `gen_ai.tool.call.arguments` on the mcp.tool.execute parent span (OTEL GenAI). |
 | **tenants** | Key → id (e.g. `toro` → tenant UUID). Scenarios reference `context.tenant` by key. |
 | **agents** | List of agents by `id` (e.g. `toro-customer-assistant-001`). Scenarios reference `context.agent` by id. No channel or division on agent; scenario sets `context.mcp_server`. |
 | **mcp_servers** | Key → mcp_server_uuid + tools (name, tool_uuid). Scenarios reference `context.mcp_server` by key. |
-| **realistic_scenarios** | `divisions` (division name → mcp_servers key), `error_templates` (simulation_goal → error_type, http_status_codes), `workflow_templates` (workflow name → list of steps). |
-| *(no data_plane_templates)* | Data-plane is defined in each scenario YAML: `data_plane.workflow` (key into `workflow_templates` for step list), optional `data_plane.simulation_goal`, optional `data_plane.control_plane_template`, optional `data_plane.mcp_retry` (template name or inline `attempts` for MCP retry logic). Config supplies only `workflow_templates` (step names) and key → UUID. |
+| **scenarios** | `divisions` (division name → mcp_servers key), `error_templates` (goal → error_type, http_status_codes), `workflow_templates` (workflow name → list of steps). |
+| *(no data_plane_templates)* | Data-plane is defined in each scenario YAML: `data_plane.workflow` (key into `workflow_templates` for step list), optional `data_plane.goal`, optional `data_plane.control_plane_template`, optional `data_plane.mcp_retry` (template name or inline `attempts` for MCP retry logic). Config supplies only `workflow_templates` (step names) and key → UUID. |
 | **control_plane** | `trace_flow`, `request_validation_templates`, `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
 | **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns` or `conversation.samples`. |
 | **Resource** | Resource attributes (service.name, service.version, deployment.environment.name, module, component, otel.source) and schemaUrl are in **`config/resource.yaml`** (not config.yaml). |
@@ -78,7 +78,7 @@ Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-
 - Python 3.11+
 - **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand)
 - OTLP endpoint (e.g. data-plane collector on port 4318)
-- Tenant ID is read from `config/config.yaml` (`tenants`; scenario sets `context.tenant` by key); no env required.
+- Tenant ID is read from `resource/config/config.yaml` (`tenants`; scenario sets `context.tenant` by key); no env required.
 
 ### Run a Scenario
 
@@ -88,7 +88,7 @@ By default the simulator uses **sample scenario definitions** bundled in `src/si
 # From the otelsim project directory
 make venv && make install
 
-# Run sample scenarios (built-in definitions; tenant from config/config.yaml)
+# Run sample scenarios (built-in definitions; tenant from resource/config/config.yaml)
 otelsim scenario --vendor=your_vendor --name new_claim_phone
 otelsim scenario --vendor=your_vendor --name request_blocked_by_policy
 
@@ -118,7 +118,7 @@ selection using a **per-scenario workload weight**:
   workload_weight: 8.0   # 8x more likely than weight 1.0 (happy path = most traffic)
   ```
 
-- **Control-plane registry** (`config/config.yaml` → `control_plane.request_scenarios`):
+- **Control-plane registry** (`resource/config/config.yaml` → `control_plane.request_scenarios`):
 
   ```yaml
   control_plane:
@@ -139,7 +139,7 @@ Semantics:
   scenario from random selection (but you can still run it via `otelsim scenario --vendor=your_vendor --name ...`).
 - `--each-once` ignores weights and runs each (filtered) scenario exactly once.
 
-Bundled scenario definitions use **realistic relative weights**: data-plane happy path (10.0),
+Bundled scenario definitions use **relative weights**: data-plane happy path (10.0),
 multi-turn and allowed-but-flagged lower (2.5–3), retries and higher-latency variants moderate (0.7–1),
 control-plane blocks and errors much lower (0.1–0.5), so `otelsim run --vendor=your_vendor --count 1000`
 produces a mix that resembles real-world traffic (mostly success, some retries, minority blocks/errors).
@@ -167,7 +167,7 @@ otelsim scenario --vendor=your_vendor --name new_claim_phone
 
 ### Tool Retry (MCP retry then success)
 
-Template-driven MCP retry: first attempt fails (e.g. timeout with realistic latency from config), second succeeds. Uses `data_plane.mcp_retry` and emits parent `mcp.tool.execute` with multiple `mcp.tool.execute.attempt` children, `retry.count`, `retry.policy`, `retry.reason`, and per-attempt outcomes.
+Template-driven MCP retry: first attempt fails (e.g. timeout with latency from config), second succeeds. Uses `data_plane.mcp_retry` and emits parent `mcp.tool.execute` with multiple `mcp.tool.execute.attempt` children, `retry.count`, `retry.policy`, `retry.reason`, and per-attempt outcomes.
 
 ```bash
 otelsim scenario --vendor=your_vendor --name new_claim_phone_mcp_tool_retry_then_success
@@ -210,9 +210,9 @@ retry:
   success_rate_per_attempt: [0.0, 0.75, 0.92]
 ```
 
-### Realistic scenario-driven telemetry
+### Scenario-driven telemetry
 
-| Simulation goal | Description | Telemetry effect |
+| Goal | Description | Telemetry effect |
 |-----------------|-------------|------------------|
 | `happy_path` | No failure injection | Default; no modifier. |
 | `4xx_invalid_arguments` | Bad/missing parameters (wrong format, missing params) | One MCP attempt gets `error.type=invalid_arguments` and optional `http.response.status_code` in [400, 404, 422]. |
@@ -220,17 +220,17 @@ retry:
 | `partial_workflow` | Missing steps or wrong order | Hierarchy built from `actual_steps` (or `correct_flow.steps` with `skip_steps`); `response_compose` can be marked fail. |
 | `ungrounded_response` | Ungrounded answers / bad summarization | `response_compose` span set to fail with `error.type=unavailable` (SemConv-aligned). |
 
-**Config** (`config/config.yaml` → `realistic_scenarios`):
+**Config** (`resource/config/config.yaml` → `scenarios`):
 
 - **divisions**: Map division names (e.g. `phone`, `home_electronics`, `home_appliances`) to `mcp_servers` keys for wrong-division resolution.
 - **error_templates**: Map each goal to `error_type` and optional `http_status_codes` (SemConv-aligned).
 
 **Scenario YAML** (per definition):
 
-- **simulation_goal**: One of the goals above.
-- **realistic_overrides** (optional): e.g. `step_index_for_4xx`, `wrong_division_target`, `actual_steps`, `skip_steps`.
+- **goal**: One of the goals above.
+- **scenario_overrides** (optional): e.g. `exception_type`, `exception_message` (for 4xx MCP attempt exception event), `step_index_for_4xx`, `wrong_division_target`, `actual_steps`, `skip_steps`.
 
-Example scenarios in `definitions/`: `new_claim_phone` (data-plane happy path), `new_claim_phone_multi_turn`, `new_claim_phone_mcp_tool_retry_then_success` (MCP retry: timeout then success), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only).
+Example scenarios in `definitions/`: `new_claim_phone` (data-plane happy path), `new_claim_phone_multi_turn`, `new_claim_phone_mcp_tool_retry_then_success` (MCP retry: timeout then success), `new_claim_electronics_tool_4xx_invalid_params`, `claim_status_appliances_tool_4xx_invalid_params` (agent calls correct tool with wrong/missing params → 4xx; electronics/appliances divisions; cause: date format, claim ID with/without dash), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only).
 
 Control-plane examples:
 
@@ -242,58 +242,58 @@ Control-plane examples:
 
 ---
 
-## Realism, randomness, and semantic conventions
+## Scenario content, randomness, and semantic conventions
 
-The simulator combines **realistic scenario content**, **controlled randomness**, and **strict semantic conventions** so that generated telemetry is both varied and valid for pipelines and dashboards.
+The simulator combines **scenario-driven content**, **controlled randomness**, and **strict semantic conventions** so that generated telemetry is both varied and valid for pipelines and dashboards.
 
 ### How the three work together
 
 | Layer | Purpose | Source of truth |
 |-------|--------|-----------------|
-| **Semantic conventions** | Attribute names, types, and **allowed values** (e.g. `error.type`, `step.outcome`) | `src/simulator/scenarios/conventions/semconv.yaml` (and code constants aligned with it) |
-| **Realism** | Scenario-specific content: which failure to inject, which conversation to use, which division/server | `config/config.yaml` (`realistic_scenarios`, `conversation_samples`) and scenario YAML (`simulation_goal`, `context.workflow`, `conversation.turns`) |
+| **Semantic conventions** | Attribute names, types, and **allowed values** (e.g. `error.type`, `step.outcome`) | `resource/scenarios/conventions/semconv.yaml` (and code constants aligned with it) |
+| **Scenario content** | Which failure to inject, which conversation to use, which division/server | `resource/config/config.yaml` (`scenarios`, `conversation_samples`) and scenario YAML (`goal`, `context.workflow`, `conversation.turns`) |
 | **Randomness** | Latency, which trace gets which scenario, which sample to pick, optional probabilistic spans | Distributions in scenario YAML, `random.choice` over allowed values or config samples |
 
-All emitted values for **enum-like attributes** (e.g. `error.type`, `step.outcome`, `response.format`) are constrained to the semantic-convention allowed values. Randomness and realism only choose *within* those sets (or from configured samples that themselves use valid values).
+All emitted values for **enum-like attributes** (e.g. `error.type`, `step.outcome`, `response.format`) are constrained to the semantic-convention allowed values. Randomness and scenario content only choose *within* those sets (or from configured samples that themselves use valid values).
 
 ### Semantic conventions (SemConv)
 
-- **Schema**: The semantic-conventions YAML (`--semconv`) defines, per span type, which attributes exist and their `allowed_values`, `examples`, and `type`. The attribute generator uses this to decide what to emit and which values are valid.
+- **Schema**: The semantic-conventions YAML (`--semconv`, default `resource/scenarios/conventions/semconv.yaml`) defines, per span type, which attributes exist and their `allowed_values`, `examples`, and `type`. The attribute generator uses this to decide what to emit and which values are valid.
 - **Canonical enums in code**: For attributes that must stay low-cardinality and queryable, the simulator uses constants aligned with the schema:
   - **`error.type`**: Only `timeout`, `unavailable`, `invalid_arguments`, `tool_error`, `protocol_error` (from `SEMCONV_ERROR_TYPE_VALUES`). Any override or generated value that is not in this set is normalized to one of these before being set on a span.
   - **`step.outcome`**: Only `success`, `fail`, `skipped` (from `SEMCONV_STEP_OUTCOME_VALUES`) where applicable.
   - **`response.format`**: e.g. `a2a_json`, `a2a_stream`.
-- **Error paths**: When a span is in error (`status.code=ERROR`), `error.type` is always one of the five values above (from the span-type default or from the realistic-scenario template). Retry and error-propagation logic also sample only from these types.
+- **Error paths**: When a span is in error (`status.code=ERROR`), `error.type` is always one of the five values above (from the span-type default or from the scenario error template). Retry and error-propagation logic also sample only from these types.
 - **Happy path**: Success outcomes and response formats use the same allowed values so that traces remain consistent with validation and analytics.
 
-### Realism
+### Scenario content
 
-- **Realistic scenario goals** (`simulation_goal`): Each scenario can target a specific outcome (e.g. `4xx_invalid_arguments`, `wrong_division`, `ungrounded_response`). The modifier then injects the right attributes (e.g. `error.type=invalid_arguments`, wrong `mcp.server.uuid`, or `step.outcome=fail`) using **only** SemConv-aligned values from `realistic_scenarios.error_templates` in `config/config.yaml`.
+- **Scenario goals** (`goal`): Each scenario can target a specific outcome (e.g. `4xx_invalid_arguments`, `wrong_division`, `ungrounded_response`). The scenario modifier injects the right attributes (e.g. `error.type=invalid_arguments`, wrong `mcp.server.uuid`, or `step.outcome=fail`) using **only** SemConv-aligned values from `scenarios.error_templates` in `resource/config/config.yaml`.
 - **Conversation messages**: Per convention we emit **one span per interaction** (user input → LLM response). Each LLM span carries `gen_ai.input.messages` = the user message(s) for *this* call and `gen_ai.output.messages` = the model reply for *this* call (no full conversation history on a single span). Content comes from:
   - **Scenario `conversation.turns`** when defined: use format `user_input` / `llm_response` per turn, or alternating `role`/`text`. Optional per turn: `user_input_redacted`, `llm_response_redacted` to define the redacted text for **gen_ai.input.redacted** / **gen_ai.output.redacted** when `redaction_applied` is not `none`. The simulator emits **one trace per turn**, all with the **same session_id** for that logical session.
   - **Scenario `conversation.samples`** when defined: one random sample per iteration (single-turn). Each sample can optionally include `user_input_redacted` and `llm_response_redacted` for defined redacted content when redaction is enabled.
-  - **`conversation_samples`** in `config/config.yaml` when the scenario has a workflow and no `conversation.turns` or `conversation.samples`: one single-turn sample per workflow is chosen at random. Samples can optionally include `user_input_redacted` and `llm_response_redacted`.
+  - **`conversation_samples`** in `resource/config/config.yaml` when the scenario has a workflow and no `conversation.turns` or `conversation.samples`: one single-turn sample per workflow is chosen at random. Samples can optionally include `user_input_redacted` and `llm_response_redacted`.
 - **Redaction**: Set **`redaction_applied`** in scenario YAML to `basic` or `strict` to enable content redaction (emits **gen_ai.input.redacted** and **gen_ai.output.redacted**). Default is `none` (no redacted attributes). When redaction is enabled, you can **define the redacted conversation text** in the scenario or config by providing `user_input_redacted` and `llm_response_redacted` alongside `user_input` and `llm_response`; otherwise the simulator auto-redacts from the same messages using pattern-based placeholders.
 - **Wrong division / partial workflow**: Wrong-division scenarios swap `mcp.server.uuid` (and tool UUID) to another division from config; partial-workflow scenarios build the trace from `actual_steps` or `skip_steps`. In all cases, `error.type` and `step.outcome` on affected spans remain SemConv-aligned.
 
 ### Randomness
 
 - **Which scenario**: In mixed workload (`otelsim run --vendor=your_vendor`), each trace picks a scenario at random from the loaded definitions (e.g. happy path, 4xx, wrong division, ungrounded).
-- **Which sample**: When using `conversation_samples`, one user/LLM pair is chosen at random from the workflow’s `samples` list; when using `realistic_overrides`, optional indices (e.g. which MCP step gets 4xx) can be fixed or left random.
+- **Which sample**: When using `conversation_samples`, one user/LLM pair is chosen at random from the workflow’s `samples` list; when using `scenario_overrides`, optional indices (e.g. which MCP step gets 4xx) can be fixed or left random.
 - **Latency and counts**: For **explicit root** scenarios, YAML can define per-node latency distributions (e.g. log-normal) and child counts. For **workflow-based** scenarios, latency comes from `latency_profiles` in config.
 - **Attribute values**: For attributes that have schema `allowed_values`, the generator picks at random from those values when no override is provided. For `error.type` and `step.outcome`, the generator uses the SemConv constants so that randomness never produces an invalid enum.
 
 ### Summary
 
-- **Realism** provides scenario-specific content (conversations, failure modes, wrong division, partial flows) from config and scenario YAML.
+- **Scenario content** provides scenario-specific content (conversations, failure modes, wrong division, partial flows) from config and scenario YAML.
 - **Randomness** provides variation (which scenario, which sample, latency, counts, and choice among allowed attribute values).
-- **Semantic conventions** ensure that every emitted value for `error.type`, `step.outcome`, and other enum-like attributes is one of the allowed values in `src/simulator/scenarios/conventions/semconv.yaml`, so that both happy-path and error-path data are valid and queryable.
+- **Semantic conventions** ensure that every emitted value for `error.type`, `step.outcome`, and other enum-like attributes is one of the allowed values in `resource/scenarios/conventions/semconv.yaml`, so that both happy-path and error-path data are valid and queryable.
 
 ---
 
 ## Scenario File Structure
 
-Scenarios are YAML files. The simulator ships with **sample definitions** in `src/simulator/scenarios/definitions/` (e.g. `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`). A reference file `example_scenario.yaml` documents all configuration options; it is excluded from `list` and from mixed workload when using the built-in samples, but you can run it explicitly with `--name example_scenario`. You can add your own YAML in the sample folder or use a **custom folder** via `--scenarios-dir` (or `SCENARIOS_DIR` with make). Example:
+Scenarios are YAML files. The simulator ships with **sample definitions** in `resource/scenarios/definitions/` (e.g. `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`). A reference file `_EXAMPLE_SCENARIO_.yaml` documents all configuration options; it is excluded from `list` and from mixed workload when using the built-in samples, but you can run it explicitly with `--name _EXAMPLE_SCENARIO_`. You can add your own YAML in the sample folder or use a **custom folder** via `--scenarios-dir` (or `SCENARIOS_DIR` with make). Example:
 
 ```yaml
 name: my_scenario
@@ -380,7 +380,7 @@ otelsim run --vendor=your_vendor --tags=control-plane --each-once
 # From repo root
 ./tools/dev/dev deps-up
 
-# Run in container (tenant from config/config.yaml in image)
+# Run in container (tenant from resource/config/config.yaml in image)
 podman run --rm \
   -e OTLP_HTTP_ENDPOINT=http://data-plane:4318 \
   your-image otelsim scenario --vendor=your_vendor --name new_claim_phone --count 200
@@ -396,7 +396,7 @@ otelsim run --vendor=your_vendor --semconv /path/to/conventions/semconv.yaml   #
 
 ## Adding New Scenarios
 
-1. Create a YAML file either in the **sample definitions** folder (`src/simulator/scenarios/definitions/`) or in your own folder (then use `--scenarios-dir`). Example: `with_rag.yaml`
+1. Create a YAML file either in the **sample definitions** folder (`resource/scenarios/definitions/`) or in your own folder (then use `--scenarios-dir`). Example: `with_rag.yaml`
 
 2. Define the scenario structure:
    ```yaml
@@ -423,7 +423,7 @@ otelsim run --vendor=your_vendor --semconv /path/to/conventions/semconv.yaml   #
 
 ## What You Get
 
-- **Traces**: One trace per repeat, with the defined hierarchy. Each span has realistic timing, status, and attributes.
+- **Traces**: One trace per repeat, with the defined hierarchy. Each span has config-driven timing, status, and attributes.
 - **Metrics**: Turn duration, tool call counts, LLM token usage, etc.
 - **Logs**: Log records tied to spans where logging is enabled.
 

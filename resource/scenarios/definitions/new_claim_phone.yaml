@@ -1,4 +1,4 @@
-# Phone MCP context, happy path. Data-plane (workflow, simulation_goal, control_plane_template)
+# Phone MCP context, happy path. Data-plane (workflow, goal, control_plane_template)
 # and expected MCP server/tools are defined here; config supplies key → UUID and workflow step names.
 # Each iteration uses a different session and a random conversation sample (simulating different users).
 
@@ -26,7 +26,7 @@ redaction_applied: basic
 # latencies lower than higher_latency scenarios (e.g. claim_status_phone_higher_latency).
 data_plane:
   workflow: new_claim
-  simulation_goal: happy_path
+  goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
 

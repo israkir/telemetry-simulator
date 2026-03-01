@@ -25,7 +25,7 @@ redaction_applied: basic
 
 data_plane:
   workflow: new_claim
-  simulation_goal: happy_path
+  goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
   # config mcp_retry_templates.retry_then_success: first attempt timeout, second success.

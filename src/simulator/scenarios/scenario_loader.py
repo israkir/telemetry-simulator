@@ -3,7 +3,7 @@ Load and parse YAML-based scenario definitions.
 
 Scenarios define reproducible telemetry generation patterns for:
 - Testing specific failure modes
-- Load testing with realistic distributions
+- Load testing with configurable distributions
 - Dashboard visualization testing
 - Pipeline validation
 
@@ -31,7 +31,7 @@ from ..statistics.distributions import Distribution, DistributionFactory
 from .config_resolver import get_default_tenant_id, resolve_context
 from .control_plane_loader import get_request_scenario_registry
 from .id_generator import ScenarioIdGenerator, generate_mcp_tool_call_id
-from .realistic_modifier import apply_realistic_scenario
+from .scenario_modifier import apply_scenario_goal
 
 
 @dataclass
@@ -278,9 +278,9 @@ def _apply_data_plane_from_scenario(
     config_path: Path,
 ) -> tuple[ScenarioContext, str | None, str | None]:
     """
-    Enrich context from the scenario's data_plane block (workflow, simulation_goal, control_plane_template).
+    Enrich context from the scenario's data_plane block (workflow, goal, control_plane_template).
     Workflow step list (correct_flow) is resolved from config workflow_templates; scenario defines which
-    workflow and goal to use. Returns (context, simulation_goal, control_plane_template).
+    workflow and goal to use. Returns (context, goal, control_plane_template).
     """
     from ..config import load_yaml
 
@@ -291,7 +291,7 @@ def _apply_data_plane_from_scenario(
     data = load_yaml(config_path)
     if not isinstance(data, dict):
         return context, None, None
-    rs = data.get("realistic_scenarios")
+    rs = data.get("scenarios") or data.get("realistic_scenarios")
     workflow_templates = rs.get("workflow_templates") if isinstance(rs, dict) else None
     if not isinstance(workflow_templates, dict):
         return context, None, None
@@ -299,11 +299,11 @@ def _apply_data_plane_from_scenario(
     if not isinstance(steps, list):
         return context, None, None
     correct_flow = FlowConfig(steps=[str(s) for s in steps])
-    simulation_goal = data_plane.get("simulation_goal")
-    if simulation_goal is not None and not isinstance(simulation_goal, str):
-        simulation_goal = None
-    if simulation_goal and not (simulation_goal := simulation_goal.strip()):
-        simulation_goal = None
+    goal = data_plane.get("goal") or data_plane.get("simulation_goal")
+    if goal is not None and not isinstance(goal, str):
+        goal = None
+    if goal and not (goal := goal.strip()):
+        goal = None
     cp_template = data_plane.get("control_plane_template")
     if cp_template is not None and not isinstance(cp_template, str):
         cp_template = None
@@ -371,7 +371,7 @@ def _apply_data_plane_from_scenario(
         mcp_retry_attempts=mcp_retry_attempts,
         tool_call_arguments=context.tool_call_arguments,
     )
-    return updated, simulation_goal, cp_template
+    return updated, goal, cp_template
 
 
 def _normalize_mcp_retry_attempt(raw: dict[str, Any]) -> dict[str, Any]:
@@ -610,7 +610,7 @@ class Scenario:
     context: ScenarioContext | None = None
     id_generator: ScenarioIdGenerator | None = None
     # Simulation goal (e.g. happy_path, higher_latency, 4xx_invalid_arguments); defined per scenario.
-    simulation_goal: str | None = None
+    goal: str | None = None
     # Latency profile from config (happy_path | higher_latency). Drives mean_ms/variance when building hierarchy.
     latency_profile: str = "happy_path"
     # Optional: when latency_profile is higher_latency, condition that triggered it (peak_hours, zip_code, etc.).
@@ -637,8 +637,8 @@ class Scenario:
     cycle_conversation_samples: bool = False
     # Redaction level for {prefix}.redaction.applied (none, basic, strict). From scenario YAML or context; default none.
     redaction_applied: str = "none"
-    # Overrides for realistic scenario modifier (step_index_for_4xx, wrong_division_target, skip_steps, actual_steps).
-    realistic_overrides: dict[str, Any] | None = None
+    # Overrides for scenario goal modifier (step_index_for_4xx, wrong_division_target, exception_type, exception_message, skip_steps, actual_steps).
+    scenario_overrides: dict[str, Any] | None = None
     # Control-plane: request outcome (allowed | blocked | error). When blocked, no a2a.orchestrate or response.validation.
     control_plane_request_outcome: str = "allowed"
     # When control_plane_request_outcome=blocked: invalid_payload | request_policy | invalid_context (semconv gentoro.block.reason).
@@ -654,7 +654,7 @@ class Scenario:
             profile = getattr(self, "latency_profile", None) or "happy_path"
             hierarchy = _hierarchy_from_context(self.context, latency_profile=profile)
             _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
-            _apply_realistic_scenario_if_needed(self, hierarchy)
+            _apply_scenario_goal_if_needed(self, hierarchy)
             return hierarchy
         hierarchy = self.root_step.to_hierarchy()
         if self.context:
@@ -675,7 +675,7 @@ class Scenario:
             profile = getattr(self, "latency_profile", None) or "happy_path"
             hierarchy = _hierarchy_from_context(self.context, latency_profile=profile)
             _apply_context_to_hierarchy(hierarchy, self.context, self.id_generator)
-            _apply_realistic_scenario_if_needed(self, hierarchy)
+            _apply_scenario_goal_if_needed(self, hierarchy)
             return [hierarchy]
         # Control-plane-only: no data-plane hierarchy to emit
         from .control_plane_loader import (
@@ -929,16 +929,16 @@ def _ensure_task_execute_parent(
     return TraceHierarchy(root_config=task_config, children=[child_hier])
 
 
-def _apply_realistic_scenario_if_needed(scenario: "Scenario", hierarchy: TraceHierarchy) -> None:
-    """Apply realistic scenario modifier when simulation_goal is set and not happy_path."""
-    goal = getattr(scenario, "simulation_goal", None)
+def _apply_scenario_goal_if_needed(scenario: "Scenario", hierarchy: TraceHierarchy) -> None:
+    """Apply scenario goal modifier when goal is set and not happy_path."""
+    goal = getattr(scenario, "goal", None)
     if not goal or (goal or "").lower() in ("happy_path", "none", ""):
         return
-    overrides = getattr(scenario, "realistic_overrides", None) or {}
-    apply_realistic_scenario(
+    overrides = getattr(scenario, "scenario_overrides", None) or {}
+    apply_scenario_goal(
         hierarchy,
-        simulation_goal=goal,
-        realistic_overrides=overrides,
+        goal=goal,
+        scenario_overrides=overrides,
         context=scenario.context,
         mcp_server_key=getattr(scenario, "mcp_server", None),
     )
@@ -1446,8 +1446,8 @@ _SPAN_SUFFIXES = [
 SAMPLE_DEFINITIONS_DIR = get_resources_root() / "scenarios" / "definitions"
 
 # Reference scenario excluded from list and mixed workload when using sample definitions.
-# It can still be run explicitly with: scenario --name example_scenario
-EXAMPLE_SCENARIO_NAME = "example_scenario"
+# It can still be run explicitly with: scenario --name _EXAMPLE_SCENARIO_
+EXAMPLE_SCENARIO_NAME = "_EXAMPLE_SCENARIO_"
 
 
 def _control_plane_scenario_data(name: str, entry: dict[str, Any]) -> dict[str, Any]:
@@ -1587,15 +1587,15 @@ class ScenarioLoader:
         else:
             tenant_dist = {get_default_tenant_id(CONFIG_PATH): 1.0}
 
-        # Data-plane defined in scenario: workflow (step list from config), simulation_goal, control_plane_template.
-        simulation_goal_from_dp: str | None = None
+        # Data-plane defined in scenario: workflow (step list from config), goal, control_plane_template.
+        goal_from_dp: str | None = None
         control_plane_template_from_dp: str | None = None
         if scenario_context:
             dp = data.get("data_plane")
             if isinstance(dp, dict) and isinstance(dp.get("workflow"), str):
                 (
                     scenario_context,
-                    simulation_goal_from_dp,
+                    goal_from_dp,
                     control_plane_template_from_dp,
                 ) = _apply_data_plane_from_scenario(scenario_context, dp, CONFIG_PATH)
 
@@ -1604,22 +1604,19 @@ class ScenarioLoader:
             root_for_detect if isinstance(root_for_detect, dict) else {}
         )
 
-        simulation_goal = data.get("simulation_goal")
-        if simulation_goal is not None and not isinstance(simulation_goal, str):
-            simulation_goal = None
-        if simulation_goal is None and simulation_goal_from_dp is not None:
-            simulation_goal = simulation_goal_from_dp
-        # Latency profile: from data_plane.latency_profile or derived from simulation_goal (higher_latency -> higher_latency profile).
+        goal = data.get("goal") or data.get("simulation_goal")
+        if goal is not None and not isinstance(goal, str):
+            goal = None
+        if goal is None and goal_from_dp is not None:
+            goal = goal_from_dp
+        # Latency profile: from data_plane.latency_profile or derived from goal (higher_latency -> higher_latency profile).
         latency_profile = "happy_path"
         dp = data.get("data_plane")
         if isinstance(dp, dict):
             lp = dp.get("latency_profile")
             if isinstance(lp, str) and lp.strip():
                 latency_profile = lp.strip().lower()
-        if (
-            latency_profile == "happy_path"
-            and (simulation_goal or "").strip().lower() == "higher_latency"
-        ):
+        if latency_profile == "happy_path" and (goal or "").strip().lower() == "higher_latency":
             latency_profile = "higher_latency"
         higher_latency_condition: dict[str, Any] | None = None
         if isinstance(dp, dict):
@@ -1757,10 +1754,10 @@ class ScenarioLoader:
                         conversation_samples = conversation_samples_list
         cycle_conversation_samples = bool(data.get("cycle_conversation_samples", False))
 
-        realistic_overrides_raw = data.get("realistic_overrides")
-        realistic_overrides: dict[str, Any] = {}
-        if isinstance(realistic_overrides_raw, dict):
-            realistic_overrides = dict(realistic_overrides_raw)
+        scenario_overrides_raw = data.get("scenario_overrides") or data.get("realistic_overrides")
+        scenario_overrides_parsed: dict[str, Any] = {}
+        if isinstance(scenario_overrides_raw, dict):
+            scenario_overrides_parsed = dict(scenario_overrides_raw)
 
         control_plane_request_outcome = "allowed"
         control_plane_block_reason = None
@@ -1795,11 +1792,11 @@ class ScenarioLoader:
         # For partial_workflow, set context.actual_steps from overrides so hierarchy is built with fewer/wrong-order steps.
         if (
             scenario_context
-            and (simulation_goal or "").lower() == "partial_workflow"
-            and realistic_overrides
+            and (goal or "").lower() == "partial_workflow"
+            and scenario_overrides_parsed
         ):
-            actual_steps_list = realistic_overrides.get("actual_steps")
-            skip_steps = realistic_overrides.get("skip_steps")
+            actual_steps_list = scenario_overrides_parsed.get("actual_steps")
+            skip_steps = scenario_overrides_parsed.get("skip_steps")
             if isinstance(actual_steps_list, list) and actual_steps_list:
                 scenario_context.actual_steps = [str(s) for s in actual_steps_list]
             elif (
@@ -1855,7 +1852,7 @@ class ScenarioLoader:
             is_statistical=is_statistical,
             context=scenario_context,
             id_generator=self.get_id_generator(),
-            simulation_goal=simulation_goal,
+            goal=goal,
             latency_profile=latency_profile,
             higher_latency_condition=higher_latency_condition,
             mcp_server=mcp_server,
@@ -1867,7 +1864,7 @@ class ScenarioLoader:
             conversation_samples=conversation_samples,
             cycle_conversation_samples=cycle_conversation_samples,
             redaction_applied=redaction_applied or "none",
-            realistic_overrides=realistic_overrides or None,
+            scenario_overrides=scenario_overrides_parsed or None,
             control_plane_request_outcome=control_plane_request_outcome,
             control_plane_block_reason=control_plane_block_reason,
             control_plane_template=control_plane_template,

@@ -29,7 +29,7 @@ cycle_conversation_samples: true
 # orchestrate means are higher than happy_path so traces clearly reflect "higher latency" semantics.
 data_plane:
   workflow: claim_status
-  simulation_goal: higher_latency
+  goal: higher_latency
   latency_profile: higher_latency
   control_plane_template: allowed
   higher_latency_condition:

@@ -14,7 +14,7 @@
 #     request_scenarios). Template supports root/payload/policy/augmentation, error_rate,
 #     include_policy, include_augmentation, validation_errors, exception; all driven by this config.
 #   - Data-plane: add workflow to workflow_templates; scenario YAML defines data_plane.workflow,
-#     data_plane.simulation_goal, data_plane.control_plane_template. New workflows must use existing step names
+#     data_plane.goal, data_plane.control_plane_template. New workflows must use existing step names
 #     (planner, task, tools_recommend, new_claim/update_appointment/..., response_compose).
 #   - Code change needed only when: adding a new span type (e.g. new control-plane child or
 #     new data-plane step kind) or a new event/attribute kind not yet supported in code.
@@ -29,7 +29,7 @@ id_formats:
   mcp_tool_call_id: "mcp_call_{hex:12}"
   enduser_pseudo_id: "user_{hex:6}"
 
-# Happy-path latency: mean + variance per span for realistic fluctuation.
+# Happy-path latency: mean + variance per span for natural fluctuation.
 # Generator: latency = mean_ms * (1 + gauss(0, variance)). default_variance used when span or variance omitted.
 # Semantics and targets (meant to reflect real-world spread):
 #   a2a_orchestrate: full turn (planner + tasks + response); aggregate of children + overhead; high variance.
@@ -208,9 +208,9 @@ tool_call_arguments:
     method: "card"
 
 # -----------------------------------------------------------------------------
-# Realistic scenario templates (simulation_goal -> error semantics, divisions)
+# Scenario templates (goal -> error semantics, divisions, workflow step lists)
 # -----------------------------------------------------------------------------
-realistic_scenarios:
+scenarios:
   divisions:
     phone: phone
     home_electronics: electronics
@@ -235,7 +235,7 @@ realistic_scenarios:
     pay: [planner, task, tools_recommend, pay, response_compose]
 
 # -----------------------------------------------------------------------------
-# Latency profiles: scenario selects one via data_plane.latency_profile (or simulation_goal: higher_latency).
+# Latency profiles: scenario selects one via data_plane.latency_profile (or goal: higher_latency).
 # Scenario mapping: new_claim_phone (happy_path) vs claim_status_phone_higher_latency (higher_latency).
 # Exported trace duration attributes align with actual span duration so happy_path vs higher_latency
 # are clearly distinguishable (e.g. mcp_tool_execute 160ms vs 800ms, a2a_orchestrate 1500 vs 2200).
@@ -482,6 +482,7 @@ control_plane:
         validation.result: valid
       policy:
         step.outcome: fail
+        error.type: unavailable
         policy.engine: dlp
         policy.decision: block
         policy.reason: engine_error
@@ -536,6 +537,7 @@ control_plane:
         policy.decision: allow
       augmentation:
         step.outcome: fail
+        error.type: unavailable
         block.reason: not_found
         augment.conversation_id.action: propagated
         augment.request_id.action: created
@@ -579,6 +581,7 @@ control_plane:
         validation.result: valid
       policy:
         step.outcome: fail
+        error.type: unavailable
         policy.engine: dlp
         policy.decision: allow
         exception:

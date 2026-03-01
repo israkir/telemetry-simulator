@@ -430,7 +430,7 @@ task_execution_span_spec:
           gentoro.step.outcome: "fail"
           gentoro.task.retry.count: 2
           gentoro.task.fallback.used: true
-          error.type: "tool_unavailable"
+          error.type: "unavailable"
         events:
           - name: "exception"
             attributes:
