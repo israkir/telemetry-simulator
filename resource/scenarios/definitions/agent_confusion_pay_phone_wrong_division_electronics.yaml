@@ -18,7 +18,7 @@ tags:
   - agent-confusion
   - pay
 
-workload_weight: 0.8
+workload_weight: 0.9
 
 mcp_server: phone
 repeat_count: 2

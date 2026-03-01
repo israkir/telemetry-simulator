@@ -18,7 +18,7 @@ tags:
   - agent-confusion
   - cancel-claim
 
-workload_weight: 0.6
+workload_weight: 0.7
 
 mcp_server: phone
 repeat_count: 2
