@@ -1454,7 +1454,7 @@ _SPAN_SUFFIXES = [
 ]
 
 
-# Default directory of sample scenario definitions (at project root scenarios/definitions/ or bundled in resources).
+# Default directory of sample scenario definitions (resource/scenarios/definitions/ under project root or TELEMETRY_SIMULATOR_ROOT).
 # Users can provide a custom folder via ScenarioLoader(scenarios_dir=...) or CLI --scenarios-dir.
 SAMPLE_DEFINITIONS_DIR = get_resources_root() / "scenarios" / "definitions"
 

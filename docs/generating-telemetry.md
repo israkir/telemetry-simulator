@@ -82,7 +82,7 @@ Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-
 
 ### Run a Scenario
 
-By default the simulator uses **sample scenario definitions** bundled in `src/simulator/scenarios/definitions/`. You can also pass a custom folder with `--scenarios-dir`.
+By default the simulator uses **sample scenario definitions** bundled in `resource/scenarios/definitions/`. You can also pass a custom folder with `--scenarios-dir`.
 
 ```bash
 # From the otelsim project directory
