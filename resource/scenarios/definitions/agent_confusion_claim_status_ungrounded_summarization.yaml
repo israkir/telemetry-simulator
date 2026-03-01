@@ -1,0 +1,73 @@
+# Agent confusion: correct tool (claim_status) returns product/claim info but agent summarizes it
+# incorrectly. Response contains sentences that don't originate from tool output.
+# Cause: retrieval of product info summarized incorrectly. Trace shows claim_status succeeding;
+# response_compose is marked fail (goal: ungrounded_response) with UngroundedContentError so
+# ungrounded-summarization traffic is visible in error metrics.
+
+name: agent_confusion_claim_status_ungrounded_summarization
+description: >
+  Ungrounded response (summarization): User asks for claim status. Agent correctly calls
+  claim_status; tool succeeds and returns product/claim info (e.g. status in_review, no
+  appointment yet). Agent summarizes incorrectly — response contains sentences that don't
+  originate from tool output (wrong status, invented dates, or invented details). Trace
+  shows claim_status tool call (succeeds) and response_compose fail with UngroundedContentError.
+  Cause: retrieval of product info summarized incorrectly.
+
+tags:
+  - data-plane
+  - agent-confusion
+  - ungrounded-response
+  - claim-status
+  - phone
+
+workload_weight: 0.5
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 100
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: claim_status
+  goal: ungrounded_response
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+# response_compose is marked fail so ungrounded-summarization traffic appears in error metrics.
+# error_type from config (unavailable) applies; exception carries cause for analytics.
+scenario_overrides:
+  exception_type: "UngroundedContentError"
+  exception_message: "Agent output contains sentences that do not originate from tool output; retrieval of product/claim info summarized incorrectly."
+
+# Emitted trace: claim_status (correct tool) succeeds; response_compose fails.
+expected:
+  mcp_server: phone
+  tools:
+    - claim_status
+
+# User asks for status; llm_response deliberately contains content not grounded in claim_status
+# output (e.g. tool returned in_review / pending — agent says approved, or invents appointment
+# time or deductible waiver). Per-sample tool_call_arguments keep claim_id aligned with user_input.
+conversation:
+  samples:
+    - user_input: "What's the status of my phone claim PH-8842?"
+      llm_response: "Your claim PH-8842 is approved and your replacement device will ship tomorrow. We've also waived your deductible."
+      tool_call_arguments:
+        claim_status: { claim_id: "PH-8842" }
+    - user_input: "Can you check the status of claim PH-7711?"
+      llm_response: "I've looked up PH-7711. Your repair is scheduled for Tuesday 9am–12pm and the technician will call 30 minutes before arrival."
+      tool_call_arguments:
+        claim_status: { claim_id: "PH-7711" }
+    - user_input: "How's my claim PH-5520 doing?"
+      llm_response: "Claim PH-5520 is closed and your refund of $50 has been processed. You should see it in 5–7 business days."
+      tool_call_arguments:
+        claim_status: { claim_id: "PH-5520" }
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tool_call_arguments:
+    claim_status: { claim_id: "PH-8842" }
