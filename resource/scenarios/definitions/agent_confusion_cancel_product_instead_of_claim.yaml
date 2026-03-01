@@ -1,15 +1,15 @@
 # Agent confusion: user intent is cancel_claim but agent calls cancel_product (similar names).
-# Same input cluster ("cancel my claim" / "cancel it") maps to both cancel_claim and cancel_product
-# across divisions; agent picks wrong tool. This scenario emits the incorrect tool (cancel_product).
-# No modifier: we simulate what the agent did (cancel_product) for an ambiguous user request.
+# Same input cluster ("cancel my claim" / "cancel it") maps to both cancel_claim and cancel_product;
+# agent picks wrong tool. Trace shows cancel_product tool call (succeeds) and response_compose
+# marked fail (goal: ungrounded_response) so wrong-tool traffic is visible in error metrics.
 
 name: agent_confusion_cancel_product_instead_of_claim
 description: >
   Tool confusion (cancel_product vs cancel_claim): User wants to cancel a claim. Ambiguous
-  phrasing ("cancel my claim", "cancel it") can match both cancel_claim and cancel_product;
-  tool descriptions are similar. Agent incorrectly invokes cancel_product (e.g. electronics
-  division). Trace shows cancel_product tool call. Cause: same input cluster → tools with
-  similar functionality (cancel_claim vs cancel_product) from same or different divisions.
+  phrasing matches both tools; agent incorrectly invokes cancel_product. Trace shows
+  cancel_product tool call (succeeds) and response_compose fail with WrongToolError so
+  wrong-tool traffic is visible in error metrics. Cause: same input cluster → similar
+  tools (cancel_claim vs cancel_product).
 
 tags:
   - data-plane
@@ -29,9 +29,14 @@ redaction_applied: none
 
 data_plane:
   workflow: cancel_product
-  goal: happy_path
+  goal: ungrounded_response
   latency_profile: happy_path
   control_plane_template: allowed
+
+# response_compose is marked fail so wrong-tool traffic appears in error metrics.
+scenario_overrides:
+  exception_type: "WrongToolError"
+  exception_message: "Agent invoked cancel_product instead of cancel_claim; response not valid for user intent."
 
 # Emitted trace shows cancel_product (what agent called); correct intent was cancel_claim.
 expected:
