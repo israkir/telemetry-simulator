@@ -1,0 +1,49 @@
+# Higher latency when scheduling appointments in certain zip codes (condition in higher_latency_condition).
+# Division: electronics (TV, laptop, home electronics). Same structure as update_appointment_phone_higher_latency.
+
+name: update_appointment_electronics_higher_latency
+description: >
+  Tool calls have higher latency when scheduling appointments in zip 10001 (electronics division).
+  Condition is defined in this file.
+
+tags:
+  - data-plane
+  - higher-latency
+  - scheduling
+  - electronics
+
+workload_weight: 0.7
+
+mcp_server: electronics
+repeat_count: 3
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: update_appointment
+  goal: higher_latency
+  latency_profile: higher_latency
+  control_plane_template: allowed
+  higher_latency_condition:
+    zip_code: "10001"
+
+expected:
+  mcp_server: electronics
+  tools:
+    - update_appointment
+
+conversation:
+  samples:
+    - user_input: "I need to reschedule my TV repair. Claim EV-2291."
+      llm_response: "For claim EV-2291, next week I have Mon 9am, Wed 2pm, Fri 11am. Which do you want?"
+    - user_input: "Reschedule my laptop repair—claim EV-4400."
+      llm_response: "For EV-4400 I have Tue 10am, Thu 3pm. Which slot?"
+    - user_input: "Can you move my electronics appointment to the following week?"
+      llm_response: "I've rescheduled your technician visit to Tuesday 10am–2pm next week. You'll get a confirmation by email."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics

@@ -1,0 +1,49 @@
+# Tool calls have higher latency when cancelling a claim that has an appointment already scheduled.
+# Division: appliances (dishwasher, fridge, washer, etc.).
+
+name: cancel_claim_appliances_higher_latency
+description: >
+  Tool calls have higher latency when cancelling appliances claims (e.g. claim with scheduled appointment).
+  Appliances division. Condition is captured as span attributes for filtering.
+
+tags:
+  - data-plane
+  - higher-latency
+  - cancel-claim
+  - appliances
+
+workload_weight: 0.7
+
+mcp_server: appliances
+repeat_count: 2
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: cancel_claim
+  goal: higher_latency
+  latency_profile: higher_latency
+  control_plane_template: allowed
+  higher_latency_condition:
+    appointment_scheduled: true
+
+expected:
+  mcp_server: appliances
+  tools:
+    - cancel_claim
+
+conversation:
+  samples:
+    - user_input: "Cancel my dishwasher claim HA-7733."
+      llm_response: "I've cancelled claim HA-7733 and the scheduled technician visit. You'll get a confirmation email."
+    - user_input: "I don't need the fridge repair anymore. Claim HA-5521."
+      llm_response: "Claim HA-5521 has been cancelled, including the appointment. We've sent a confirmation."
+    - user_input: "Please cancel my washing machine claim HA-4412."
+      llm_response: "I've cancelled HA-4412 and the scheduled visit. You'll receive a confirmation shortly."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances

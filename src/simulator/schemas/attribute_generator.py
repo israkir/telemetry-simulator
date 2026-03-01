@@ -54,6 +54,9 @@ class GenerationContext:
     # Optional: when scenario uses higher_latency profile, condition from data_plane.higher_latency_condition.
     # Captured as span attributes (higher_latency.condition.*) for filtering/correlation.
     higher_latency_condition: dict[str, Any] | None = None
+    # Optional: tool call arguments (keyed by tool name) for gen_ai.tool.call.arguments on MCP spans.
+    # When set (e.g. 4xx invalid-params scenarios), overrides hierarchy so args match the conversation.
+    tool_call_arguments: dict[str, Any] | None = None
 
     @classmethod
     def create(
@@ -78,6 +81,7 @@ class GenerationContext:
             llm_output_messages_redacted=kwargs.get("llm_output_messages_redacted"),
             scenario_name=kwargs.get("scenario_name"),
             higher_latency_condition=kwargs.get("higher_latency_condition"),
+            tool_call_arguments=kwargs.get("tool_call_arguments"),
         )
 
 

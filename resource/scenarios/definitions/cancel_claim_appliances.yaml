@@ -1,0 +1,64 @@
+# Appliances MCP context, happy path for cancel_claim. User requests cancellation with valid claim ID;
+# agent calls cancel_claim tool successfully and confirms.
+
+name: cancel_claim_appliances
+description: >
+  Happy path for Appliances mcp_server: planner → LLM task → tool recommendation → cancel_claim → response_compose.
+  User asks to cancel a claim with valid claim ID (e.g. HA-7733); tool succeeds and assistant confirms.
+
+tags:
+  - data-plane
+  - happy-path
+  - cancel-claim
+  - appliances
+
+workload_weight: 2.0
+
+mcp_server: appliances
+repeat_count: 3
+interval_ms: 90
+interval_deviation_ms: 40
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: cancel_claim
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: appliances
+  tools:
+    - cancel_claim
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tool_call_arguments:
+    cancel_claim: { claim_id: "HA-7733", reason: "customer_requested" }
+
+conversation:
+  samples:
+    - user_input: "Cancel my dishwasher claim HA-7733."
+      llm_response: "I've cancelled claim HA-7733. You'll get a confirmation email shortly."
+      user_input_redacted: "Cancel my dishwasher claim HA-7733."
+      llm_response_redacted: "I've cancelled claim <CLAIM_ID>. You'll get a confirmation email shortly."
+    - user_input: "I don't need the fridge repair anymore. Please cancel claim HA-5521."
+      llm_response: "Claim HA-5521 has been cancelled, including any scheduled appointment. We've sent a confirmation."
+      user_input_redacted: "I don't need the fridge repair anymore. Please cancel claim HA-5521."
+      llm_response_redacted: "Claim <CLAIM_ID> has been cancelled, including any scheduled appointment. We've sent a confirmation."
+    - user_input: "Can you cancel my washing machine claim HA-4412? I've fixed it myself."
+      llm_response: "I've cancelled claim HA-4412. You won't receive any further updates for this claim."
+      user_input_redacted: "Can you cancel my washing machine claim HA-4412? I've fixed it myself."
+      llm_response_redacted: "I've cancelled claim <CLAIM_ID>. You won't receive any further updates for this claim."
+    - user_input: "Stop the claim for my dryer — HA-2298."
+      llm_response: "Claim HA-2298 has been cancelled. If you had an appointment scheduled, it's been released."
+      user_input_redacted: "Stop the claim for my dryer — HA-2298."
+      llm_response_redacted: "Claim <CLAIM_ID> has been cancelled. If you had an appointment scheduled, it's been released."
+    - user_input: "I want to cancel my oven repair claim. The number is HA-6614."
+      llm_response: "I've cancelled claim HA-6614. You'll get a confirmation email. Anything else?"
+      user_input_redacted: "I want to cancel my oven repair claim. The number is HA-6614."
+      llm_response_redacted: "I've cancelled claim <CLAIM_ID>. You'll get a confirmation email. Anything else?"

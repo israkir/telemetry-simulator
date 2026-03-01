@@ -235,6 +235,11 @@ def _parse_and_resolve_context(
         redaction_applied=redaction_applied,
         config_path=config_path,
     )
+    # Scenario can override tool_call_arguments (e.g. 4xx invalid-params: wrong claim_id or date format).
+    scenario_tool_args = data.get("tool_call_arguments")
+    if isinstance(scenario_tool_args, dict) and scenario_tool_args:
+        base = resolved.get("tool_call_arguments") or {}
+        resolved["tool_call_arguments"] = {**base, **scenario_tool_args}
     agents: list[AgentRef] = []
     for a in resolved.get("agents") or []:
         if not isinstance(a, dict):

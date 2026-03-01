@@ -1,0 +1,55 @@
+# Higher latency during peak hours (weekdays 9–14 PT) or post long weekend.
+# Division: appliances. Same condition structure as generic_higher_latency_peak_hours.
+
+name: new_claim_appliances_higher_latency_peak_hours
+description: >
+  Tool calls have higher latency during peak hours (weekdays 9am–2pm PT) or post long weekends.
+  Appliances division (dishwasher, fridge, washer). Condition is defined in this file.
+
+tags:
+  - data-plane
+  - higher-latency
+  - peak-hours
+  - appliances
+
+workload_weight: 0.7
+
+mcp_server: appliances
+repeat_count: 3
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: new_claim
+  goal: higher_latency
+  latency_profile: higher_latency
+  control_plane_template: allowed
+  higher_latency_condition:
+    peak_hours:
+      timezone: "America/Los_Angeles"
+      start_hour: 9
+      end_hour: 14
+      weekdays: [1, 2, 3, 4, 5]
+    post_long_weekend:
+      days_after: 1
+
+expected:
+  mcp_server: appliances
+  tools:
+    - new_claim
+
+conversation:
+  samples:
+    - user_input: "My dishwasher is leaking, I need to start a claim."
+      llm_response: "I've started a claim for your dishwasher (claim ID HA-5521). Describe what happened and we'll schedule a technician. Next slots: tomorrow 10am or 2pm."
+    - user_input: "My fridge stopped cooling. I want to file a claim."
+      llm_response: "I've opened a claim for your fridge (claim ID HA-4412). You can upload photos in the app. Next technician slots: Wednesday 9am or Friday 2pm."
+    - user_input: "Washing machine won't spin—I need to make a claim."
+      llm_response: "I've opened a claim for your washing machine (claim ID HA-4412). Next technician slots: Wednesday 9am or Friday 2pm."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
