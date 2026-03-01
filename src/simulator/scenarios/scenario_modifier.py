@@ -253,9 +253,11 @@ def _apply_wrong_division(
 def _apply_ungrounded_response(
     hierarchy: TraceHierarchy,
     template: ErrorTemplate,
+    overrides: dict[str, Any],
     attr_prefix: str,
 ) -> None:
-    """Set response_compose span to fail (step.outcome=fail, error.type)."""
+    """Set response_compose span to fail (step.outcome=fail, error.type).
+    Optional scenario_overrides.exception_type / exception_message set contextual exception event."""
     comp = _find_response_compose(hierarchy)
     if not comp:
         return
@@ -265,24 +267,39 @@ def _apply_ungrounded_response(
     attrs["error.type"] = template.error_type
     attrs[config_attr("error.type")] = template.error_type
     comp.root_config.attribute_overrides = attrs
+    exc_type = overrides.get("exception_type")
+    exc_msg = overrides.get("exception_message")
+    if exc_type or exc_msg:
+        comp.root_config.exception_type = exc_type or "ResponseCompositionError"
+        comp.root_config.exception_message = (
+            exc_msg or "Response composition failed; answer ungrounded or retrieval error."
+        )
 
 
 def _apply_partial_workflow(
     hierarchy: TraceHierarchy,
     template: ErrorTemplate,
+    overrides: dict[str, Any],
     attr_prefix: str,
 ) -> None:
-    """Optionally mark response_compose as fail to signal incomplete/wrong-order flow."""
+    """Mark response_compose as fail to signal incomplete/wrong-order flow.
+    Optional scenario_overrides.exception_type / exception_message set contextual exception event."""
     comp = _find_response_compose(hierarchy)
     if not comp:
         return
-    # Partial flow: last step may still succeed but we can signal incompleteness
     comp.root_config.error_rate = 1.0
     attrs = dict(comp.root_config.attribute_overrides or {})
     attrs[config_attr("step.outcome")] = "fail"
     attrs["error.type"] = template.error_type
     attrs[config_attr("error.type")] = template.error_type
     comp.root_config.attribute_overrides = attrs
+    exc_type = overrides.get("exception_type")
+    exc_msg = overrides.get("exception_message")
+    if exc_type or exc_msg:
+        comp.root_config.exception_type = exc_type or "ResponseCompositionError"
+        comp.root_config.exception_message = (
+            exc_msg or "Workflow incomplete or wrong tool order; no context about sequence."
+        )
 
 
 def apply_scenario_goal(
@@ -343,14 +360,14 @@ def apply_scenario_goal(
         template = config.error_templates.get("ungrounded_response") or ErrorTemplate(
             error_type="unavailable"
         )
-        _apply_ungrounded_response(hierarchy, template, attr_prefix)
+        _apply_ungrounded_response(hierarchy, template, overrides, attr_prefix)
         return
 
     if goal_lower == "partial_workflow":
         template = config.error_templates.get("partial_workflow") or ErrorTemplate(
             error_type="tool_error"
         )
-        _apply_partial_workflow(hierarchy, template, attr_prefix)
+        _apply_partial_workflow(hierarchy, template, overrides, attr_prefix)
         return
 
     # higher_latency: latency is set by config latency_profiles + scenario latency_profile at hierarchy build time; no modifier.

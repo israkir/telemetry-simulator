@@ -652,6 +652,8 @@ class Scenario:
     control_plane_template: str | None = None
     # Optional: override policy exception (type, message) from template; e.g. {"type": "PolicyEngineUnavailable", "message": "..."}.
     control_plane_policy_exception_override: dict[str, str] | None = None
+    # Optional: override augmentation exception (type, message) from template; e.g. {"type": "AugmentationBindError", "message": "..."}.
+    control_plane_augmentation_exception_override: dict[str, str] | None = None
 
     def get_trace_hierarchy(self) -> TraceHierarchy:
         """Get the trace hierarchy for this scenario."""
@@ -1318,8 +1320,14 @@ def _apply_context_to_hierarchy(
     if agent.mcp:
         tools_by_index = agent.mcp[0].tools
     server_uuid = agent.mcp[0].server_uuid if agent.mcp else ""
-    # Tool step names in workflow order (from config/template); used to set correct mcp.server.uuid / mcp.tool.uuid per span.
-    tool_step_names = _tool_step_names_from_flow(context.correct_flow)
+    # Tool step names in workflow order. When actual_steps is set (e.g. partial_workflow / wrong-order),
+    # use it so each MCP span gets the correct tool name for the step we actually emitted.
+    flow_for_tools = (
+        FlowConfig(steps=context.actual_steps)
+        if getattr(context, "actual_steps", None)
+        else context.correct_flow
+    )
+    tool_step_names = _tool_step_names_from_flow(flow_for_tools)
     tools_by_name = {t.name: t for t in tools_by_index}
     # Single source for gen_ai.tool.name: resolve first tool from config (workflow step -> config tool name)
     # so LLM, tools_recommend, and MCP spans all use the same tool name for the same workflow step.
@@ -1768,6 +1776,7 @@ class ScenarioLoader:
         control_plane_block_reason = None
         control_plane_template: str | None = None
         control_plane_policy_exception_override: dict[str, str] | None = None
+        control_plane_augmentation_exception_override: dict[str, str] | None = None
         cp_raw = data.get("control_plane")
         if isinstance(cp_raw, dict):
             outcome = cp_raw.get("request_outcome")
@@ -1788,6 +1797,11 @@ class ScenarioLoader:
             if isinstance(pe, dict) and (pe.get("type") or pe.get("message")):
                 control_plane_policy_exception_override = {
                     k: str(v) for k, v in pe.items() if k in ("type", "message") and v is not None
+                }
+            ae = cp_raw.get("augmentation_exception")
+            if isinstance(ae, dict) and (ae.get("type") or ae.get("message")):
+                control_plane_augmentation_exception_override = {
+                    k: str(v) for k, v in ae.items() if k in ("type", "message") and v is not None
                 }
         # When scenario uses data_plane.workflow and did not set control_plane.template, use the
         # control_plane_template from the scenario's data_plane block (e.g. allowed = no error/exception).
@@ -1874,6 +1888,7 @@ class ScenarioLoader:
             control_plane_block_reason=control_plane_block_reason,
             control_plane_template=control_plane_template,
             control_plane_policy_exception_override=control_plane_policy_exception_override,
+            control_plane_augmentation_exception_override=control_plane_augmentation_exception_override,
         )
 
     def _detect_statistical(self, data: dict) -> bool:
