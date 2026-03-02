@@ -21,9 +21,9 @@ The document below lists every scenario, grouped by **intention**, with enough d
 
 ## How scenarios are used
 
-- **Single scenario:** `otelsim scenario --name <scenario_name>` runs one scenario only.
-- **Mixed workload:** `otelsim run` picks scenarios at random; probability is proportional to **workload_weight** (higher weight = more frequent). This produces a traffic mix that resembles production (mostly success, some retries and higher latency, fewer blocks and errors).
-- **Filtering by tags:** `otelsim run --tags=data-plane` or `--tags=control-plane` limits to scenarios with those tags for batch running (e.g. all data-plane, all agent-confusion, or all partial-workflow scenarios).
+- **Single scenario:** `otelsim scenario --vendor=your_vendor --name <scenario_name>` runs one scenario only.
+- **Mixed workload:** `otelsim run --vendor=your_vendor` picks scenarios at random; probability is proportional to **workload_weight** (higher weight = more frequent). This produces a traffic mix that resembles production (mostly success, some retries and higher latency, fewer blocks and errors).
+- **Filtering by tags:** `otelsim run --vendor=your_vendor --tags=data-plane` or `--tags=control-plane` limits to scenarios with those tags for batch running (e.g. all data-plane, all agent-confusion, or all partial-workflow scenarios).
 
 ### Workload weight
 

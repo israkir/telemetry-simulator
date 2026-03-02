@@ -2,7 +2,7 @@
 
 This document describes the structure of telemetry trace data produced by the simulator: span schema, trace hierarchy, attribute semantics, and examples. When exporting to file (e.g. `otelsim run --vendor=your_vendor --output-file traces.jsonl`), each line is one span in JSON Lines format. The schema is aligned with the **Gentoro LLM Observability Semantic Conventions** in `resource/scenarios/conventions/semconv.yaml` (schema version **1.0.0**).
 
-**Vendor prefix:** Span and attribute names use the configurable vendor prefix (`VENDOR` env or `--vendor`, default `vendor`). The bundled config and semconv use the same structure; examples below use the `gentoro.*` prefix as in the convention. Replace with your prefix (e.g. `vendor.*`) when validating or querying.
+**Vendor prefix:** Span and attribute names use the configurable vendor prefix (`VENDOR` env or `--vendor`, default `vendor`). The bundled convention uses the `gentoro` prefix; set `VENDOR=gentoro` (or `--vendor=gentoro`) to match. Examples below use `gentoro.*`; replace with your prefix when validating or querying.
 
 ---
 
