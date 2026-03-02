@@ -437,13 +437,16 @@ class TraceHierarchy:
         return names
 
 
-def _subtree_has_configured_failure(hierarchy: TraceHierarchy) -> tuple[bool, str | None]:
-    """Return (True, error_type) if this subtree or any descendant has logical failure.
+def _subtree_has_configured_failure(
+    hierarchy: TraceHierarchy,
+) -> tuple[bool, str | None, SpanConfig | None]:
+    """Return (True, error_type, failing_config) if this subtree or any descendant has logical failure.
 
     Logical failure is per node: step.outcome=fail or (for attempts) mcp.attempt.outcome=fail.
     We recurse so task.execute wrapping MCP is detected (task root=success, MCP root=fail).
     For MCP_TOOL_EXECUTE we do not recurse into attempts: the parent's step.outcome is the
     logical call outcome (retry-then-success has parent step.outcome=success).
+    failing_config is the SpanConfig of the node that has the failure (for exception_type/exception_message).
     """
     cfg = hierarchy.root_config
     overrides = cfg.attribute_overrides or {}
@@ -453,20 +456,20 @@ def _subtree_has_configured_failure(hierarchy: TraceHierarchy) -> tuple[bool, st
     if root_has_fail:
         error_type = overrides.get("error.type") or overrides.get(config_attr("error.type"))
         if isinstance(error_type, str):
-            return True, error_type
+            return True, error_type, cfg
         for child in hierarchy.children:
-            child_fail, child_err = _subtree_has_configured_failure(child)
+            child_fail, child_err, child_cfg = _subtree_has_configured_failure(child)
             if child_fail and child_err:
-                return True, child_err
-        return True, _ERROR_TYPE_BY_SPAN_TYPE.get(cfg.span_type)
+                return True, child_err, child_cfg or cfg
+        return True, _ERROR_TYPE_BY_SPAN_TYPE.get(cfg.span_type), cfg
     # Root success: recurse so task->mcp (task success, mcp fail) is detected; do not recurse into MCP attempts.
     if cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
-        return False, None
+        return False, None, None
     for child in hierarchy.children:
-        found, child_err = _subtree_has_configured_failure(child)
+        found, child_err, failing_cfg = _subtree_has_configured_failure(child)
         if found:
-            return True, child_err or "tool_error"
-    return False, None
+            return True, child_err or "tool_error", failing_cfg
+    return False, None, None
 
 
 class SpanBuilder:
@@ -773,18 +776,20 @@ class TraceGenerator:
         compose_accumulated_failure: when set, response.compose accumulates this error (step.outcome=fail, status, exception).
         """
         config = hierarchy.root_config
-        # When at A2A root, detect if any upstream (sibling of response_compose) is configured to fail;
+        # When at A2A root, detect if any child (including response_compose) is configured to fail;
         # pass so response.compose accumulates step.outcome, status, error.type, and exception.
+        # We also keep the failing child's config so a2a.orchestrate can record the same exception_type/exception_message.
         child_compose_failure = compose_accumulated_failure
+        failing_child_config: SpanConfig | None = None
         if config.span_type == SpanType.A2A_ORCHESTRATE:
             for ch in hierarchy.children:
-                if ch.root_config.span_type != SpanType.RESPONSE_COMPOSE:
-                    has_fail, err_type = _subtree_has_configured_failure(ch)
-                    if has_fail:
-                        child_compose_failure = (err_type or "tool_error").strip()
-                        if child_compose_failure not in SEMCONV_ERROR_TYPE_VALUES:
-                            child_compose_failure = "tool_error"
-                        break
+                has_fail, err_type, fail_cfg = _subtree_has_configured_failure(ch)
+                if has_fail:
+                    child_compose_failure = (err_type or "tool_error").strip()
+                    if child_compose_failure not in SEMCONV_ERROR_TYPE_VALUES:
+                        child_compose_failure = "tool_error"
+                    failing_child_config = fail_cfg
+                    break
 
         span_name = get_span_name(config.span_type)
         span_kind = SPAN_KIND_MAP.get(config.span_type, SpanKind.INTERNAL)
@@ -925,8 +930,8 @@ class TraceGenerator:
                         exception_message=getattr(config, "exception_message", None),
                     )
                 elif child_compose_failure is not None:
-                    # A sibling of response.compose has configured failure; root must show error
-                    # (semconv: root_on_compose_failure). Override default a2a.outcome=success from loader.
+                    # A child (e.g. response_compose, MCP, tools_recommend) has configured failure; root must show error
+                    # (semconv: root_on_compose_failure). Accumulate same exception_type/exception_message to a2a.orchestrate.
                     span.set_attribute(config_attr("a2a.outcome"), "error")
                     error_type = (
                         overrides.get("error.type")
@@ -935,13 +940,23 @@ class TraceGenerator:
                     )
                     if isinstance(error_type, str) and error_type not in SEMCONV_ERROR_TYPE_VALUES:
                         error_type = "tool_error"
+                    exc_type = (
+                        getattr(failing_child_config, "exception_type", None)
+                        if failing_child_config
+                        else getattr(config, "exception_type", None)
+                    )
+                    exc_msg = (
+                        getattr(failing_child_config, "exception_message", None)
+                        if failing_child_config
+                        else getattr(config, "exception_message", None)
+                    )
                     _record_span_error(
                         span,
                         config.span_type,
                         overrides,
                         error_type_override=error_type,
-                        exception_type=getattr(config, "exception_type", None),
-                        exception_message=getattr(config, "exception_message", None),
+                        exception_type=exc_type,
+                        exception_message=exc_msg,
                     )
                 # success / partial: leave status UNSET (do not set OK)
             # Control-plane request / response validation roots: status.code UNSET on
