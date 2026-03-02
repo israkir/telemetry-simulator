@@ -4,7 +4,7 @@ This document describes how to define and extend scenarios with YAML. For config
 
 ## Sample definitions
 
-Scenarios are YAML files. The simulator bundles **sample definitions** in `resource/scenarios/definitions/` (subdirectories: `happy_path/`, `control_plane/allowed|blocked|error/`, `higher_latency/`, `multi_turn_retries/`, `tool_4xx/`, `agent_confusion/`; reference `_EXAMPLE_SCENARIO_.yaml` at root). For the full list by category and folder layout, see [resource/scenarios/definitions/README.md](../resource/scenarios/definitions/README.md).
+Scenarios are YAML files. The simulator bundles **sample definitions** in `resource/scenarios/definitions/` (subdirectories: `happy_path/`, `control_plane/allowed|blocked|error/`, `higher_latency/`, `multi_turn_retries/`, `tool_4xx/`, `agent_confusion/`; reference `_EXAMPLE_SCENARIO_.yaml` at the root of the definitions folder). For the full list by category and folder layout, see [resource/scenarios/definitions/README.md](../resource/scenarios/definitions/README.md).
 
 Representative samples: **Data-plane** — `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, `cancel_claim_appliances.yaml`, `upload_documents_*.yaml`, `choose_insurance_*.yaml`, `buy_insurance_*.yaml`, `*_higher_latency*.yaml`, `*_tool_4xx_invalid_params.yaml`, `agent_confusion_*.yaml`. **Control-plane** — `request_blocked_by_policy.yaml`, `request_blocked_invalid_payload.yaml`, `request_allowed_audit_flagged.yaml`, `request_error_policy_runtime.yaml`, etc. **Reference** — `_EXAMPLE_SCENARIO_.yaml` documents all YAML options; excluded from `list` and mixed workload but can be run with `--name _EXAMPLE_SCENARIO_`.
 

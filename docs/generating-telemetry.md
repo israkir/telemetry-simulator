@@ -65,7 +65,7 @@ The simulator is driven by **`resource/config/config.yaml`**. What exists today:
 | *(no data_plane_templates)* | Data-plane is defined in each scenario YAML: `data_plane.workflow` (key into `workflow_templates` for step list), optional `data_plane.goal`, optional `data_plane.control_plane_template`, optional `data_plane.mcp_retry` (template name or inline `attempts` for MCP retry logic). Config supplies only `workflow_templates` (step names) and key → UUID. |
 | **control_plane** | `trace_flow`, `request_validation_templates`, `response_validation_templates`, `latencies_ms`, and optional **request_scenarios** (name → template + description). Scenarios use `control_plane.template` or `request_outcome` + `block_reason`. When using the built-in definitions dir, any entry in `request_scenarios` is exposed as a scenario even without a YAML file; a YAML in `definitions/` overrides the registry. |
 | **conversation_samples** | Per-workflow samples (user_input, llm_response) for single-turn content when scenario has no `conversation.turns` or `conversation.samples`. |
-| **Resource** | Resource attributes (service.name, service.version, deployment.environment.name, module, component, otel.source) and schemaUrl are in **`config/resource.yaml`** (not config.yaml). |
+| **Resource** | Resource attributes (service.name, service.version, deployment.environment.name, module, component, otel.source) and schemaUrl are in **`resource/config/resource.yaml`** (not config.yaml). |
 
 Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-path`, `multi-turn`). Use `otelsim run --vendor=your_vendor --tags=...` to run only scenarios that have at least one of the given tags. Use `--each-once` to run each (tagged) scenario exactly once instead of `--count` random picks (e.g. `otelsim run --vendor=your_vendor --each-once` or `otelsim run --vendor=your_vendor --tags=control-plane --each-once`).
 
@@ -85,7 +85,7 @@ Scenario YAML can also set **tags** (e.g. `control-plane`, `data-plane`, `happy-
 By default the simulator uses **sample scenario definitions** bundled in `resource/scenarios/definitions/`. You can also pass a custom folder with `--scenarios-dir`.
 
 ```bash
-# From the otelsim project directory
+# From the project root
 make venv && make install
 
 # Run sample scenarios (built-in definitions; tenant from resource/config/config.yaml)

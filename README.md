@@ -38,7 +38,7 @@ src/simulator/
 ### Setup
 
 ```bash
-# From the otelsim project directory
+# From the project root
 make venv
 make install
 ```
@@ -261,7 +261,7 @@ make check
 
 ## Pipeline Integration
 
-The simulator can run **as a container** (with your own Docker setup) or **locally** (with venv). Tenant IDs are taken from `config/config.yaml`; use `--show-full-spans` to log full span content.
+The simulator can run **as a container** (with your own Docker setup) or **locally** (with venv). Tenant IDs are taken from `resource/config/config.yaml`; use `--show-full-spans` to log full span content.
 
 ### Local run (venv)
 

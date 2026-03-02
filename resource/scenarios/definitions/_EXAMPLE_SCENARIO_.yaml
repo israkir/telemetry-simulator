@@ -39,8 +39,10 @@ tags:
 
 # Relative weight when running mixed workload (default 1.0).
 # Used only for "otelsim run" (mixed workload): each request picks a scenario at random with
-# probability proportional to weight. E.g. scenario A=5, B=1, C=0.5 → over 100 runs you get
-# roughly 77 A, 15 B, 8 C (5 : 1 : 0.5). Use higher weight for common paths (e.g. happy_path 5.0)
+# probability proportional to weight.
+# Formula: P(this scenario) = workload_weight / Σ(workload_weight of every loaded scenario).
+# E.g. scenario A=5, B=1, C=0.5 → sum=6.5 → P(A)=5/6.5≈0.77, P(B)=1/6.5≈0.15, P(C)=0.5/6.5≈0.08;
+# over 100 runs you get roughly 77 A, 15 B, 8 C. Use higher weight for common paths (e.g. happy_path 5.0)
 # and lower for rare outcomes (e.g. policy_error 0.5) so generated traffic looks realistic.
 # Not in config.yaml; per-scenario only.
 # Baseline weight for examples; other scenarios use relative weights for realistic mix.

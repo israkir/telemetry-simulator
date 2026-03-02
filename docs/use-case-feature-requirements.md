@@ -2,6 +2,8 @@
 
 This document maps **observability use cases** and **feature requirements** to scenario definitions and telemetry: which conditions the simulator covers, what each scenario does, and how well generated data answers specific questions.
 
+**Attribute names:** Examples use the **`gentoro.*`** prefix from the bundled semantic convention. When using another vendor prefix (`VENDOR` or `--vendor`), use that prefix in queries (e.g. `vendor.tenant.id` instead of `gentoro.tenant.id`).
+
 ---
 
 ## 1. Tool calls have higher latency
