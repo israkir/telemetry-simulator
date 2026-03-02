@@ -107,6 +107,10 @@ tool_call_arguments:
 # -----------------------------------------------------------------------------
 # scenarios – Scenario modifier: divisions, error_templates (goal → error_type, http_status_codes), workflow_templates (name → step list).
 # Scenario YAML sets data_plane.workflow (key here), data_plane.goal; scenario_overrides can set exception_type, exception_message, etc.
+#
+# Goals (data_plane.goal): happy_path | higher_latency | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response.
+# - happy_path, 4xx_invalid_arguments, wrong_division, partial_workflow, ungrounded_response → semantics from error_templates below.
+# - higher_latency → not an error; uses latency_profiles.higher_latency only (no error_templates entry).
 # -----------------------------------------------------------------------------
 scenarios:
   divisions:

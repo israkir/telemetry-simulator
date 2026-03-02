@@ -4,6 +4,19 @@ This folder contains **scenario definitions** used by the telemetry simulator to
 
 The document below lists every scenario, grouped by **intention**, with enough detail for observability and usage decisions (e.g. which scenarios to run, how often, and what they represent).
 
+### Folder layout
+
+- **`happy_path/`** — Data-plane success flows (one per division/service): e.g. `new_claim_phone`, `cancel_claim_appliances`.
+- **`control_plane/`** — Control-plane scenarios by outcome:
+  - **`allowed/`** — Request allowed but flagged for audit.
+  - **`blocked/`** — Request blocked (policy, invalid payload, rate limit, fail-closed, invalid context).
+  - **`error/`** — Request outcome = error (policy runtime or unavailable).
+- **`higher_latency/`** — Data-plane scenarios with degraded-but-successful latency (peak hours, zip-based, claim/appointment conditions). Used to calibrate latency SLOs and filter by condition on a2a.orchestrate.
+- **`multi_turn_retries/`** — Multi-turn conversations and MCP retry-then-success (session/conversation correlation, retry visibility).
+- **`tool_4xx/`** — Tool calls with wrong or missing parameters → backend 4xx (validation errors, claim-id format, cancel reason).
+- **`agent_confusion/`** — Wrong division, wrong tool, partial workflow, wrong order, ungrounded response (routing and disambiguation failures).
+- **Root** — `_EXAMPLE_SCENARIO_.yaml` only (reference; excluded from list and mixed workload). The loader discovers all `.yaml` files in any subdirectory.
+
 ---
 
 ## How scenarios are used
@@ -50,6 +63,8 @@ These scenarios simulate **successful** agent flows: the user asks for something
 
 ## 2. Data-plane — Multi-turn and retries
 
+*Definitions: `multi_turn_retries/`.*
+
 These represent **multi-turn conversations** or **transient failures followed by success**. Important for testing correlation (session/conversation IDs) and retry/backoff behavior.
 
 
@@ -62,6 +77,8 @@ These represent **multi-turn conversations** or **transient failures followed by
 ---
 
 ## 3. Data-plane — Higher latency (degraded but successful)
+
+*Definitions: `higher_latency/`.*
 
 These scenarios simulate **successful** tool calls that take **longer** (e.g. peak hours, specific zip codes, or backend conditions). They help calibrate latency SLOs and “slow but OK” vs “failure” signals.
 
@@ -82,6 +99,8 @@ These scenarios simulate **successful** tool calls that take **longer** (e.g. pe
 
 ## 4. Data-plane — Tool 4xx (invalid parameters)
 
+*Definitions: `tool_4xx/`.*
+
 These simulate **correct tool, wrong or missing parameters** → backend returns **4xx** (e.g. 400, 404, 422). They exercise error handling, user messaging, and observability of “user/agent mistake” vs system failure.
 
 
@@ -97,6 +116,8 @@ These simulate **correct tool, wrong or missing parameters** → backend returns
 ---
 
 ## 5. Data-plane — Agent confusion (wrong division / wrong tool)
+
+*Definitions: `agent_confusion/`.*
 
 These scenarios simulate **agent disambiguation failures**: the user’s intent maps to one division or tool, but the agent calls a **different division** (same tool name, wrong `mcp.server.uuid` / `mcp.tool.uuid`) or a **different tool** (e.g. `cancel_product` instead of `cancel_claim`) because user requests are ambiguous and tool names/descriptions are similar across divisions. Useful for testing routing metrics, division/tool confusion detection, and observability of “wrong MCP” or “wrong tool” traffic.
 
@@ -120,6 +141,8 @@ These scenarios simulate **agent disambiguation failures**: the user’s intent 
 
 ## 6. Control-plane — Allowed but flagged for audit
 
+*Definitions: `control_plane/allowed/`.*
+
 Request is **allowed** to proceed, but policy **flags it for audit**. Full data-plane flow runs (orchestration, tools, response); root has audit flag set. Used for “allowed but reviewed” traffic mix.
 
 
@@ -131,6 +154,8 @@ Request is **allowed** to proceed, but policy **flags it for audit**. Full data-
 ---
 
 ## 7. Control-plane — Blocked (request never reaches data-plane)
+
+*Definitions: `control_plane/blocked/`.*
 
 Request is **blocked** before or during validation; **no** data-plane orchestration. Different scenarios represent different **block reasons** for filtering and analytics.
 
@@ -148,6 +173,8 @@ Request is **blocked** before or during validation; **no** data-plane orchestrat
 ---
 
 ## 8. Control-plane — Error (request outcome = error)
+
+*Definitions: `control_plane/error/`.*
 
 Validation or policy results in **request.outcome=error** (e.g. policy engine exception), not “blocked.” Used to test error vs block semantics and alerting.
 
