@@ -88,7 +88,7 @@ SEMCONV_ERROR_TYPE_VALUES = (
     "tool_error",
     "protocol_error",
 )
-SEMCONV_STEP_OUTCOME_VALUES = ("success", "fail", "skipped")
+SEMCONV_STEP_OUTCOME_VALUES = ("success", "fail", "skip")
 
 
 _RESOURCES_ROOT = get_resources_root()

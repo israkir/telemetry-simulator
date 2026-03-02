@@ -380,7 +380,7 @@ task_execution_span_spec:
       values:
         success: "Task completed successfully."
         fail: "Task failed."
-        skipped: "Task intentionally skipped (conditional plan branch, early termination)."
+        skip: "Task intentionally skipped (conditional plan branch, early termination)."
 
   failure_and_outcome_rules:
     task_failure_rules_4_1: |
@@ -477,8 +477,8 @@ data_plane_a2a_observability:
 
   enums:
     gentoro.a2a.outcome: ["success", "partial", "error"]
-    # Normative per MCP spec 4.1: success, fail, skipped (parent span step.outcome).
-    gentoro.step.outcome: ["success", "fail", "skipped"]
+    # Normative: success, fail, skip (parent span step.outcome).
+    gentoro.step.outcome: ["success", "fail", "skip"]
     gentoro.component: ["orchestrator", "planning", "retrieval", "llm", "mcp_client", "tool_recommender"]
     gentoro.rag.approach: ["vector", "keyword", "hybrid", "rerank"]
     gentoro.tools.recommended.source: ["static", "learned", "hybrid"]
@@ -798,7 +798,7 @@ a2a_orchestration_model:
       values:
         success: "Task completed successfully."
         fail: "Task failed."
-        skipped: "Task intentionally skipped (conditional plan branch, early termination)."
+        skip: "Task intentionally skipped (conditional plan branch, early termination)."
 
     gentoro.component:
       description: "Data plane component (resource attribute)"
@@ -881,7 +881,7 @@ context_augmentation_model:
       values:
         success: "Context successfully retrieved and attached."
         fail: "Retrieval failed or unusable."
-        skipped: "Retrieval intentionally skipped."
+        skip: "Retrieval intentionally skipped."
 
     gentoro.rag.source:
       description: "Knowledge source used"
@@ -1027,7 +1027,7 @@ tools_recommend_model:
       values:
         success: "Tools successfully selected."
         fail: "Recommendation failed."
-        skipped: "Recommendation intentionally skipped."
+        skip: "Recommendation intentionally skipped."
 
     gentoro.mcp.selection.strategy:
       description: "Selection mechanism"
@@ -1112,7 +1112,7 @@ mcp_tool_execution_model:
       values:
         success: "Tool eventually succeeded"
         fail: "Tool failed after retries"
-        skipped: "Tool intentionally not executed"
+        skip: "Tool intentionally not executed"
 
     gentoro.mcp.attempt.outcome:
       description: "Outcome of this attempt (attempt span). Spec 4.2."
@@ -1471,7 +1471,7 @@ response_compose_attributes:
     required: true
     category: first_class
     description: "Outcome of compose step."
-    allowed_values: ["success", "fail", "skipped"]
+    allowed_values: ["success", "fail", "skip"]
 
 # -----------------------------------------------------------------------------
 # gentoro.a2a.orchestrate (A2A Orchestration root only; response.compose has its own section)
@@ -1515,7 +1515,7 @@ task_execute_attributes:
     required: true
     category: first_class
     description: "Outcome of this task (task execute span)."
-    allowed_values: ["success", "fail", "skipped"]
+    allowed_values: ["success", "fail", "skip"]
 
   gentoro.task.type:
     type: string
@@ -1607,7 +1607,7 @@ mcp_tool_attributes:
     required: true
     category: first_class
     description: "Final outcome of logical tool call (parent span only)."
-    allowed_values: ["success", "fail", "skipped"]
+    allowed_values: ["success", "fail", "skip"]
 
   gentoro.mcp.server.uuid:
     type: string

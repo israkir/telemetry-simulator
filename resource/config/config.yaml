@@ -50,7 +50,7 @@ id_formats:
 # (from latency_profiles.<profile>.spans.tools_recommend), and the keys below.
 # -----------------------------------------------------------------------------
 tools_recommend:
-  step_outcome: "success"             # step.outcome on tools.recommend span (success | fail | skipped)
+  step_outcome: "success"             # step.outcome on tools.recommend span (success | fail | skip)
   selection_strategy: "default"       # capability_match | semantic_match | policy_filtered | hybrid | default
   selection_constraints: "none"       # policy | permissions | environment | latency_budget | none
   tools_selected_count: 1             # number of tools selected (typically 1 per step)
