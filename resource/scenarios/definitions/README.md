@@ -14,6 +14,7 @@ The document below lists every scenario, grouped by **intention**, with enough d
 - **`higher_latency/`** — Data-plane scenarios with degraded-but-successful latency (peak hours, zip-based, claim/appointment conditions). Used to calibrate latency SLOs and filter by condition on a2a.orchestrate.
 - **`multi_turn_retries/`** — Multi-turn conversations and MCP retry-then-success (session/conversation correlation, retry visibility).
 - **`tool_4xx/`** — Tool calls with wrong or missing parameters → backend 4xx (validation errors, claim-id format, cancel reason).
+- **`recommendation_failure/`** — Tools recommendation step fails (e.g. capability resolution error); no MCP tool execution; flow stops after gentoro.tools.recommend.
 - **`agent_confusion/`** — Wrong division, wrong tool, partial workflow, wrong order, ungrounded response (routing and disambiguation failures).
 - **Root** — `_EXAMPLE_SCENARIO_.yaml` only (reference; excluded from list and mixed workload). The loader discovers all `.yaml` files in any subdirectory.
 
@@ -124,7 +125,21 @@ These simulate **correct tool, wrong or missing parameters** → backend returns
 
 ---
 
-## 5. Data-plane — Agent confusion (wrong division / wrong tool)
+## 5. Data-plane — Recommendation failure (tools.recommend fails)
+
+*Definitions: `recommendation_failure/`.*
+
+These scenarios simulate **tools recommendation step failure**: the agent runs planner and task, then **gentoro.tools.recommend** fails (e.g. capability resolution error). No MCP tool is executed; the flow stops after tools_recommend and response_compose reflects the failure. Used to test visibility of recommendation failures and error metrics (e.g. `error.type=capability_resolution_error`).
+
+
+| Scenario                                    | Division | Intention                                                                                                                                                                                                 | Product context                                                                                          | Tags |
+| ------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----- |
+| **tools_recommend_capability_resolution_error** | Phone    | **Tools recommendation fails.** Planner and task run; **tools_recommend** span has status=ERROR, `gentoro.step.outcome=fail`, `gentoro.mcp.tools.selected.count=0`, `error.type=capability_resolution_error`, and exception event (CapabilityResolutionError). No MCP tool execute. | Tests capability-resolution failure visibility; flow stops before any tool call. **Workload weight: 0.5.** | data-plane, recommendation-failure, tools-recommend, capability-resolution-error, phone |
+
+
+---
+
+## 6. Data-plane — Agent confusion (wrong division / wrong tool)
 
 *Definitions: `agent_confusion/`.*
 
@@ -148,7 +163,7 @@ These scenarios simulate **agent disambiguation failures**: the user’s intent 
 
 ---
 
-## 6. Control-plane — Allowed but flagged for audit
+## 7. Control-plane — Allowed but flagged for audit
 
 *Definitions: `control_plane/allowed/`.*
 
@@ -162,7 +177,7 @@ Request is **allowed** to proceed, but policy **flags it for audit**. Full data-
 
 ---
 
-## 7. Control-plane — Blocked (request never reaches data-plane)
+## 8. Control-plane — Blocked (request never reaches data-plane)
 
 *Definitions: `control_plane/blocked/`.*
 
@@ -181,7 +196,7 @@ Request is **blocked** before or during validation; **no** data-plane orchestrat
 
 ---
 
-## 8. Control-plane — Error (request outcome = error)
+## 9. Control-plane — Error (request outcome = error)
 
 *Definitions: `control_plane/error/`.*
 
@@ -196,7 +211,7 @@ Validation or policy results in **request.outcome=error** (e.g. policy engine ex
 
 ---
 
-## 9. Reference only (not part of standard mix)
+## 10. Reference only (not part of standard mix)
 
 
 | Scenario               | Intention                                                                                                                                       | Product context                                                                                 | Tags |
@@ -211,8 +226,9 @@ Validation or policy results in **request.outcome=error** (e.g. policy engine ex
 
 | Tag                                                               | Scenarios (examples)                                                                                                | Use for                                          |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| **data-plane**                                                    | All new_claim, claim_status, cancel_claim, update_appointment, upload_documents, choose_insurance, buy_insurance, pay, cancel_product, agent_confusion_*               | Agent/MCP/tool traces, latency, success/4xx      |
+| **data-plane**                                                    | All new_claim, claim_status, cancel_claim, update_appointment, upload_documents, choose_insurance, buy_insurance, pay, cancel_product, agent_confusion_*, tools_recommend_* | Agent/MCP/tool traces, latency, success/4xx, recommendation failure |
 | **control-plane**                                                 | request_blocked_*, request_error_*, request_allowed_audit_flagged                                                   | Validation, policy, blocks, errors               |
+| **recommendation-failure** / **tools-recommend**                  | tools_recommend_capability_resolution_error                                                                         | tools.recommend step fails before MCP tool execution                |
 | **happy-path**                                                    | new_claim_phone, claim_status_phone, upload_documents_*, choose_insurance_*, buy_insurance_*, etc. (27 scenarios)                                                                            | Success baselines                                |
 | **multi-turn**                                                    | new_claim_phone_multi_turn                                                                                          | Conversation correlation                         |
 | **higher-latency**                                                | *_higher_latency*, *_peak_hours                                                                                     | Latency SLOs, slow-path behavior                 |
