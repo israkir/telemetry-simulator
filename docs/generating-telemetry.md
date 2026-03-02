@@ -115,7 +115,7 @@ selection using a **per-scenario workload weight**:
   ```yaml
   name: new_claim_phone
   tags: [data-plane, happy-path]
-  workload_weight: 8.0   # 8x more likely than weight 1.0 (happy path = most traffic)
+  workload_weight: 9.0   # 9× more likely than weight 1.0 (happy path = most traffic)
   ```
 
 - **Control-plane registry** (`resource/config/config.yaml` → `control_plane.request_scenarios`):
@@ -126,7 +126,7 @@ selection using a **per-scenario workload weight**:
       request_allowed_audit_flagged:
         template: allowed_but_flagged
         description: "Request allowed but flagged for audit..."
-        workload_weight: 3.0
+        workload_weight: 0.6
   ```
 
 Semantics:
@@ -139,10 +139,7 @@ Semantics:
   scenario from random selection (but you can still run it via `otelsim scenario --vendor=your_vendor --name ...`).
 - `--each-once` ignores weights and runs each (filtered) scenario exactly once.
 
-Bundled scenario definitions use **relative weights**: data-plane happy path (10.0),
-multi-turn and allowed-but-flagged lower (2.5–3), retries and higher-latency variants moderate (0.7–1),
-control-plane blocks and errors much lower (0.1–0.5), so `otelsim run --vendor=your_vendor --count 1000`
-produces a mix that resembles real-world traffic (mostly success, some retries, minority blocks/errors).
+Bundled scenario definitions use **relative weights**: data-plane happy path (e.g. 9.0 for `new_claim_phone`, 1.0–6.0 for other happy paths), multi-turn and retry (2.0, 0.8), higher-latency variants (1.0–1.5), control-plane blocks and errors lower (0.08–0.6), so `otelsim run --vendor=your_vendor --count 1000` produces a mix that resembles real-world traffic (mostly success, some retries, minority blocks/errors).
 
 ---
 
@@ -272,7 +269,7 @@ The following tables map **intent** (what kind of behavior or failure the scenar
 |--------|----------------|------------------------|-----------|
 | Ungrounded response | Incorrect summarization | The agent correctly calls `claim_status` and the tool succeeds. The response-compose step is marked failed with UngroundedContentError: the agent’s reply contains sentences that don’t originate from the tool (e.g. tool says in_review but agent says “approved” or invents appointment times). Conversation samples illustrate the mismatch. | `agent_confusion_claim_status_ungrounded_summarization` |
 
-**Control-plane and other scenarios:** `new_claim_phone` (data-plane happy path), `new_claim_phone_multi_turn`, `new_claim_phone_mcp_tool_retry_then_success` (MCP retry: timeout then success), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane).
+**Control-plane and other scenarios:** `new_claim_phone` (data-plane happy path), `new_claim_phone_multi_turn`, `new_claim_phone_mcp_tool_retry_then_success` (MCP retry: timeout then success), plus happy paths for all workflows (new_claim, update_appointment, claim_status, cancel_claim, upload_documents, choose_insurance, buy_insurance, cancel_product, pay) × divisions (phone, electronics, appliances). Control-plane: `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable`.
 
 Control-plane examples:
 
@@ -335,7 +332,7 @@ All emitted values for **enum-like attributes** (e.g. `error.type`, `step.outcom
 
 ## Scenario File Structure
 
-Scenarios are YAML files. The simulator ships with **sample definitions** in `resource/scenarios/definitions/` (e.g. `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, `request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`). A reference file `_EXAMPLE_SCENARIO_.yaml` documents all configuration options; it is excluded from `list` and from mixed workload when using the built-in samples, but you can run it explicitly with `--name _EXAMPLE_SCENARIO_`. You can add your own YAML in the sample folder or use a **custom folder** via `--scenarios-dir` (or `SCENARIOS_DIR` with make). Example:
+Scenarios are YAML files. The simulator ships with **sample definitions** in `resource/scenarios/definitions/` (e.g. `new_claim_phone.yaml`, `new_claim_phone_multi_turn.yaml`, `new_claim_phone_mcp_tool_retry_then_success.yaml`, happy-path scenarios for all workflows × divisions—`upload_documents_*.yaml`, `choose_insurance_*.yaml`, `buy_insurance_*.yaml`, etc.—`request_blocked_by_policy.yaml`, `request_error_policy_runtime.yaml`). A reference file `_EXAMPLE_SCENARIO_.yaml` documents all configuration options; it is excluded from `list` and from mixed workload when using the built-in samples, but you can run it explicitly with `--name _EXAMPLE_SCENARIO_`. You can add your own YAML in the sample folder or use a **custom folder** via `--scenarios-dir` (or `SCENARIOS_DIR` with make). Example:
 
 ```yaml
 name: my_scenario

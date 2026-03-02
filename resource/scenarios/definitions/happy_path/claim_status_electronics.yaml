@@ -1,0 +1,38 @@
+# Home electronics MCP context, happy path. User asks for claim status; agent calls claim_status successfully.
+
+name: claim_status_electronics
+description: >
+  Happy path for Home electronics mcp_server: planner → task → tools_recommend → claim_status → response_compose.
+  User asks for status of a TV/electronics claim; tool returns status and assistant summarizes.
+
+tags:
+  - data-plane
+  - happy-path
+  - electronics
+  - claim-status
+
+workload_weight: 4.0
+
+mcp_server: electronics
+repeat_count: 3
+interval_ms: 90
+interval_deviation_ms: 40
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: claim_status
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: electronics
+  tools:
+    - claim_status
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics

@@ -13,8 +13,8 @@ tags:
   - multi-turn
   - happy-path
 
-# Multi-turn conversations are less frequent than single-turn but still significant.
-workload_weight: 2.5
+# Multi-turn conversations are a meaningful minority of sessions.
+workload_weight: 2.0
 
 mcp_server: phone
 repeat_count: 1

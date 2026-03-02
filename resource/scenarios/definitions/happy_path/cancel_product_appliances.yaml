@@ -1,0 +1,38 @@
+# Home appliances MCP context, happy path. User cancels product/policy; agent calls cancel_product successfully.
+
+name: cancel_product_appliances
+description: >
+  Happy path for Appliances mcp_server: planner → task → tools_recommend → cancel_product → response_compose.
+  User asks to cancel an appliance policy/product; tool succeeds and assistant confirms.
+
+tags:
+  - data-plane
+  - happy-path
+  - appliances
+  - cancel-product
+
+workload_weight: 0.6
+
+mcp_server: appliances
+repeat_count: 3
+interval_ms: 90
+interval_deviation_ms: 40
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: cancel_product
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: appliances
+  tools:
+    - cancel_product
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances

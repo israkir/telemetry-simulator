@@ -12,7 +12,7 @@ tags:
   - peak-hours
   - appliances
 
-workload_weight: 1.2
+workload_weight: 1.0
 
 mcp_server: appliances
 repeat_count: 3

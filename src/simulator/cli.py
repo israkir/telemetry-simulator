@@ -52,6 +52,43 @@ def _format_progress_line(
     return f"   [{current}/{total}] trace_id={tid} tenant_id={tenant_id} spans={spans_str}"
 
 
+# Display order for scenario definition groups (matches definitions folder layout).
+_SCENARIO_GROUP_ORDER = (
+    "happy_path",
+    "multi_turn_retries",
+    "higher_latency",
+    "tool_4xx",
+    "agent_confusion",
+    "control_plane/allowed",
+    "control_plane/blocked",
+    "control_plane/error",
+    "control_plane",
+    "",
+)
+
+
+def _print_traces_by_scenario_grouped(
+    scenario_loader: ScenarioLoader,
+    traces_by_scenario: dict[str, int],
+) -> None:
+    """Print traces per scenario grouped by definition folder (happy_path, control_plane/blocked, etc.)."""
+    scenarios = scenario_loader.load_all()
+    name_to_group = {
+        s.name: (getattr(s, "definition_group", None) or "") for s in scenarios
+    }
+    by_group: dict[str, list[tuple[str, int]]] = {}
+    for name, count in traces_by_scenario.items():
+        group = name_to_group.get(name, "")
+        by_group.setdefault(group, []).append((name, count))
+    order_index = {g: i for i, g in enumerate(_SCENARIO_GROUP_ORDER)}
+    for group in sorted(by_group.keys(), key=lambda g: (order_index.get(g, len(_SCENARIO_GROUP_ORDER)), g)):
+        label = group if group else "root"
+        entries = sorted(by_group[group], key=lambda x: x[0])
+        print(f"   [{label}]")
+        for name, count in entries:
+            print(f"      {name}: {count}")
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
@@ -339,8 +376,7 @@ def cmd_run(args: argparse.Namespace):
         if traces_by_scenario:
             total_from_scenarios = sum(traces_by_scenario.values())
             print(f"   Traces per scenario (total: {total_from_scenarios}):")
-            for name in sorted(traces_by_scenario.keys()):
-                print(f"      {name}: {traces_by_scenario[name]}")
+            _print_traces_by_scenario_grouped(runner.scenario_loader, traces_by_scenario)
         if (
             not (getattr(args, "show_spans", False) or getattr(args, "show_all_attributes", False))
             and trace_ids

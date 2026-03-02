@@ -12,7 +12,7 @@ tags:
   - higher-latency
   - claim-status
 
-# Higher-latency variants are a minority of data-plane traffic.
+# Higher-latency status checks (e.g. technician on-route) are a minority of traffic.
 workload_weight: 1.2
 
 mcp_server: phone

@@ -18,7 +18,7 @@ tags:
   - cancel-product
   - cancel-claim
 
-workload_weight: 0.6
+workload_weight: 0.45
 
 mcp_server: electronics
 repeat_count: 2

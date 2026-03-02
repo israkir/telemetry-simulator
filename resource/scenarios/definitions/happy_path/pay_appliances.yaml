@@ -1,0 +1,38 @@
+# Home appliances MCP context, happy path. User pays balance; agent calls pay successfully.
+
+name: pay_appliances
+description: >
+  Happy path for Appliances mcp_server: planner → task → tools_recommend → pay → response_compose.
+  User asks to pay balance or get payment link; tool succeeds and assistant confirms.
+
+tags:
+  - data-plane
+  - happy-path
+  - appliances
+  - pay
+
+workload_weight: 1.0
+
+mcp_server: appliances
+repeat_count: 3
+interval_ms: 90
+interval_deviation_ms: 40
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: pay
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: appliances
+  tools:
+    - pay
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances

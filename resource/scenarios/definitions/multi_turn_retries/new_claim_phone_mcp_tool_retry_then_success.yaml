@@ -12,8 +12,8 @@ tags:
   - mcp-retry
   - retry-then-success
 
-# MCP retries (timeout then success) are a minority of tool calls.
-workload_weight: 1.0
+# MCP retries (timeout then success) are a small but visible share of tool calls.
+workload_weight: 0.8
 
 mcp_server: phone
 repeat_count: 3

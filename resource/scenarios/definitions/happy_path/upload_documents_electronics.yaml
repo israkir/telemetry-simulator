@@ -1,0 +1,38 @@
+# Home electronics MCP context, happy path. User uploads documents for a claim; agent calls upload_documents successfully.
+
+name: upload_documents_electronics
+description: >
+  Happy path for Home electronics mcp_server: planner → task → tools_recommend → upload_documents → response_compose.
+  User asks to upload photos/documents for a TV/electronics claim; tool succeeds and assistant confirms.
+
+tags:
+  - data-plane
+  - happy-path
+  - electronics
+  - upload-documents
+
+workload_weight: 2.0
+
+mcp_server: electronics
+repeat_count: 3
+interval_ms: 90
+interval_deviation_ms: 40
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: upload_documents
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: electronics
+  tools:
+    - upload_documents
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
