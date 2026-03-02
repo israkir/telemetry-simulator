@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
 Analyze generated traces (traces.jsonl) against scenario definitions for semantic,
-goal, attribute, and contextual errors.
+goal, attribute, and contextual errors. Validates ID formats, tenant/agent/MCP
+attributes from config, tools_recommend attributes, and optional semconv alignment.
 
 Usage:
   python scripts/analyze_traces_vs_scenarios.py [--traces traces.jsonl] [--scenarios resource/scenarios/definitions] [--config resource/config/config.yaml]
+  python scripts/analyze_traces_vs_scenarios.py --config resource/config/config.yaml --resource resource/config/resource.yaml
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -58,14 +61,103 @@ def _attr(short: str) -> str:
     return f"gentoro.{short}" if not short.startswith("gentoro.") else short
 
 
+def _id_format_to_regex(template: str) -> re.Pattern[str] | None:
+    """Convert config id_formats template (e.g. sess_toro_{hex:12}) to a validation regex."""
+    if not template or not isinstance(template, str):
+        return None
+    parts: list[str] = []
+    i = 0
+    while i < len(template):
+        m = re.match(r"\{hex:(\d+)\}", template[i:])
+        if m:
+            parts.append(f"[0-9a-f]{{{m.group(1)}}}")
+            i += len(m.group(0))
+        else:
+            # Escape literal run
+            j = template.find("{", i)
+            if j == -1:
+                j = len(template)
+            parts.append(re.escape(template[i:j]))
+            i = j
+    try:
+        return re.compile("^" + "".join(parts) + "$")
+    except re.error:
+        return None
+
+
+def load_yaml(path: Path) -> dict[str, Any]:
+    """Load a YAML file; return empty dict on missing/invalid."""
+    try:
+        import yaml
+    except ImportError:
+        raise SystemExit("PyYAML required: pip install pyyaml")
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if isinstance(data, dict) else {}
+
+
+def load_config(config_path: Path) -> dict[str, Any]:
+    """Load config.yaml and derive ID validation regexes, tenant/agent/MCP/tools_recommend."""
+    raw = load_yaml(config_path)
+    if not raw:
+        return {}
+
+    # Build regexes from id_formats
+    id_formats = raw.get("id_formats") or {}
+    regexes: dict[str, re.Pattern[str]] = {}
+    for key, template in id_formats.items():
+        if isinstance(template, str):
+            r = _id_format_to_regex(template)
+            if r:
+                regexes[key] = r
+    raw["_id_format_regexes"] = regexes
+
+    # Expected tenant id (first tenant from config)
+    tenants = raw.get("tenants") or {}
+    tenant_id = None
+    for t in tenants.values():
+        if isinstance(t, dict) and t.get("id"):
+            tenant_id = t["id"]
+            break
+    raw["_expected_tenant_id"] = tenant_id
+
+    # Expected agent id (first agent from config)
+    agents = raw.get("agents") or []
+    agent_id = None
+    if isinstance(agents, list) and agents:
+        a = agents[0]
+        if isinstance(a, dict) and a.get("id"):
+            agent_id = a["id"]
+    raw["_expected_agent_id"] = agent_id
+
+    # tools_recommend defaults (config keys -> gentoro attribute names)
+    tools_rec = raw.get("tools_recommend") or {}
+    raw["_tools_recommend_expected"] = {
+        "gentoro.step.outcome": tools_rec.get("step_outcome"),
+        "gentoro.mcp.selection.strategy": tools_rec.get("selection_strategy"),
+        "gentoro.mcp.selection.constraints": tools_rec.get("selection_constraints"),
+        "gentoro.mcp.tools.selected.count": tools_rec.get("tools_selected_count"),
+        "gentoro.mcp.selection.fallback.used": tools_rec.get("selection_fallback_used"),
+    }
+
+    return raw
+
+
+def load_resource(resource_path: Path) -> dict[str, Any]:
+    """Load resource.yaml for control_plane/data_plane attribute expectations (optional)."""
+    return load_yaml(resource_path)
+
+
 def load_scenarios(definitions_dir: Path) -> list[dict[str, Any]]:
-    """Load all scenario YAML files (skip _EXAMPLE_)."""
+    """Load all scenario YAML files from definitions dir and subdirs (skip _EXAMPLE_)."""
     try:
         import yaml
     except ImportError:
         raise SystemExit("PyYAML required: pip install pyyaml")
     scenarios = []
-    for path in sorted(definitions_dir.glob("*.yaml")):
+    for path in sorted(definitions_dir.rglob("*.yaml")):
         if path.name.startswith("_EXAMPLE") or path.name.startswith("EXAMPLE"):
             continue
         with open(path, encoding="utf-8") as f:
@@ -101,6 +193,94 @@ def get_attr(span: dict, key: str) -> Any:
     if not key.startswith("gentoro.") and _attr(key) in attrs:
         return attrs[_attr(key)]
     return None
+
+
+def validate_span_attributes(span: dict, config: dict[str, Any]) -> list[str]:
+    """
+    Validate a single span's attributes against config (and optional resource/semconv).
+    Returns list of human-readable error strings (Attribute/ID/Config: ...).
+    """
+    errors: list[str] = []
+    attrs = span.get("attributes") or {}
+    name = span.get("name") or ""
+
+    if not config:
+        return errors
+
+    regexes = config.get("_id_format_regexes") or {}
+    expected_tenant = config.get("_expected_tenant_id")
+    expected_agent = config.get("_expected_agent_id")
+    tools_rec_expected = config.get("_tools_recommend_expected") or {}
+
+    # ID format validation (config id_formats)
+    session_id = attrs.get("gentoro.session.id")
+    if session_id and "session_id" in regexes and not regexes["session_id"].search(session_id):
+        errors.append(f"ID: gentoro.session.id format invalid (expected from id_formats.session_id): {session_id!r}")
+
+    conv_id = attrs.get("gen_ai.conversation.id")
+    if conv_id and "conversation_id" in regexes and not regexes["conversation_id"].search(conv_id):
+        errors.append(f"ID: gen_ai.conversation.id format invalid (expected from id_formats.conversation_id): {conv_id!r}")
+
+    request_id = attrs.get("gentoro.request.id")
+    if request_id and "request_id" in regexes and not regexes["request_id"].search(request_id):
+        errors.append(f"ID: gentoro.request.id format invalid (expected from id_formats.request_id): {request_id!r}")
+
+    mcp_call_id = attrs.get("gentoro.mcp.tool.call.id")
+    if mcp_call_id and "mcp_tool_call_id" in regexes and not regexes["mcp_tool_call_id"].search(mcp_call_id):
+        errors.append(f"ID: gentoro.mcp.tool.call.id format invalid (expected from id_formats.mcp_tool_call_id): {mcp_call_id!r}")
+
+    enduser_id = attrs.get("gentoro.enduser.pseudo.id")
+    if enduser_id and "enduser_pseudo_id" in regexes and not regexes["enduser_pseudo_id"].search(enduser_id):
+        errors.append(f"ID: gentoro.enduser.pseudo.id format invalid (expected from id_formats.enduser_pseudo_id): {enduser_id!r}")
+
+    # Session == conversation (config rule)
+    if session_id and conv_id and session_id != conv_id:
+        errors.append("Context: session.id and gen_ai.conversation.id must be equal (config)")
+
+    # Tenant must match config
+    if expected_tenant:
+        tid = attrs.get("gentoro.tenant.id")
+        if tid and tid != expected_tenant:
+            errors.append(f"Config: gentoro.tenant.id must be {expected_tenant!r}; got {tid!r}")
+
+    # a2a.orchestrate: agent target id must match config
+    if expected_agent and ("a2a.orchestrate" in name or get_attr(span, "gentoro.span.class") == "a2a.orchestrate"):
+        aid = attrs.get("gentoro.a2a.agent.target.id")
+        if aid and aid != expected_agent:
+            errors.append(f"Config: gentoro.a2a.agent.target.id must be {expected_agent!r}; got {aid!r}")
+
+    # MCP server/tool UUIDs must be from config (we have TOOL_UUID_MAP / MCP_SERVER_UUID_TO_DIVISION)
+    if "mcp.tool.execute" in name:
+        server_uuid = attrs.get("gentoro.mcp.server.uuid")
+        tool_uuid = attrs.get("gentoro.mcp.tool.uuid")
+        if server_uuid and server_uuid not in MCP_SERVER_UUID_TO_DIVISION:
+            errors.append(f"Config: gentoro.mcp.server.uuid not in config mcp_servers: {server_uuid!r}")
+        if tool_uuid and tool_uuid not in TOOL_UUID_MAP:
+            errors.append(f"Config: gentoro.mcp.tool.uuid not in config mcp_servers.tools: {tool_uuid!r}")
+
+    # tools.recommend span: attributes must match config tools_recommend
+    if "tools.recommend" in name or get_attr(span, "gentoro.span.class") == "tools.recommend":
+        for attr_name, expected_val in tools_rec_expected.items():
+            if expected_val is None:
+                continue
+            actual = attrs.get(attr_name)
+            if actual is not None and actual != expected_val:
+                errors.append(
+                    f"Config: tools.recommend {attr_name} expected {expected_val!r} (from config tools_recommend); got {actual!r}"
+                )
+
+    # Optional: semconv required span_class for known span names
+    span_class = attrs.get("gentoro.span.class")
+    if name == "gentoro.request.validation" and span_class != "request.validation":
+        errors.append(f"Semconv: gentoro.request.validation span must have gentoro.span.class=request.validation; got {span_class!r}")
+    if name == "gentoro.a2a.orchestrate" and span_class != "a2a.orchestrate":
+        errors.append(f"Semconv: gentoro.a2a.orchestrate span must have gentoro.span.class=a2a.orchestrate; got {span_class!r}")
+    if name == "gentoro.tools.recommend" and span_class != "tools.recommend":
+        errors.append(f"Semconv: gentoro.tools.recommend span must have gentoro.span.class=tools.recommend; got {span_class!r}")
+    if "gentoro.mcp.tool.execute" == name and "attempt" not in name and span_class != "mcp.tool.execute":
+        errors.append(f"Semconv: gentoro.mcp.tool.execute span must have gentoro.span.class=mcp.tool.execute; got {span_class!r}")
+
+    return errors
 
 
 def analyze_trace(trace_id: str, spans: list[dict]) -> dict[str, Any]:
@@ -291,7 +471,11 @@ def infer_scenario(analysis: dict, expectations: dict[str, dict]) -> str | None:
         if first_tool == "claim_status" and div == "phone":
             return "claim_status_phone_higher_latency"
         if first_tool == "claim_status" and div == "appliances":
-            return "claim_status_appliances_tool_4xx_invalid_params"
+            return "claim_status_appliances"
+        # Generic: scenario name "{tool}_{division}" (e.g. cancel_claim_phone, upload_documents_appliances)
+        candidate = f"{first_tool}_{div}"
+        if candidate in expectations:
+            return candidate
 
     # Multi-tool success (e.g. wrong order already handled)
     if not any_fail and len(tools) == 2 and div == "phone":
@@ -419,12 +603,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze traces vs scenario definitions")
     parser.add_argument("--traces", default="traces.jsonl", help="Path to traces.jsonl")
     parser.add_argument("--scenarios", default="resource/scenarios/definitions", help="Path to scenario definitions dir")
-    parser.add_argument("--config", default="resource/config/config.yaml", help="Path to config (optional)")
+    parser.add_argument("--config", default="resource/config/config.yaml", help="Path to config (for ID formats, tenant, agent, tools_recommend)")
+    parser.add_argument("--resource", default="", help="Path to resource.yaml (optional; for resource attribute checks)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print per-trace details")
+    parser.add_argument("--no-attributes", action="store_true", help="Skip attribute/config/semconv compliance checks")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     traces_path = root / args.traces
     scenarios_dir = root / args.scenarios
+    config_path = root / args.config
+    resource_path = root / args.resource if args.resource else root / "resource/config/resource.yaml"
 
     if not traces_path.exists():
         raise SystemExit(f"Traces file not found: {traces_path}")
@@ -435,7 +623,19 @@ def main() -> None:
     expectations = build_scenario_expectations(scenarios)
     traces = load_traces(traces_path)
 
-    print(f"Loaded {len(scenarios)} scenarios, {len(traces)} traces\n")
+    config: dict[str, Any] = {}
+    if config_path.exists():
+        config = load_config(config_path)
+    resource_cfg: dict[str, Any] = {}
+    if resource_path.exists():
+        resource_cfg = load_resource(resource_path)
+
+    print(f"Loaded {len(scenarios)} scenarios, {len(traces)} traces")
+    if config:
+        print(f"Config: {config_path.name} (ID formats, tenant, agent, tools_recommend)")
+    if resource_cfg:
+        print(f"Resource: {resource_path.name}")
+    print()
 
     all_errors: list[tuple[str, str, list[str]]] = []  # trace_id, scenario, errors
     trace_to_best: dict[str, tuple[str | None, list[str]]] = {}  # trace_id -> (scenario, errors)
@@ -447,6 +647,15 @@ def main() -> None:
         if errs:
             for err in errs:
                 all_errors.append((trace_id, scenario or "?", err))  # single err string per tuple
+
+    # Attribute/config/semconv compliance (per-span checks using config)
+    attribute_compliance_errors: list[tuple[str, str, str]] = []  # (trace_id, span_name, error)
+    if config and not args.no_attributes:
+        for trace_id, spans in traces.items():
+            for span in spans:
+                name = span.get("name") or ""
+                for err in validate_span_attributes(span, config):
+                    attribute_compliance_errors.append((trace_id, name, err))
 
     # Group errors by type (each item is (trace_id, scenario, single_err))
     semantic = []
@@ -501,6 +710,37 @@ def main() -> None:
             print(f"  [{trace_id[:8]}...] {scenario}: {msg}")
         if len(contextual) > 20:
             print(f"  ... and {len(contextual) - 20} more")
+        print()
+
+    # Attribute/config/semconv compliance summary
+    if attribute_compliance_errors:
+        print("=== Attribute / config / semconv compliance ===")
+        print(f"Spans with attribute or ID or config violations: {len(attribute_compliance_errors)}")
+        by_kind: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+        for trace_id, span_name, err in attribute_compliance_errors:
+            if err.startswith("ID:"):
+                by_kind["ID format"].append((trace_id, span_name, err))
+            elif err.startswith("Config:"):
+                by_kind["Config"].append((trace_id, span_name, err))
+            elif err.startswith("Context:"):
+                by_kind["Context"].append((trace_id, span_name, err))
+            elif err.startswith("Semconv:"):
+                by_kind["Semconv"].append((trace_id, span_name, err))
+            else:
+                by_kind["Other"].append((trace_id, span_name, err))
+        for kind in ["ID format", "Config", "Context", "Semconv", "Other"]:
+            items = by_kind.get(kind, [])
+            if not items:
+                continue
+            print(f"  {kind}: {len(items)}")
+            for trace_id, span_name, msg in items[:15]:
+                print(f"    [{trace_id[:8]}...] {span_name}: {msg}")
+            if len(items) > 15:
+                print(f"    ... and {len(items) - 15} more")
+        print()
+    elif config and not args.no_attributes:
+        print("=== Attribute / config / semconv compliance ===")
+        print("No attribute, ID format, or config violations found.")
         print()
 
     if args.verbose:
