@@ -11,8 +11,8 @@ tags:
   - higher-latency
   - scheduling
 
-# Higher-latency variants are a minority of data-plane traffic.
-workload_weight: 1.5
+# Higher-latency reschedule (e.g. zip-based) is a minority of traffic.
+workload_weight: 1.0
 
 mcp_server: phone
 repeat_count: 3

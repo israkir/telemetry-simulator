@@ -1,0 +1,38 @@
+# Home electronics MCP context, happy path. User buys insurance; agent calls buy_insurance successfully.
+
+name: buy_insurance_electronics
+description: >
+  Happy path for Home electronics mcp_server: planner → task → tools_recommend → buy_insurance → response_compose.
+  User confirms purchase of TV/electronics cover; tool succeeds and assistant confirms order.
+
+tags:
+  - data-plane
+  - happy-path
+  - electronics
+  - buy-insurance
+
+workload_weight: 1.0
+
+mcp_server: electronics
+repeat_count: 3
+interval_ms: 90
+interval_deviation_ms: 40
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: buy_insurance
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: electronics
+  tools:
+    - buy_insurance
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics

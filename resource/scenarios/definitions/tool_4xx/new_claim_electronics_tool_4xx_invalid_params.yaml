@@ -16,7 +16,8 @@ tags:
   - entity-format
   - electronics
 
-workload_weight: 0.6
+# Invalid params (wrong format, missing fields) are an occasional share of tool calls.
+workload_weight: 0.45
 
 mcp_server: electronics
 repeat_count: 2

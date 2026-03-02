@@ -1,0 +1,38 @@
+# Home appliances MCP context, happy path. Data-plane workflow new_claim; config supplies
+# conversation samples (e.g. dishwasher, fridge, washer). Each iteration uses a random sample.
+
+name: new_claim_appliances
+description: >
+  Happy path for Appliances mcp_server: planner → task → tools_recommend → new_claim → response_compose.
+  User starts a claim for dishwasher, fridge, washer, etc.; agent calls new_claim successfully.
+
+tags:
+  - data-plane
+  - happy-path
+  - appliances
+
+workload_weight: 3.5
+
+mcp_server: appliances
+repeat_count: 5
+interval_ms: 100
+interval_deviation_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: new_claim
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: appliances
+  tools:
+    - new_claim
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances

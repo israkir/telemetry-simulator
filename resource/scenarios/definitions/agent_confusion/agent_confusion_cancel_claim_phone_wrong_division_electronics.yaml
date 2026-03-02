@@ -18,7 +18,8 @@ tags:
   - agent-confusion
   - cancel-claim
 
-workload_weight: 0.7
+# Wrong-division routing is a rare but visible failure mode.
+workload_weight: 0.5
 
 mcp_server: phone
 repeat_count: 2

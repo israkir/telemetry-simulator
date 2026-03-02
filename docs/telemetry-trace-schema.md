@@ -259,8 +259,9 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 | `gentoro.span.class` | string | REQUIRED | Value: `response.compose`. |
 | `gentoro.response.format` | string | REQUIRED | Enum: `a2a_json` \| `a2a_stream`. |
 | `gentoro.step.outcome` | string | REQUIRED | Enum: `success` \| `fail`. |
-| `error.type` | string | SHOULD (if failed) | e.g. serialization_error. |
+| `error.type` | string | SHOULD (if failed) | Low-cardinality only (e.g. `unavailable`, `serialization_error`). |
 
+**Where to put the detailed error message (OpenTelemetry alignment):** Do **not** put long messages (e.g. *"Agent output contains sentences that do not originate from tool output; retrieval of product/claim info summarized incorrectly."*) in span attributes or in `status.description`. Per OTel and semconv `error_recording`, the **exception event** on this span is the correct place: record an exception event with `exception.type` (e.g. `UngroundedContentError`) and `exception.message` (full description). Keep `error.type` as a low-cardinality attribute (e.g. `unavailable`) for filtering and metrics.
 
 ---
 
@@ -462,7 +463,7 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 }
 ```
 
-**Error recording (semconv):** When a span is in error (`status.code` = `ERROR`), instrumentation SHOULD set `error.type` to a low-cardinality identifier. If an exception is available, record an exception event with `exception.type`, optionally `exception.message` and `exception.stacktrace`. See `error_recording` in semconv.yaml.
+**Error recording (semconv):** When a span is in error (`status.code` = `ERROR`), instrumentation SHOULD set `error.type` to a low-cardinality identifier on the span. The **detailed** error message (e.g. for `UngroundedContentError` or other semantic failures) MUST go in an **exception event** on that span (`exception.type`, optionally `exception.message` and `exception.stacktrace`), not in span attributes or `status.description`. See `error_recording` in semconv.yaml.
 
 ---
 
@@ -475,4 +476,4 @@ Message content (user input and LLM output) is now **opt-in** on trace spans via
 
 ---
 
-This schema is aligned with **`resource/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect the normative conventions and representative simulator output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane and data-plane shapes, see sample scenarios such as `new_claim_phone` (data-plane happy path), `new_claim_phone_mcp_tool_retry_then_success` (MCP retry), `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple validation error events on the payload span).
+This schema is aligned with **`resource/scenarios/conventions/semconv.yaml`** (schema version 1.0.0). The examples and attribute tables reflect the normative conventions and representative simulator output (including simulator deviations noted at the top). Use this document for validation, dashboards, and downstream trace processors. For concrete control-plane and data-plane shapes, see sample scenarios such as `new_claim_phone`, `upload_documents_phone`, `claim_status_phone` (data-plane happy paths), `new_claim_phone_mcp_tool_retry_then_success` (MCP retry), `request_allowed_audit_flagged` (allow with audit), `request_blocked_rate_limited` (rate-limited before policy), and `request_blocked_invalid_payload_multi` (multiple validation error events on the payload span).

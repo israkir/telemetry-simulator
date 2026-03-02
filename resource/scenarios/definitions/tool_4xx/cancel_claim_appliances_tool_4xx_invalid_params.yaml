@@ -16,7 +16,7 @@ tags:
   - cancel-claim
   - appliances
 
-workload_weight: 0.6
+workload_weight: 0.45
 
 mcp_server: appliances
 repeat_count: 2

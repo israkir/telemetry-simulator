@@ -11,8 +11,8 @@ tags:
   - data-plane
   - happy-path
 
-# Relative weight for mixed workload: happy path (single-turn success) is bulk of traffic.
-workload_weight: 8.0
+# Primary flow: new claims dominate; phone division highest volume.
+workload_weight: 9.0
 
 mcp_server: phone
 repeat_count: 5

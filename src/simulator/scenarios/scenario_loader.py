@@ -626,6 +626,8 @@ class Scenario:
     # Expected MCP server and tools (from scenario definition); for docs and validation. Keys only; UUIDs from config.
     expected_mcp_server: str | None = None
     expected_tools: list[str] | None = None
+    # Subdirectory (relative to definitions dir) where scenario YAML lives; e.g. happy_path, control_plane/blocked. Used for grouped output.
+    definition_group: str | None = None
     # Optional multi-turn conversation: raw role/text or user_input/llm_response (reference).
     conversation_turns: list[dict[str, str]] | None = None
     # Per-turn (input_messages, output_messages) for one span per interaction; same session_id for all.
@@ -1497,6 +1499,7 @@ def _control_plane_scenario_data(name: str, entry: dict[str, Any]) -> dict[str, 
         "emit_metrics": False,
         "emit_logs": False,
         "redaction_applied": "none",
+        "definition_group": "control_plane",
     }
 
 
@@ -1570,7 +1573,7 @@ class ScenarioLoader:
                 continue
             with open(scenario_file, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
-            scenarios.append(self._parse_scenario(data))
+            scenarios.append(self._parse_scenario(data, scenario_file=scenario_file))
 
         if exclude_example:
             loaded_names = {s.name for s in scenarios}
@@ -1600,9 +1603,19 @@ class ScenarioLoader:
         extra = [n for n in registry if n not in file_set]
         return from_files + sorted(extra)
 
-    def _parse_scenario(self, data: dict) -> Scenario:
-        """Parse scenario from YAML data."""
+    def _parse_scenario(self, data: dict, scenario_file: Path | None = None) -> Scenario:
+        """Parse scenario from YAML data. If scenario_file is set, definition_group is derived from its path."""
         data = data if isinstance(data, dict) else {}
+        if "definition_group" in data:
+            definition_group = data.get("definition_group") or ""
+        elif scenario_file and self.scenarios_dir.exists():
+            try:
+                rel = scenario_file.resolve().relative_to(self.scenarios_dir.resolve())
+                definition_group = str(rel.parent) if rel.parent != Path(".") else ""
+            except (ValueError, TypeError):
+                definition_group = ""
+        else:
+            definition_group = None
         root_raw = data.get("root")
         if isinstance(root_raw, list) and root_raw:
             root_raw = root_raw[0]
@@ -1911,6 +1924,7 @@ class ScenarioLoader:
             control_plane_template=control_plane_template,
             control_plane_policy_exception_override=control_plane_policy_exception_override,
             control_plane_augmentation_exception_override=control_plane_augmentation_exception_override,
+            definition_group=definition_group,
         )
 
     def _detect_statistical(self, data: dict) -> bool:

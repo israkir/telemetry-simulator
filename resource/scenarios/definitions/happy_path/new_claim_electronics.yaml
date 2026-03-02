@@ -1,0 +1,38 @@
+# Home electronics MCP context, happy path. Data-plane workflow new_claim; config supplies
+# conversation samples (e.g. TV, gaming, streaming). Each iteration uses a random sample.
+
+name: new_claim_electronics
+description: >
+  Happy path for Home electronics mcp_server: planner → task → tools_recommend → new_claim → response_compose.
+  User starts a claim for TV, smart device, or gaming; agent calls new_claim successfully.
+
+tags:
+  - data-plane
+  - happy-path
+  - electronics
+
+workload_weight: 5.0
+
+mcp_server: electronics
+repeat_count: 5
+interval_ms: 100
+interval_deviation_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: basic
+
+data_plane:
+  workflow: new_claim
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: electronics
+  tools:
+    - new_claim
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics

@@ -12,8 +12,8 @@ tags:
   - higher-latency
   - peak-hours
 
-# Higher-latency variants are a minority of data-plane traffic.
-workload_weight: 2.0
+# Peak-hours / post–long-weekend higher latency is a minority of traffic.
+workload_weight: 1.5
 
 mcp_server: phone
 repeat_count: 3

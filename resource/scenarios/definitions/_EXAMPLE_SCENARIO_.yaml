@@ -2,22 +2,22 @@
 # Example / reference scenario: all available configs and settings
 # =============================================================================
 # Config files (project paths):
-#   resource/config/config.yaml  – IDs, workflows, latency, control-plane, conversation samples
+#   resource/config/config.yaml   – IDs, workflows, latency, control-plane, conversation samples
 #   resource/config/resource.yaml – OTEL resource attributes (service.name, schema_url, etc.)
 #
 # resource/config/config.yaml sections used by scenarios:
-#   id_formats          – session_id, conversation_id, request_id, mcp_tool_call_id, enduser_pseudo_id (placeholders: {hex:N}, {uuid}, {tenant_id})
-#   tenants             – context.tenant key → id (e.g. toro)
-#   agents              – context.agent id (e.g. toro-customer-assistant-001); must match a2a.agent.target.id
-#   mcp_servers         – context.mcp_server key → mcp_server_uuid + tools (name, tool_uuid)
-#   tool_call_arguments – optional; keyed by tool name → JSON object for gen_ai.tool.call.arguments
-#   scenarios           – divisions, error_templates (goal → error_type, http_status_codes), workflow_templates; goals: happy_path | higher_latency | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response
-#   latency_profiles    – <profile>.spans (a2a_orchestrate, planner, mcp_tool_execute, etc.) with mean_ms, variance; scenario sets data_plane.latency_profile
-#   control_plane      – trace_flow, request_validation_templates, request_scenarios, latencies_ms
+#   id_formats           – session_id, conversation_id, request_id, mcp_tool_call_id, enduser_pseudo_id (placeholders: {hex:N}, {uuid}, {tenant_id})
+#   tenants              – context.tenant key → id (e.g. toro)
+#   agents               – context.agent id (e.g. toro-customer-assistant-001); must match a2a.agent.target.id
+#   mcp_servers          – context.mcp_server key → mcp_server_uuid + tools (name, tool_uuid)
+#   tool_call_arguments  – optional; keyed by tool name → JSON object for gen_ai.tool.call.arguments
+#   scenarios            – divisions, error_templates (goal → error_type, http_status_codes), workflow_templates; goals: happy_path | higher_latency | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response
+#   latency_profiles     – <profile>.spans (a2a_orchestrate, planner, mcp_tool_execute, etc.) with mean_ms, variance; scenario sets data_plane.latency_profile
+#   control_plane        – trace_flow, request_validation_templates, request_scenarios, latencies_ms
 #   conversation_samples – per workflow key; used when scenario has no conversation.samples/turns
-#   mcp_retry           – retry_policy, latency_by_error_type; used when building MCP attempt spans
-#   mcp_retry_templates – named templates (e.g. retry_then_success); scenario data_plane.mcp_retry can reference by name or define attempts inline
-#   tools_recommend     – step_outcome, selection_strategy, etc. for tools.recommend span
+#   mcp_retry            – retry_policy, latency_by_error_type; used when building MCP attempt spans
+#   mcp_retry_templates  – named templates (e.g. retry_then_success); scenario data_plane.mcp_retry can reference by name or define attempts inline
+#   tools_recommend      – step_outcome, selection_strategy, etc. for tools.recommend span
 #
 # resource/config/resource.yaml:
 #   schema_url, control_plane.attributes, data_plane.attributes (service.name, service.version, deployment.environment.name, module, component, otel.source).
