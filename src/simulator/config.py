@@ -87,6 +87,7 @@ SEMCONV_ERROR_TYPE_VALUES = (
     "invalid_arguments",
     "tool_error",
     "protocol_error",
+    "capability_resolution_error",
 )
 SEMCONV_STEP_OUTCOME_VALUES = ("success", "fail", "skip")
 

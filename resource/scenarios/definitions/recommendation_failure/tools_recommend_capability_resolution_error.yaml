@@ -1,0 +1,61 @@
+# Tool recommendation (gentoro.tools.recommend) fails with capability resolution error.
+# Span: status=ERROR, gentoro.step.outcome=fail, gentoro.mcp.tools.selected.count=0,
+# error.type=capability_resolution_error, and exception event (CapabilityResolutionError).
+# Simulated via goal: recommendation_failure.
+
+name: tools_recommend_capability_resolution_error
+description: >
+  Tool recommendation step fails: gentoro.tools.recommend span has status=ERROR,
+  gentoro.step.outcome=fail, gentoro.mcp.tools.selected.count=0, and
+  error.type=capability_resolution_error with exception event
+  (CapabilityResolutionError: Failed to evaluate MCP tool capabilities).
+
+tags:
+  - data-plane
+  - recommendation-failure
+  - tools-recommend
+  - capability-resolution-error
+  - phone
+
+workload_weight: 0.5
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: cancel_claim
+  goal: recommendation_failure
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+scenario_overrides:
+  # No MCP tool execute when tools.recommend fails — flow stops after tools_recommend.
+  actual_steps:
+    - planner
+    - task
+    - tools_recommend
+    - response_compose
+  exception_type: "CapabilityResolutionError"
+  exception_message: "Failed to evaluate MCP tool capabilities"
+
+# Would-have-been tool; not present in trace because recommendation failed.
+expected:
+  mcp_server: phone
+  tools:
+    - cancel_claim
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+
+conversation:
+  samples:
+    - user_input: "I want to cancel my phone claim PH-8842."
+      llm_response: "I wasn't able to resolve which tool to use for your request. Please try again or contact support."
+    - user_input: "Cancel my claim please."
+      llm_response: "Tool recommendation failed (capability resolution error). I can't proceed with cancellation right now."

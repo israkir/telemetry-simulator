@@ -227,6 +227,8 @@ scenarios:
       error_type: tool_error
     ungrounded_response:
       error_type: unavailable
+    recommendation_failure:
+      error_type: capability_resolution_error
 
   workflow_templates:
     new_claim: [planner, task, tools_recommend, new_claim, response_compose]

@@ -36,6 +36,14 @@ class FileSpanExporter(SpanExporter):
         try:
             span_dicts = []
             for span in spans:
+                events_serialized: list[dict[str, Any]] = []
+                if getattr(span, "events", None):
+                    for ev in span.events:
+                        events_serialized.append({
+                            "name": ev.name,
+                            "timestamp": ev.timestamp,
+                            "attributes": dict(ev.attributes) if ev.attributes else {},
+                        })
                 span_dict = {
                     "name": span.name,
                     "trace_id": format(span.context.trace_id, "032x"),
@@ -51,6 +59,8 @@ class FileSpanExporter(SpanExporter):
                     "kind": span.kind.name if span.kind else "INTERNAL",
                     "resource": dict(span.resource.attributes) if span.resource else {},
                 }
+                if events_serialized:
+                    span_dict["events"] = events_serialized
                 span_dicts.append(span_dict)
 
             mode = "a" if self.append else "w"

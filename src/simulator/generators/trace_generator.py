@@ -797,13 +797,14 @@ class TraceGenerator:
         tracer = self._get_tracer(component, scenario_name)
         current_trace_id = ""
         current_span_id = ""
+        span_attrs = self.span_builder.get_attributes(
+            config.span_type,
+            context,
+            overrides,
+        )
         kwargs: dict[str, Any] = {
             "kind": span_kind,
-            "attributes": self.span_builder.get_attributes(
-                config.span_type,
-                context,
-                overrides,
-            ),
+            "attributes": span_attrs,
         }
         if parent_context is not None:
             kwargs["context"] = parent_context
@@ -861,6 +862,35 @@ class TraceGenerator:
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 _set_higher_latency_condition_attributes(span, context, config_attr)
 
+            # LLM span: emit gen_ai.tool.request / gen_ai.tool.response events per Confluence/semconv when tool calls present.
+            if config.span_type == SpanType.LLM_CALL:
+                tool_name = span_attrs.get("gen_ai.tool.name") or overrides.get("gen_ai.tool.name")
+                tool_call_id = span_attrs.get("gen_ai.tool.call.id") or overrides.get("gen_ai.tool.call.id")
+                tool_request_count = span_attrs.get(config_attr("llm.tool.request.count")) or overrides.get(
+                    config_attr("llm.tool.request.count")
+                )
+                try:
+                    n = int(tool_request_count) if tool_request_count is not None else 0
+                except (TypeError, ValueError):
+                    n = 0
+                step_ok = (overrides.get(config_attr("step.outcome")) or "").strip().lower() == "success"
+                if (n >= 1 or tool_name) and tool_name and tool_call_id:
+                    span.add_event(
+                        "gen_ai.tool.request",
+                        {
+                            "gen_ai.tool.name": str(tool_name),
+                            "gen_ai.tool.call.id": str(tool_call_id),
+                        },
+                    )
+                    span.add_event(
+                        "gen_ai.tool.response",
+                        {
+                            "gen_ai.tool.name": str(tool_name),
+                            "gen_ai.tool.call.id": str(tool_call_id),
+                            "gen_ai.tool.success": step_ok,
+                        },
+                    )
+
             is_error = self.span_builder.should_error(config)
             tool_result = overrides.get(config_attr("tool.status.result"))
             # When overrides set step.outcome=success or mcp.attempt.outcome=success, do not mark span as error.
@@ -882,7 +912,8 @@ class TraceGenerator:
                 and step_outcome_override.strip().lower() == "fail"
             ):
                 is_error = True
-            # a2a.orchestrate root: status.code UNSET on success/partial, ERROR on error
+            # a2a.orchestrate root: status.code UNSET on success/partial, ERROR on error.
+            # Propagate upstream failure to root so the response reflects error (semconv: root_on_compose_failure).
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 outcome = (overrides.get(config_attr("a2a.outcome")) or "success").lower()
                 if outcome == "error":
@@ -890,6 +921,25 @@ class TraceGenerator:
                         span,
                         config.span_type,
                         overrides,
+                        exception_type=getattr(config, "exception_type", None),
+                        exception_message=getattr(config, "exception_message", None),
+                    )
+                elif child_compose_failure is not None:
+                    # A sibling of response.compose has configured failure; root must show error
+                    # (semconv: root_on_compose_failure). Override default a2a.outcome=success from loader.
+                    span.set_attribute(config_attr("a2a.outcome"), "error")
+                    error_type = (
+                        overrides.get("error.type")
+                        or overrides.get(config_attr("error.type"))
+                        or child_compose_failure
+                    )
+                    if isinstance(error_type, str) and error_type not in SEMCONV_ERROR_TYPE_VALUES:
+                        error_type = "tool_error"
+                    _record_span_error(
+                        span,
+                        config.span_type,
+                        overrides,
+                        error_type_override=error_type,
                         exception_type=getattr(config, "exception_type", None),
                         exception_message=getattr(config, "exception_message", None),
                     )
