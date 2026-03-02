@@ -1,0 +1,68 @@
+# Agent calls claim_status (correct tool) with claim ID in wrong format → 4xx.
+# Cause: how input entities were specified — e.g. claim ID without dash (8821 vs EL-8821),
+# wrong prefix, or malformed ID. One MCP attempt gets error.type=invalid_arguments and
+# http.response.status_code in [400, 404, 422].
+# Division: electronics (TV, laptop, home electronics). Template-driven; same pattern for all divisions.
+
+name: claim_status_electronics_tool_4xx_invalid_params
+description: >
+  Agent calls claim_status for electronics with claim ID in wrong format (e.g. without dash,
+  wrong prefix), resulting in 4xx. Cause: how the user specified the claim ID.
+
+tags:
+  - data-plane
+  - 4xx
+  - invalid-params
+  - claim-id-format
+  - electronics
+
+workload_weight: 0.45
+
+mcp_server: electronics
+repeat_count: 2
+interval_ms: 60
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: claim_status
+  goal: 4xx_invalid_arguments
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+# Exception event on the failing MCP attempt (avoids generic "RuntimeError: Error occurred").
+scenario_overrides:
+  exception_type: "InvalidClaimIdFormat"
+  exception_message: "Claim ID must include division prefix (e.g. EL-8821). Received malformed or missing claim_id."
+# Optional: fix which tool step gets 4xx (0 = first MCP call).
+#   step_index_for_4xx: 0
+
+expected:
+  mcp_server: electronics
+  tools:
+    - claim_status
+
+# tool_call_arguments: wrong claim_id format (no prefix) so MCP receives invalid params → 4xx.
+# Per-sample args match user_input (8821, 5521, 4412) so gen_ai.tool.call.arguments are consistent with conversation.
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tool_call_arguments:
+    claim_status: { claim_id: "8821" }
+
+conversation:
+  samples:
+    - user_input: "What's the status of my TV claim 8821?"
+      llm_response: "I couldn't find that claim. Please use the full claim ID (e.g. EL-8821) so I can look it up."
+      tool_call_arguments:
+        claim_status: { claim_id: "8821" }
+    - user_input: "Status for my laptop repair — the number is 5521."
+      llm_response: "The system expects the claim ID with division prefix, e.g. EL-5521. I've got 5521 but need the full format."
+      tool_call_arguments:
+        claim_status: { claim_id: "5521" }
+    - user_input: "How's my gaming console claim? Claim 4412."
+      llm_response: "I tried looking up 4412 but the tool needs the full ID like EL-4412. Can you confirm your claim ID from the email we sent?"
+      tool_call_arguments:
+        claim_status: { claim_id: "4412" }

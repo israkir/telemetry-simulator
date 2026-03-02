@@ -1,0 +1,63 @@
+# Agent calls cancel_product (correct tool) with invalid or missing policy_id → 4xx.
+# Cause: policy_id must be present and in valid format (e.g. pol_xxx); user gave empty or
+# malformed policy_id, so MCP returns error.type=invalid_arguments and 4xx.
+# Division: phone. Same pattern for all divisions.
+
+name: cancel_product_phone_tool_4xx_invalid_params
+description: >
+  Agent calls cancel_product for phone with invalid or missing policy_id (e.g. empty or
+  malformed), resulting in 4xx. Cause: cancel_product requires a valid policy_id.
+
+tags:
+  - data-plane
+  - 4xx
+  - invalid-params
+  - cancel-product
+  - phone
+
+workload_weight: 0.45
+
+mcp_server: phone
+repeat_count: 2
+interval_ms: 60
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: cancel_product
+  goal: 4xx_invalid_arguments
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+scenario_overrides:
+  exception_type: "InvalidPolicyId"
+  exception_message: "Policy ID is required and must match format (e.g. pol_xxx). Received invalid or missing policy_id."
+
+expected:
+  mcp_server: phone
+  tools:
+    - cancel_product
+
+# Invalid policy_id (empty) so MCP returns 4xx.
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tool_call_arguments:
+    cancel_product: { policy_id: "", reason: "no_longer_needed" }
+
+conversation:
+  samples:
+    - user_input: "Cancel my phone policy. I don't have the policy number."
+      llm_response: "I need the policy ID to cancel (e.g. from your confirmation email). Without it I can't complete the cancellation."
+      tool_call_arguments:
+        cancel_product: { policy_id: "", reason: "no_longer_needed" }
+    - user_input: "Stop my mobile coverage. Lost the details."
+      llm_response: "The system requires a policy ID. Please find it in your account or the email we sent when you signed up."
+      tool_call_arguments:
+        cancel_product: { policy_id: "", reason: "no_longer_needed" }
+    - user_input: "Cancel my tablet policy 123."
+      llm_response: "Policy ID '123' isn't in the expected format (e.g. pol_abc123). Can you check your documents for the full ID?"
+      tool_call_arguments:
+        cancel_product: { policy_id: "123", reason: "no_longer_needed" }

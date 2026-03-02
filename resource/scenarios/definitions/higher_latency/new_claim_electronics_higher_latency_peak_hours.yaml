@@ -1,0 +1,55 @@
+# Higher latency during peak hours (weekdays 9–14 PT) or post long weekend.
+# Division: electronics. Same condition and latency profile as generic_higher_latency_peak_hours.
+
+name: new_claim_electronics_higher_latency_peak_hours
+description: >
+  Tool calls have higher latency during peak hours (weekdays 9am–2pm PT) or post long weekends.
+  Electronics division. Latencies: higher_latency_peak (peak and reasonably high). Condition in this file.
+
+tags:
+  - data-plane
+  - higher-latency
+  - peak-hours
+  - electronics
+
+workload_weight: 1.0
+
+mcp_server: electronics
+repeat_count: 3
+interval_ms: 80
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: new_claim
+  goal: higher_latency
+  latency_profile: higher_latency_peak
+  control_plane_template: allowed
+  higher_latency_condition:
+    peak_hours:
+      timezone: "America/Los_Angeles"
+      start_hour: 9
+      end_hour: 14
+      weekdays: [1, 2, 3, 4, 5]
+    post_long_weekend:
+      days_after: 1
+
+expected:
+  mcp_server: electronics
+  tools:
+    - new_claim
+
+conversation:
+  samples:
+    - user_input: "My TV won't turn on after a power surge. I need to start a claim."
+      llm_response: "I've started a claim for your TV (claim ID EL-8821). Describe what happened and we'll schedule an assessment. Next slots: tomorrow 10am or 2pm."
+    - user_input: "My laptop screen is cracked. I want to file a claim."
+      llm_response: "I've opened a claim for your laptop (claim ID EL-7712). You can upload photos in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+    - user_input: "Gaming console stopped working—I need to make a claim."
+      llm_response: "I've opened a claim for your gaming console (claim ID EL-6613). Next technician slots: Wednesday 9am or Friday 2pm."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics

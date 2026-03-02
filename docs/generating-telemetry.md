@@ -229,13 +229,13 @@ retry:
 
 #### Scenario content by intent and product aspect
 
-The following tables map **intent** (what kind of behavior or failure the scenario represents) and **product aspect** (the condition or cause) to scenario names and behavior. Use them to choose scenarios for testing or to interpret generated telemetry.
+The following tables map **intent** (what kind of behavior or failure the scenario represents) and **product aspect** (the condition or cause) to scenario names and behavior. Use them to choose scenarios for testing or to interpret generated telemetry. For use-case and feature requirements (which observability questions the data can answer, coverage, and gaps), see [Use-case and feature requirements](use-case-feature-requirements.md).
 
 **Tool calls have higher latency** (during peak hours—weekdays 9 am–2 pm PT—or post long weekends/holidays; when claim status output is “technician on-route to scheduled appointment”; when scheduling in certain zip codes):
 
 | Intent | Product aspect | What the scenario does | Scenarios |
 |--------|----------------|------------------------|-----------|
-| Higher latency | Peak hours / post long weekend | Traces use a higher-latency profile so tool and orchestration spans take longer. The condition (`peak_hours` or `post_long_weekend`) is recorded on span attributes so you can filter or slice by it. | `generic_higher_latency_peak_hours`, `new_claim_appliances_higher_latency_peak_hours` |
+| Higher latency | Peak hours / post long weekend | Traces use a higher-latency profile so tool and orchestration spans take longer. The condition (`peak_hours` or `post_long_weekend`) is recorded on span attributes so you can filter or slice by it. | `generic_higher_latency_peak_hours`, `new_claim_electronics_higher_latency_peak_hours`, `new_claim_appliances_higher_latency_peak_hours` |
 | Higher latency | Claim status = “technician on-route” | Same claim_status flow with higher latency; conversation samples include both a generic outcome and a technician-on-route outcome. The condition is on span attributes. | `claim_status_phone_higher_latency` |
 | Higher latency | Scheduling in certain zip codes | `update_appointment` runs with higher latency; the scenario records the zip (e.g. 90210 for phone, 10001 for electronics) on span attributes so you can correlate latency with region. | `update_appointment_phone_higher_latency`, `update_appointment_electronics_higher_latency` |
 | Higher latency | Cancel claim with appointment already scheduled | `cancel_claim` runs with higher latency; the scenario records the condition (e.g. `appointment_scheduled`) on span attributes. | `cancel_claim_appliances_higher_latency` |
