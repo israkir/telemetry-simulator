@@ -230,7 +230,49 @@ retry:
 - **goal**: One of the goals above.
 - **scenario_overrides** (optional): e.g. `exception_type`, `exception_message` (for 4xx MCP attempt exception event), `step_index_for_4xx`, `wrong_division_target`, `actual_steps`, `skip_steps`.
 
-Example scenarios in `definitions/`: `new_claim_phone` (data-plane happy path), `new_claim_phone_multi_turn`, `new_claim_phone_mcp_tool_retry_then_success` (MCP retry: timeout then success), `new_claim_electronics_tool_4xx_invalid_params`, `claim_status_appliances_tool_4xx_invalid_params` (agent calls correct tool with wrong/missing params → 4xx; electronics/appliances divisions; cause: date format, claim ID with/without dash), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane-only).
+#### Scenario content by intent and product aspect
+
+The following tables map **intent** (what kind of behavior or failure the scenario represents) and **product aspect** (the condition or cause) to scenario names and behavior. Use them to choose scenarios for testing or to interpret generated telemetry.
+
+**Tool calls have higher latency** (during peak hours—weekdays 9 am–2 pm PT—or post long weekends/holidays; when claim status output is “technician on-route to scheduled appointment”; when scheduling in certain zip codes):
+
+| Intent | Product aspect | What the scenario does | Scenarios |
+|--------|----------------|------------------------|-----------|
+| Higher latency | Peak hours / post long weekend | Traces use a higher-latency profile so tool and orchestration spans take longer. The condition (`peak_hours` or `post_long_weekend`) is recorded on span attributes so you can filter or slice by it. | `generic_higher_latency_peak_hours`, `new_claim_appliances_higher_latency_peak_hours` |
+| Higher latency | Claim status = “technician on-route” | Same claim_status flow with higher latency; conversation samples include both a generic outcome and a technician-on-route outcome. The condition is on span attributes. | `claim_status_phone_higher_latency` |
+| Higher latency | Scheduling in certain zip codes | `update_appointment` runs with higher latency; the scenario records the zip (e.g. 90210 for phone, 10001 for electronics) on span attributes so you can correlate latency with region. | `update_appointment_phone_higher_latency`, `update_appointment_electronics_higher_latency` |
+| Higher latency | Cancel claim with appointment already scheduled | `cancel_claim` runs with higher latency; the scenario records the condition (e.g. `appointment_scheduled`) on span attributes. | `cancel_claim_appliances_higher_latency` |
+
+**Agent calls correct tools with incorrect parameters** (e.g. wrong format, missing parameters) → 4xx errors. Cause: how the input entities were specified (e.g. different date formats, claim ID with or without dash).
+
+| Intent | Product aspect | What the scenario does | Scenarios |
+|--------|----------------|------------------------|-----------|
+| 4xx invalid params | Date format or missing date | The agent calls `new_claim` with a bad or missing date (e.g. “13/31/2024”, “March 15”, or omitted). One MCP attempt is marked failed with `invalid_arguments` and an exception message (e.g. invalid date or missing required field). Trace shows the wrong arguments on the tool span. | `new_claim_appliances_tool_4xx_invalid_params`, `new_claim_electronics_tool_4xx_invalid_params` |
+| 4xx invalid params | Claim ID without dash or wrong prefix | The agent calls `claim_status` with a claim ID like “8842” or “7733” instead of “PH-8842” or “HA-7733”. One MCP attempt fails with `invalid_arguments` and an exception about claim ID format. | `claim_status_phone_tool_4xx_invalid_params`, `claim_status_appliances_tool_4xx_invalid_params` |
+| 4xx invalid params | Invalid or missing cancel reason | The agent calls `cancel_claim` with an empty or free-text reason instead of an allowed value. One MCP attempt fails with `invalid_arguments`. | `cancel_claim_appliances_tool_4xx_invalid_params` |
+
+**Agent calls incorrect tools** (e.g. cancel product vs cancel claim; tools from different division with similar functionality; ambiguous user requests). Cause: same input cluster but maps to tools with same functionality but from different divisions.
+
+| Intent | Product aspect | What the scenario does | Scenarios |
+|--------|----------------|------------------------|-----------|
+| Wrong tool | Similar tool names (cancel product vs cancel claim) | User says “cancel my claim”; the agent calls `cancel_product` instead of `cancel_claim`. The tool succeeds but the response-compose step is marked failed with WrongToolError so wrong-tool traffic shows up in error metrics. The trace shows the tool that was actually called. | `agent_confusion_cancel_product_instead_of_claim` |
+| Wrong division | Ambiguous request → wrong division | User wants to pay or cancel a phone claim; the agent routes to the electronics division (same tool name, wrong server). The MCP call is emitted with the electronics server/tool IDs and marked failed (e.g. WrongDivisionError). Trace shows wrong division. | `agent_confusion_pay_phone_wrong_division_electronics`, `agent_confusion_cancel_claim_phone_wrong_division_electronics` |
+| Wrong division | Same input cluster, different division | Same as above: user intent maps to “pay” or “cancel claim” but the agent picks the other division’s MCP; trace shows wrong `mcp.server.uuid` / `mcp.tool.uuid`. | Same two wrong-division scenarios above |
+
+**Agent calls partial set of tools in a workflow** (doesn’t call the full set; first tool called is not the first in expected sequence). Cause: no context about sequence.
+
+| Intent | Product aspect | What the scenario does | Scenarios |
+|--------|----------------|------------------------|-----------|
+| Partial workflow | Partial tool set (new_claim never called) | User wants to start a claim. The trace shows planner, task, tool recommendation, then response compose—no MCP tool execution for `new_claim`. The response-compose step is marked failed (e.g. PartialWorkflowError). | `agent_confusion_new_claim_partial_tools` |
+| Partial workflow | Wrong tool order | User wants to start a claim. The trace shows the agent calling `update_appointment` first, then `new_claim`. Response compose is marked failed (e.g. WrongToolOrderError). | `agent_confusion_new_claim_wrong_tool_order` |
+
+**Agent output contains sentences that don’t originate from tool output.** Cause: retrieval of product info summarized incorrectly.
+
+| Intent | Product aspect | What the scenario does | Scenarios |
+|--------|----------------|------------------------|-----------|
+| Ungrounded response | Incorrect summarization | The agent correctly calls `claim_status` and the tool succeeds. The response-compose step is marked failed with UngroundedContentError: the agent’s reply contains sentences that don’t originate from the tool (e.g. tool says in_review but agent says “approved” or invents appointment times). Conversation samples illustrate the mismatch. | `agent_confusion_claim_status_ungrounded_summarization` |
+
+**Control-plane and other scenarios:** `new_claim_phone` (data-plane happy path), `new_claim_phone_multi_turn`, `new_claim_phone_mcp_tool_retry_then_success` (MCP retry: timeout then success), `request_blocked_by_policy`, `request_blocked_invalid_payload`, `request_blocked_rate_limited`, `request_blocked_invalid_payload_multi`, `request_allowed_audit_flagged`, `request_error_policy_runtime`, `request_blocked_policy_fail_closed`, `request_blocked_invalid_context_augment_exception`, `request_error_policy_unavailable` (control-plane).
 
 Control-plane examples:
 

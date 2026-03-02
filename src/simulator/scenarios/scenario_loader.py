@@ -1531,7 +1531,15 @@ class ScenarioLoader:
     def load(self, scenario_name: str) -> Scenario:
         """Load a scenario by name (from YAML or from control_plane.request_scenarios registry)."""
         scenario_file = self.scenarios_dir / f"{scenario_name}.yaml"
-        if scenario_file.exists():
+        if not scenario_file.exists():
+            # Look in subdirectories (e.g. definitions/happy_path/).
+            for path in sorted(self.scenarios_dir.rglob("*.yaml")):
+                if path.stem == scenario_name:
+                    scenario_file = path
+                    break
+            else:
+                scenario_file = None
+        if scenario_file is not None and scenario_file.exists():
             with open(scenario_file, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
             return self._parse_scenario(data)
@@ -1557,7 +1565,7 @@ class ScenarioLoader:
             return scenarios
 
         exclude_example = self._is_sample_definitions_dir()
-        for scenario_file in self.scenarios_dir.glob("*.yaml"):
+        for scenario_file in sorted(self.scenarios_dir.rglob("*.yaml")):
             if exclude_example and scenario_file.stem == EXAMPLE_SCENARIO_NAME:
                 continue
             with open(scenario_file, encoding="utf-8") as f:
@@ -1582,7 +1590,7 @@ class ScenarioLoader:
         exclude_example = self._is_sample_definitions_dir()
         from_files = [
             f.stem
-            for f in self.scenarios_dir.glob("*.yaml")
+            for f in sorted(self.scenarios_dir.rglob("*.yaml"))
             if not (exclude_example and f.stem == EXAMPLE_SCENARIO_NAME)
         ]
         if not exclude_example:

@@ -11,7 +11,7 @@
 #   agents              – context.agent id (e.g. toro-customer-assistant-001); must match a2a.agent.target.id
 #   mcp_servers         – context.mcp_server key → mcp_server_uuid + tools (name, tool_uuid)
 #   tool_call_arguments – optional; keyed by tool name → JSON object for gen_ai.tool.call.arguments
-#   scenarios           – divisions, error_templates (goal → error_type, http_status_codes), workflow_templates (workflow name → step list)
+#   scenarios           – divisions, error_templates (goal → error_type, http_status_codes), workflow_templates; goals: happy_path | higher_latency | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response
 #   latency_profiles    – <profile>.spans (a2a_orchestrate, planner, mcp_tool_execute, etc.) with mean_ms, variance; scenario sets data_plane.latency_profile
 #   control_plane      – trace_flow, request_validation_templates, request_scenarios, latencies_ms
 #   conversation_samples – per workflow key; used when scenario has no conversation.samples/turns
@@ -71,7 +71,8 @@ data_plane:
   # Workflow key → step list from resource/config/config.yaml → scenarios.workflow_templates
   # Example keys: new_claim, update_appointment, claim_status, pay (see config for full list).
   workflow: new_claim
-  # Goal and latency_profile must align (happy_path ↔ happy_path, higher_latency ↔ higher_latency).
+  # Goal: happy_path | higher_latency | 4xx_invalid_arguments | wrong_division | partial_workflow | ungrounded_response.
+  # Semantics from config scenarios.error_templates (higher_latency uses latency_profiles only). Goal and latency_profile must align (happy_path ↔ happy_path, higher_latency ↔ higher_latency).
   goal: happy_path
   latency_profile: happy_path
   # Optional: MCP retry template name (resource/config/config.yaml → mcp_retry_templates) or inline { attempts: [{ outcome, optional error_type, optional latency_mean_ms }] }
@@ -135,18 +136,18 @@ context:
 #   # policy_exception: { type: "PolicyEngineTimeout", message: "policy_engine_timeout" }
 
 # -----------------------------------------------------------------------------
-# Scenario overrides (optional; for goal != happy_path)
+# Scenario overrides (optional; for goal != happy_path | higher_latency)
 # resource/config/config.yaml → scenarios.error_templates, scenarios.divisions
 # For goal: 4xx_invalid_arguments, set exception_type and exception_message so the
 # failing MCP attempt records a concrete exception event (not generic "Error occurred").
 # -----------------------------------------------------------------------------
 # scenario_overrides:
-#   exception_type: "InvalidArgumentsError"   # For 4xx_invalid_arguments (e.g. claim ID or date format)
+#   exception_type: "InvalidArgumentsError"   # 4xx_invalid_arguments (e.g. claim ID or date format)
 #   exception_message: "Invalid or missing parameters."
-#   step_index_for_4xx: 0        # Which MCP step gets 4xx (for 4xx_invalid_arguments)
-#   wrong_division_target: electronics   # Division key for wrong_division
-#   actual_steps: [planner, task, new_claim, response_compose]  # For partial_workflow
-#   skip_steps: [2]              # Or drop step indices from correct_flow (partial_workflow)
+#   step_index_for_4xx: 0        # Which MCP step gets 4xx (4xx_invalid_arguments)
+#   wrong_division_target: electronics   # wrong_division: target division key
+#   actual_steps: [planner, task, new_claim, response_compose]  # partial_workflow: steps actually run
+#   skip_steps: [2]              # partial_workflow: drop step indices from correct_flow
 
 # -----------------------------------------------------------------------------
 # Minimal control-plane-only example (no data_plane, no mcp_server required in context):
