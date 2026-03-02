@@ -25,7 +25,7 @@ id_formats:
 # Step outcome, selection_strategy, selection_constraints, tools_selected_count, selection_fallback_used.
 # -----------------------------------------------------------------------------
 tools_recommend:
-  step_outcome: "success"             # success | fail | skipped
+  step_outcome: "success"             # success | fail | skip
   selection_strategy: "default"       # capability_match | semantic_match | policy_filtered | hybrid | default
   selection_constraints: "none"       # policy | permissions | environment | latency_budget | none
   tools_selected_count: 1
