@@ -122,6 +122,17 @@ def _find_response_compose(hierarchy: TraceHierarchy) -> TraceHierarchy | None:
     return None
 
 
+def _find_tools_recommend(hierarchy: TraceHierarchy) -> TraceHierarchy | None:
+    """Return the first TOOLS_RECOMMEND hierarchy in tree order."""
+    if hierarchy.root_config.span_type == SpanType.TOOLS_RECOMMEND:
+        return hierarchy
+    for child in hierarchy.children:
+        found = _find_tools_recommend(child)
+        if found:
+            return found
+    return None
+
+
 def _apply_4xx_invalid_arguments(
     hierarchy: TraceHierarchy,
     template: ErrorTemplate,
@@ -302,6 +313,37 @@ def _apply_partial_workflow(
         )
 
 
+def _apply_recommendation_failure(
+    hierarchy: TraceHierarchy,
+    template: ErrorTemplate,
+    overrides: dict[str, Any],
+    attr_prefix: str,
+) -> None:
+    """Set tools.recommend span to fail (step.outcome=fail, mcp.tools.selected.count=0,
+    error.type=capability_resolution_error). Optional scenario_overrides.exception_type /
+    exception_message set the exception event (e.g. CapabilityResolutionError)."""
+    tools_rec = _find_tools_recommend(hierarchy)
+    if not tools_rec:
+        return
+    tools_rec.root_config.error_rate = 1.0
+    attrs = dict(tools_rec.root_config.attribute_overrides or {})
+    attrs[config_attr("step.outcome")] = "fail"
+    attrs[config_attr("mcp.tools.selected.count")] = 0
+    attrs["error.type"] = template.error_type
+    attrs[config_attr("error.type")] = template.error_type
+    tools_rec.root_config.attribute_overrides = attrs
+    exc_type = overrides.get("exception_type")
+    exc_msg = overrides.get("exception_message")
+    if exc_type or exc_msg:
+        tools_rec.root_config.exception_type = exc_type or "CapabilityResolutionError"
+        tools_rec.root_config.exception_message = (
+            exc_msg or "Failed to evaluate MCP tool capabilities"
+        )
+    else:
+        tools_rec.root_config.exception_type = "CapabilityResolutionError"
+        tools_rec.root_config.exception_message = "Failed to evaluate MCP tool capabilities"
+
+
 def apply_scenario_goal(
     hierarchy: TraceHierarchy,
     goal: str | None,
@@ -368,6 +410,13 @@ def apply_scenario_goal(
             error_type="tool_error"
         )
         _apply_partial_workflow(hierarchy, template, overrides, attr_prefix)
+        return
+
+    if goal_lower == "recommendation_failure":
+        template = config.error_templates.get("recommendation_failure") or ErrorTemplate(
+            error_type="capability_resolution_error"
+        )
+        _apply_recommendation_failure(hierarchy, template, overrides, attr_prefix)
         return
 
     # higher_latency: latency is set by config latency_profiles + scenario latency_profile at hierarchy build time; no modifier.

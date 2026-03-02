@@ -1843,10 +1843,11 @@ class ScenarioLoader:
         if control_plane_template is None and control_plane_template_from_dp is not None:
             control_plane_template = control_plane_template_from_dp
 
-        # For partial_workflow, set context.actual_steps from overrides so hierarchy is built with fewer/wrong-order steps.
+        # For partial_workflow or recommendation_failure, set context.actual_steps from overrides
+        # so hierarchy is built with fewer steps (e.g. no MCP tool execute when tools.recommend fails).
         if (
             scenario_context
-            and (goal or "").lower() == "partial_workflow"
+            and (goal or "").strip().lower() in ("partial_workflow", "recommendation_failure")
             and scenario_overrides_parsed
         ):
             actual_steps_list = scenario_overrides_parsed.get("actual_steps")

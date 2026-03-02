@@ -300,7 +300,7 @@ response_compose_span_spec:
     error.type:
       type: string
       requirement: "SHOULD (if failed)"
-      definition: "Low-cardinality error identifier per error_recording (e.g. serialization_error). (OpenTelemetry)"
+      definition: "Low-cardinality error identifier per error_recording. May be set when compose step fails (e.g. protocol_error) or propagated from an upstream failure (e.g. invalid_arguments from MCP 4xx, tool_error). (OpenTelemetry)"
 
   enums:
     gentoro.response.format:
@@ -847,7 +847,16 @@ a2a_orchestration_model:
 
   failure_rules:
     compose_failure: "If response composition fails: Compose span MUST set status.code=ERROR and apply error_recording. Set gentoro.step.outcome=fail."
-    root_on_compose_failure: "Root span MUST set gentoro.a2a.outcome='error' and status.code=ERROR."
+    root_on_compose_failure: |
+      Root span MUST set gentoro.a2a.outcome='error' and status.code=ERROR when (a) response composition fails, or
+      (b) any upstream span (sibling of gentoro.response.compose under gentoro.a2a.orchestrate) fails such that
+      no valid response is produced. This overrides any default or scenario value that would otherwise set
+      gentoro.a2a.outcome to success or partial, so the response carries failure end-to-end.
+    error_propagation_to_response: |
+      When any upstream span (planner, task.execute, mcp.tool.execute, etc.) fails such that no valid response
+      is produced: (1) gentoro.response.compose MUST set gentoro.step.outcome=fail, status.code=ERROR, and
+      SHOULD set error.type (e.g. invalid_arguments, tool_error—propagated from the failing span).
+      (2) Root span MUST set gentoro.a2a.outcome='error' and status.code=ERROR (see root_on_compose_failure).
 
 # =============================================================================
 # CONTEXT AUGMENTATION (RAG) — gentoro.context.augment (Normative)
