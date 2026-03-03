@@ -746,20 +746,27 @@ class TraceGenerator:
         cp.outgoing_trace_id). For multi-turn: each new request to control-plane must be a
         separate call, yielding a different trace_id; use the same context.session_id for
         all calls that belong to the same session.
+
+        Uses a single TracerProvider for the whole trace so all spans are exported in one batch,
+        avoiding Jaeger "parent span ID=... is not in the trace; skipping clock skew adjustment"
+        when the backend receives child spans before their parent (e.g. response_validation before
+        a2a.orchestrate) due to multiple providers flushing in different batches.
         """
         trace_id, span_id_req, _, _ = self._generate_span_recursive(
-            incoming_hierarchy, context, None, None
+            incoming_hierarchy, context, None, None, use_single_tracer=True
         )
         ctx_after_request = _context_from_trace_and_span(trace_id, span_id_req)
         _, span_id_orchestrate, _, _ = self._generate_span_recursive(
-            data_plane_hierarchy, context, None, ctx_after_request
+            data_plane_hierarchy, context, None, ctx_after_request, use_single_tracer=True
         )
         # Small delay so response_validation root start_time is clearly after data_plane last span
         # end_time. Avoids Jaeger "clock skew adjustment disabled; not applying calculated delta"
         # when the backend sees response_validation timestamps as slightly before parent end.
         time.sleep(0.05)
         ctx_after_orchestrate = _context_from_trace_and_span(trace_id, span_id_orchestrate)
-        self._generate_span_recursive(outgoing_hierarchy, context, None, ctx_after_orchestrate)
+        self._generate_span_recursive(
+            outgoing_hierarchy, context, None, ctx_after_orchestrate, use_single_tracer=True
+        )
         return trace_id
 
     def _generate_span_recursive(
@@ -769,11 +776,13 @@ class TraceGenerator:
         parent_span: Any,
         parent_context: Any | None = None,
         compose_accumulated_failure: str | None = None,
+        use_single_tracer: bool = False,
     ) -> tuple[str, str, int, float]:
         """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns, tool_latency_ms).
         end_time_ns is the span's logical end timestamp so parents can ensure end >= last child end.
         tool_latency_ms is the gentoro.tool.latency_ms value for this span (non-zero only for MCP tool execute/attempt).
         compose_accumulated_failure: when set, response.compose accumulates this error (step.outcome=fail, status, exception).
+        use_single_tracer: when True, use the default tracer for all spans so they export in one batch (avoids parent-not-in-trace).
         """
         config = hierarchy.root_config
         # When at A2A root, detect if any child (including response_compose) is configured to fail;
@@ -799,7 +808,7 @@ class TraceGenerator:
         overrides = config.attribute_overrides or {}
         component = _get_component_for_span_type(config.span_type)
         scenario_name = getattr(context, "scenario_name", None) if context else None
-        tracer = self._get_tracer(component, scenario_name)
+        tracer = self._get_tracer(None if use_single_tracer else component, scenario_name)
         current_trace_id = ""
         current_span_id = ""
         span_attrs = self.span_builder.get_attributes(
@@ -818,6 +827,9 @@ class TraceGenerator:
             start_time_ns = time.time_ns()
             current_trace_id = format(span.get_span_context().trace_id, "032x")
             current_span_id = format(span.get_span_context().span_id, "016x")
+            # When using a single tracer (unified trace), resource has no per-span component; set as span attribute for filtering.
+            if use_single_tracer and component is not None:
+                span.set_attribute(config_attr("component"), component)
 
             # Record simulated latency/duration as span attribute so telemetry reflects config/modifier.
             # MCP_TOOL_EXECUTE parent gets tool.latency_ms set after children (sum of attempt latencies).
@@ -1161,6 +1173,7 @@ class TraceGenerator:
                     span,
                     None,
                     compose_accumulated_failure=child_compose_failure,
+                    use_single_tracer=use_single_tracer,
                 )
                 last_child_end_ns = max(last_child_end_ns, child_end_ns)
                 child_tool_latencies.append(child_tool_latency_ms)
