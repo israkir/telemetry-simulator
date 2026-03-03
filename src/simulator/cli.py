@@ -49,7 +49,8 @@ def _format_progress_line(
         spans_str = (
             ",".join(names[:_MAX_SPAN_NAMES_IN_LOG]) + f",..+{len(names) - _MAX_SPAN_NAMES_IN_LOG}"
         )
-    return f"   [{current}/{total}] trace_id={tid} tenant_id={tenant_id} spans={spans_str}"
+    total_str = str(total) if total else "∞"
+    return f"   [{current}/{total_str}] trace_id={tid} tenant_id={tenant_id} spans={spans_str}"
 
 
 # Display order for scenario definition groups (matches definitions folder layout).
@@ -154,8 +155,9 @@ Examples:
     run_parser.add_argument(
         "--count",
         type=int,
-        default=100,
-        help="Number of traces to generate (default: 100)",
+        default=None,
+        metavar="N",
+        help="Number of traces to generate; omit to run until interrupted (Ctrl+C)",
     )
     run_parser.add_argument(
         "--interval",
@@ -305,7 +307,7 @@ def cmd_run(args: argparse.Namespace):
     if each_once:
         print("   Mode: each (tagged) scenario once")
     else:
-        print(f"   Count: {args.count}")
+        print(f"   Count: {args.count if args.count is not None else 'until interrupted'}")
     print(f"   Interval: {args.interval}ms")
     tags_list: list[str] | None = None
     if getattr(args, "tags", None) and isinstance(args.tags, str):
@@ -347,8 +349,10 @@ def cmd_run(args: argparse.Namespace):
     ):
         if getattr(args, "show_spans", False) or getattr(args, "show_all_attributes", False):
             print(_format_progress_line(current, total, trace_id, tenant_id, span_names))
-        elif current % 10 == 0 or current == total:
+        elif total and (current % 10 == 0 or current == total):
             print(f"   Spans generated: {current}/{total}")
+        elif not total and current % 10 == 0:
+            print(f"   Spans generated: {current} (running until Ctrl+C)")
 
     try:
         runner = ScenarioRunner(
@@ -392,7 +396,7 @@ def cmd_run(args: argparse.Namespace):
             print(label)
             for trace_id in to_show:
                 print(f"   {trace_id}")
-            logical_requests = 0 if each_once else args.count
+            logical_requests = 0 if each_once else (args.count if args.count is not None else 0)
             if logical_requests and len(trace_ids) != logical_requests:
                 per_request = len(trace_ids) / float(logical_requests)
                 print(

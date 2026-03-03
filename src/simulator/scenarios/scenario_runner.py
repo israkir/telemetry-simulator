@@ -435,7 +435,7 @@ class ScenarioRunner:
 
     def run_mixed_workload(
         self,
-        count: int = 100,
+        count: int | None = None,
         interval_ms: float = 200,
         progress_callback: Callable[[int, int, str, str, list[str]], None] | None = None,
         tags: list[str] | None = None,
@@ -444,6 +444,7 @@ class ScenarioRunner:
         """Run a mixed workload by picking at random from YAML-defined scenarios.
         If tags is non-empty, only scenarios that have at least one of these tags are included.
         If each_once is True, run each (filtered) scenario exactly once instead of count random picks.
+        If count is None, run until interrupted (progress total is 0 for display).
         Returns (trace_ids, traces_by_scenario) where traces_by_scenario maps scenario name to trace count.
         """
         scenarios = self.scenario_loader.load_all()
@@ -471,7 +472,8 @@ class ScenarioRunner:
 
         trace_ids: list[str] = []
         traces_by_scenario: dict[str, int] = {}
-        total = len(scenarios) if each_once else count
+        # 0 for total means unbounded (run until interrupted)
+        total = len(scenarios) if each_once else (count if count is not None else 0)
 
         # When workload_weight is set on scenarios, use it as a relative sampling weight
         # for mixed workloads so that, for example, successful control-plane outcomes
@@ -510,7 +512,7 @@ class ScenarioRunner:
                 run_one_request(scenario, i)
                 if interval_ms > 0 and i < total - 1:
                     time.sleep(interval_ms / 1000.0)
-        else:
+        elif count is not None:
             for i in range(count):
                 if use_weighted_sampling:
                     scenario = random.choices(scenarios, weights=weights, k=1)[0]
@@ -519,6 +521,17 @@ class ScenarioRunner:
                 run_one_request(scenario, i)
                 if interval_ms > 0 and i < count - 1:
                     time.sleep(interval_ms / 1000.0)
+        else:
+            i = 0
+            while True:
+                if use_weighted_sampling:
+                    scenario = random.choices(scenarios, weights=weights, k=1)[0]
+                else:
+                    scenario = random.choice(scenarios)
+                run_one_request(scenario, i)
+                if interval_ms > 0:
+                    time.sleep(interval_ms / 1000.0)
+                i += 1
 
         return trace_ids, traces_by_scenario
 
