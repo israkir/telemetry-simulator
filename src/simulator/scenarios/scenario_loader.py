@@ -750,9 +750,9 @@ _KEY_TO_SPAN_TYPE: dict[str, SpanType] = {
     "response_compose": SpanType.RESPONSE_COMPOSE,
     "request_validation": SpanType.REQUEST_VALIDATION,
     "response_validation": SpanType.RESPONSE_VALIDATION,
-    "validation_payload": SpanType.VALIDATION_PAYLOAD,
-    "validation_policy": SpanType.VALIDATION_POLICY,
-    "augmentation": SpanType.AUGMENTATION,
+    "validation_payload": SpanType.PAYLOAD_VALIDATION,
+    "validation_policy": SpanType.POLICY_VALIDATION,
+    "augmentation": SpanType.AUGMENTATION_VALIDATION,
 }
 
 _DEFAULT_MEAN_MS: dict[SpanType, float] = {
@@ -765,9 +765,9 @@ _DEFAULT_MEAN_MS: dict[SpanType, float] = {
     SpanType.RESPONSE_COMPOSE: 60.0,
     SpanType.REQUEST_VALIDATION: 40.0,
     SpanType.RESPONSE_VALIDATION: 40.0,
-    SpanType.VALIDATION_PAYLOAD: 20.0,
-    SpanType.VALIDATION_POLICY: 20.0,
-    SpanType.AUGMENTATION: 20.0,
+    SpanType.PAYLOAD_VALIDATION: 20.0,
+    SpanType.POLICY_VALIDATION: 20.0,
+    SpanType.AUGMENTATION_VALIDATION: 20.0,
 }
 
 _DEFAULT_VARIANCE = 0.2
@@ -1463,9 +1463,9 @@ _SPAN_SUFFIXES = [
     ("a2a.call", SpanType.A2A_CALL),
     ("request.validation", SpanType.REQUEST_VALIDATION),
     ("response.validation", SpanType.RESPONSE_VALIDATION),
-    ("validation.payload", SpanType.VALIDATION_PAYLOAD),
-    ("validation.policy", SpanType.VALIDATION_POLICY),
-    ("augmentation", SpanType.AUGMENTATION),
+    ("validation.payload", SpanType.PAYLOAD_VALIDATION),
+    ("validation.policy", SpanType.POLICY_VALIDATION),
+    ("augmentation", SpanType.AUGMENTATION_VALIDATION),
     ("cp.request", SpanType.CP_REQUEST),
 ]
 
