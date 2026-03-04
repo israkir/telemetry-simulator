@@ -268,7 +268,8 @@ def _apply_ungrounded_response(
     attr_prefix: str,
 ) -> None:
     """Set response_compose span to fail (step.outcome=fail, error.type).
-    Optional scenario_overrides.exception_type / exception_message set contextual exception event."""
+    Optional scenario_overrides.exception_type / exception_message set contextual exception event.
+    """
     comp = _find_response_compose(hierarchy)
     if not comp:
         return
@@ -294,7 +295,8 @@ def _apply_partial_workflow(
     attr_prefix: str,
 ) -> None:
     """Mark response_compose as fail to signal incomplete/wrong-order flow.
-    Optional scenario_overrides.exception_type / exception_message set contextual exception event."""
+    Optional scenario_overrides.exception_type / exception_message set contextual exception event.
+    """
     comp = _find_response_compose(hierarchy)
     if not comp:
         return

@@ -34,17 +34,19 @@ class FileSpanExporter(SpanExporter):
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to file."""
         try:
-            span_dicts = []
+            span_dicts: list[dict[str, Any]] = []
             for span in spans:
                 events_serialized: list[dict[str, Any]] = []
                 if getattr(span, "events", None):
                     for ev in span.events:
-                        events_serialized.append({
-                            "name": ev.name,
-                            "timestamp": ev.timestamp,
-                            "attributes": dict(ev.attributes) if ev.attributes else {},
-                        })
-                span_dict = {
+                        events_serialized.append(
+                            {
+                                "name": ev.name,
+                                "timestamp": ev.timestamp,
+                                "attributes": dict(ev.attributes) if ev.attributes else {},
+                            }
+                        )
+                span_dict: dict[str, Any] = {
                     "name": span.name,
                     "trace_id": format(span.context.trace_id, "032x"),
                     "span_id": format(span.context.span_id, "016x"),
