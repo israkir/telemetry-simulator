@@ -272,7 +272,10 @@ def validate_span_attributes(span: dict, config: dict[str, Any]) -> list[str]:
     # Optional: semconv required span_class for known span names
     span_class = attrs.get("gentoro.span.class")
     if name == "gentoro.request.validation" and span_class != "request.validation":
-        errors.append(f"Semconv: gentoro.request.validation span must have gentoro.span.class=request.validation; got {span_class!r}")
+        errors.append(
+            "Semconv: gentoro.request.validation span must have "
+            f"gentoro.span.class=request.validation; got {span_class!r}"
+        )
     if name == "gentoro.a2a.orchestrate" and span_class != "a2a.orchestrate":
         errors.append(f"Semconv: gentoro.a2a.orchestrate span must have gentoro.span.class=a2a.orchestrate; got {span_class!r}")
     if name == "gentoro.tools.recommend" and span_class != "tools.recommend":
@@ -310,10 +313,10 @@ def analyze_trace(trace_id: str, spans: list[dict]) -> dict[str, Any]:
             if not span.get("parent_span_id"):
                 result["roots"].append(name)
 
-        if "augmentation" in name or span_class == "augmentation":
+        if "augmentation.validation" in name or span_class == "augmentation.validation":
             result["augmentation_outcome"] = get_attr(span, "gentoro.step.outcome") or result["augmentation_outcome"]
 
-        if "validation.policy" in span_class or "validation.policy" in name:
+        if "policy.validation" in span_class or "policy.validation" in name:
             result["policy_decision"] = get_attr(span, "gentoro.policy.decision") or result["policy_decision"]
 
         if "mcp.tool.execute" in name and "attempt" not in name:

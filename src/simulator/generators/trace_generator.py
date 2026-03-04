@@ -72,9 +72,9 @@ class SpanType(Enum):
     RESPONSE_COMPOSE = "response.compose"
     RAG_RETRIEVE = "rag.retrieve"
     A2A_CALL = "a2a.call"
-    PAYLOAD_VALIDATION = "validation.payload"
-    POLICY_VALIDATION = "validation.policy"
-    AUGMENTATION_VALIDATION = "augmentation"
+    PAYLOAD_VALIDATION = "payload.validation"
+    POLICY_VALIDATION = "policy.validation"
+    AUGMENTATION_VALIDATION = "augmentation.validation"
     REQUEST_VALIDATION = "request.validation"
     RESPONSE_VALIDATION = "response.validation"
     CP_REQUEST = "cp.request"
@@ -579,9 +579,9 @@ class SpanBuilder:
         # Strip schema-driven higher_latency.* from all root span types; real values set only on a2a.orchestrate.
         if span_type in (
             SpanType.CP_REQUEST,
-                SpanType.REQUEST_VALIDATION,
-                SpanType.A2A_ORCHESTRATE,
-                SpanType.RESPONSE_VALIDATION,
+            SpanType.REQUEST_VALIDATION,
+            SpanType.A2A_ORCHESTRATE,
+            SpanType.RESPONSE_VALIDATION,
         ):
             for key in list(attrs.keys()):
                 if "higher_latency" in key:
@@ -899,15 +899,19 @@ class TraceGenerator:
             # LLM span: emit gen_ai.tool.request / gen_ai.tool.response events per Confluence/semconv when tool calls present.
             if config.span_type == SpanType.LLM_CALL:
                 tool_name = span_attrs.get("gen_ai.tool.name") or overrides.get("gen_ai.tool.name")
-                tool_call_id = span_attrs.get("gen_ai.tool.call.id") or overrides.get("gen_ai.tool.call.id")
-                tool_request_count = span_attrs.get(config_attr("llm.tool.request.count")) or overrides.get(
-                    config_attr("llm.tool.request.count")
+                tool_call_id = span_attrs.get("gen_ai.tool.call.id") or overrides.get(
+                    "gen_ai.tool.call.id"
                 )
+                tool_request_count = span_attrs.get(
+                    config_attr("llm.tool.request.count")
+                ) or overrides.get(config_attr("llm.tool.request.count"))
                 try:
                     n = int(tool_request_count) if tool_request_count is not None else 0
                 except (TypeError, ValueError):
                     n = 0
-                step_ok = (overrides.get(config_attr("step.outcome")) or "").strip().lower() == "success"
+                step_ok = (
+                    overrides.get(config_attr("step.outcome")) or ""
+                ).strip().lower() == "success"
                 if (n >= 1 or tool_name) and tool_name and tool_call_id:
                     span.add_event(
                         "gen_ai.tool.request",
@@ -1116,14 +1120,14 @@ class TraceGenerator:
             if config.span_type == SpanType.TOOLS_RECOMMEND:
                 try:
                     user_input_text: str | None = None
-                    tool_name: str = ""
+                    selected_tool_name: str = ""
                     # Use the OTEL GenAI tool name when available for this logical recommendation.
                     try:
                         span_tool_name = span.attributes.get("gen_ai.tool.name")  # type: ignore[attr-defined]
                         if isinstance(span_tool_name, str):
-                            tool_name = span_tool_name
+                            selected_tool_name = span_tool_name
                     except Exception:
-                        tool_name = ""
+                        selected_tool_name = ""
 
                     # Prefer the actual gen_ai.input.messages attribute on the span, which the
                     # AttributeGenerator serializes as JSON, and fall back to context.llm_input_messages.
@@ -1161,7 +1165,7 @@ class TraceGenerator:
                     tool_plan_payload = {
                         "tool_plan": [
                             {
-                                "tool_name": tool_name or "unknown.tool",
+                                "tool_name": selected_tool_name or "unknown.tool",
                                 "trigger_summary": user_input_text or "",
                                 "trigger_quote": user_input_text or "",
                                 "missing_info": None,
