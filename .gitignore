@@ -45,5 +45,5 @@ Thumbs.db
 *.log
 
 # Generated files
-/traces.json
-/traces.jsonl
+/traces*.json
+/traces*.jsonl
