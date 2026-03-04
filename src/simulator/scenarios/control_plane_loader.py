@@ -234,7 +234,7 @@ def build_request_validation_hierarchy_from_template(
     if not isinstance(validation_errors, list):
         validation_errors = None
     payload_cfg = SpanConfig(
-        span_type=SpanType.VALIDATION_PAYLOAD,
+        span_type=SpanType.PAYLOAD_VALIDATION,
         latency_mean_ms=float(payload_lat),
         latency_variance=0.2,
         error_rate=float(err.get("payload", 0)),
@@ -259,7 +259,7 @@ def build_request_validation_hierarchy_from_template(
         if policy_exception_override.get("message"):
             exc_msg = str(policy_exception_override["message"])
     policy_cfg = SpanConfig(
-        span_type=SpanType.VALIDATION_POLICY,
+        span_type=SpanType.POLICY_VALIDATION,
         latency_mean_ms=float(policy_lat),
         latency_variance=0.2,
         error_rate=float(err.get("policy", 0)),
@@ -289,7 +289,7 @@ def build_request_validation_hierarchy_from_template(
         if augmentation_exception_override.get("message"):
             aug_exc_msg = str(augmentation_exception_override["message"])
     augment_cfg = SpanConfig(
-        span_type=SpanType.AUGMENTATION,
+        span_type=SpanType.AUGMENTATION_VALIDATION,
         latency_mean_ms=float(augment_lat),
         latency_variance=0.2,
         error_rate=float(err.get("augmentation", 0)),
@@ -342,7 +342,7 @@ def build_response_validation_hierarchy_from_template(
 
     policy_attrs = _prefix_attrs(t.get("policy") or {})
     policy_cfg = SpanConfig(
-        span_type=SpanType.VALIDATION_POLICY,
+        span_type=SpanType.POLICY_VALIDATION,
         latency_mean_ms=float(policy_lat),
         latency_variance=0.2,
         error_rate=float(err.get("policy", 0)),
