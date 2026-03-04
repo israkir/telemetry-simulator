@@ -74,15 +74,15 @@ def _print_traces_by_scenario_grouped(
 ) -> None:
     """Print traces per scenario grouped by definition folder (happy_path, control_plane/blocked, etc.)."""
     scenarios = scenario_loader.load_all()
-    name_to_group = {
-        s.name: (getattr(s, "definition_group", None) or "") for s in scenarios
-    }
+    name_to_group = {s.name: (getattr(s, "definition_group", None) or "") for s in scenarios}
     by_group: dict[str, list[tuple[str, int]]] = {}
     for name, count in traces_by_scenario.items():
         group = name_to_group.get(name, "")
         by_group.setdefault(group, []).append((name, count))
     order_index = {g: i for i, g in enumerate(_SCENARIO_GROUP_ORDER)}
-    for group in sorted(by_group.keys(), key=lambda g: (order_index.get(g, len(_SCENARIO_GROUP_ORDER)), g)):
+    for group in sorted(
+        by_group.keys(), key=lambda g: (order_index.get(g, len(_SCENARIO_GROUP_ORDER)), g)
+    ):
         label = group if group else "root"
         entries = sorted(by_group[group], key=lambda x: x[0])
         print(f"   [{label}]")

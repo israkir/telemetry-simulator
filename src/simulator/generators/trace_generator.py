@@ -72,9 +72,9 @@ class SpanType(Enum):
     RESPONSE_COMPOSE = "response.compose"
     RAG_RETRIEVE = "rag.retrieve"
     A2A_CALL = "a2a.call"
-    VALIDATION_PAYLOAD = "validation.payload"
-    VALIDATION_POLICY = "validation.policy"
-    AUGMENTATION = "augmentation"
+    PAYLOAD_VALIDATION = "payload.validation"
+    POLICY_VALIDATION = "policy.validation"
+    AUGMENTATION_VALIDATION = "augmentation.validation"
     REQUEST_VALIDATION = "request.validation"
     RESPONSE_VALIDATION = "response.validation"
     CP_REQUEST = "cp.request"
@@ -91,9 +91,9 @@ _VENDOR_SPAN_SUFFIXES = {
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT,
     SpanType.LLM_TOOL_RESPONSE_BRIDGE,
     SpanType.RESPONSE_COMPOSE,
-    SpanType.VALIDATION_PAYLOAD,
-    SpanType.VALIDATION_POLICY,
-    SpanType.AUGMENTATION,
+    SpanType.PAYLOAD_VALIDATION,
+    SpanType.POLICY_VALIDATION,
+    SpanType.AUGMENTATION_VALIDATION,
     SpanType.REQUEST_VALIDATION,
     SpanType.RESPONSE_VALIDATION,
 }
@@ -292,9 +292,9 @@ SPAN_KIND_MAP = {
     SpanType.RESPONSE_COMPOSE: SpanKind.INTERNAL,
     SpanType.RAG_RETRIEVE: SpanKind.INTERNAL,
     SpanType.A2A_CALL: SpanKind.CLIENT,
-    SpanType.VALIDATION_PAYLOAD: SpanKind.INTERNAL,
-    SpanType.VALIDATION_POLICY: SpanKind.INTERNAL,
-    SpanType.AUGMENTATION: SpanKind.INTERNAL,
+    SpanType.PAYLOAD_VALIDATION: SpanKind.INTERNAL,
+    SpanType.POLICY_VALIDATION: SpanKind.INTERNAL,
+    SpanType.AUGMENTATION_VALIDATION: SpanKind.INTERNAL,
     SpanType.REQUEST_VALIDATION: SpanKind.SERVER,
     SpanType.RESPONSE_VALIDATION: SpanKind.SERVER,
     SpanType.CP_REQUEST: SpanKind.SERVER,
@@ -314,9 +314,9 @@ _ERROR_TYPE_BY_SPAN_TYPE = {
     SpanType.RESPONSE_COMPOSE: "protocol_error",
     SpanType.RAG_RETRIEVE: "unavailable",
     SpanType.A2A_CALL: "unavailable",
-    SpanType.VALIDATION_PAYLOAD: "invalid_arguments",
-    SpanType.VALIDATION_POLICY: "invalid_arguments",
-    SpanType.AUGMENTATION: "unavailable",
+    SpanType.PAYLOAD_VALIDATION: "invalid_arguments",
+    SpanType.POLICY_VALIDATION: "invalid_arguments",
+    SpanType.AUGMENTATION_VALIDATION: "unavailable",
     SpanType.REQUEST_VALIDATION: "invalid_arguments",
     SpanType.RESPONSE_VALIDATION: "invalid_arguments",
     SpanType.CP_REQUEST: "invalid_arguments",
@@ -326,9 +326,9 @@ _ERROR_TYPE_BY_SPAN_TYPE = {
 _ERROR_CATEGORY_BY_SPAN_TYPE: dict[SpanType, str] = {
     # Control-plane validation
     SpanType.REQUEST_VALIDATION: "validation",
-    SpanType.VALIDATION_PAYLOAD: "validation",
-    SpanType.VALIDATION_POLICY: "policy",
-    SpanType.AUGMENTATION: "runtime",
+    SpanType.PAYLOAD_VALIDATION: "validation",
+    SpanType.POLICY_VALIDATION: "policy",
+    SpanType.AUGMENTATION_VALIDATION: "runtime",
     SpanType.RESPONSE_VALIDATION: "policy",
     # Data-plane orchestration and RAG/LLM/tooling
     SpanType.A2A_ORCHESTRATE: "runtime",
@@ -347,6 +347,9 @@ _ERROR_CATEGORY_BY_SPAN_TYPE: dict[SpanType, str] = {
 
 # Single source of truth: span type -> span.class value (prefix applied at runtime via config_attr).
 # All vendor-prefixed and control-plane spans that have a span class are listed here.
+# NOTE: These values are aligned with the Gentoro management-plane pipeline expectations
+# (see GentoroSpanDerivedStorageMapper in gentoro-enterprise), so control-plane validation
+# spans use payload.validation / policy.validation / augmentation.validation.
 SPAN_CLASS_BY_TYPE: dict[SpanType, str] = {
     SpanType.A2A_ORCHESTRATE: "a2a.orchestrate",
     SpanType.PLANNER: "planner",
@@ -359,9 +362,9 @@ SPAN_CLASS_BY_TYPE: dict[SpanType, str] = {
     SpanType.RESPONSE_COMPOSE: "response.compose",
     SpanType.REQUEST_VALIDATION: "request.validation",
     SpanType.RESPONSE_VALIDATION: "response.validation",
-    SpanType.VALIDATION_PAYLOAD: "validation.payload",
-    SpanType.VALIDATION_POLICY: "validation.policy",
-    SpanType.AUGMENTATION: "augmentation",
+    SpanType.PAYLOAD_VALIDATION: "payload.validation",
+    SpanType.POLICY_VALIDATION: "policy.validation",
+    SpanType.AUGMENTATION_VALIDATION: "augmentation.validation",
 }
 
 # Convention attributes per span type (step.outcome, response.format, etc.). No span.class here.
@@ -375,9 +378,9 @@ CONVENTION_ATTRIBUTES: dict[SpanType, dict[str, Any]] = {
     SpanType.MCP_TOOL_EXECUTE_ATTEMPT: {},
     SpanType.LLM_TOOL_RESPONSE_BRIDGE: {},
     SpanType.RESPONSE_COMPOSE: {},  # response.format, step.outcome from hierarchy attribute_overrides (loader)
-    SpanType.VALIDATION_PAYLOAD: {},
-    SpanType.VALIDATION_POLICY: {},
-    SpanType.AUGMENTATION: {},
+    SpanType.PAYLOAD_VALIDATION: {},
+    SpanType.POLICY_VALIDATION: {},
+    SpanType.AUGMENTATION_VALIDATION: {},
     SpanType.REQUEST_VALIDATION: {},
     SpanType.RESPONSE_VALIDATION: {},
 }
@@ -808,7 +811,21 @@ class TraceGenerator:
         overrides = config.attribute_overrides or {}
         component = _get_component_for_span_type(config.span_type)
         scenario_name = getattr(context, "scenario_name", None) if context else None
-        tracer = self._get_tracer(None if use_single_tracer else component, scenario_name)
+
+        # When generating a unified request trace (control-plane + data-plane in one logical trace),
+        # we still want data-plane spans to carry the correct resource.gentoro.module="data-plane"
+        # and component (orchestrator, llm, etc.) so downstream pipelines can distinguish modules
+        # purely from resource attributes (as in the Gentoro reference generator).
+        #
+        # To achieve this, we continue to use a dedicated TracerProvider per data-plane component
+        # even when use_single_tracer=True; providers share the same exporter, and context propagation
+        # keeps trace_id/span_id consistent across control-plane and data-plane spans.
+        if use_single_tracer and component is None:
+            tracer_component = None
+        else:
+            tracer_component = component
+
+        tracer = self._get_tracer(tracer_component, scenario_name)
         current_trace_id = ""
         current_span_id = ""
         span_attrs = self.span_builder.get_attributes(
@@ -860,9 +877,9 @@ class TraceGenerator:
                 SpanType.PLANNER,
                 SpanType.TASK_EXECUTE,
                 SpanType.RESPONSE_COMPOSE,
-                SpanType.VALIDATION_PAYLOAD,
-                SpanType.VALIDATION_POLICY,
-                SpanType.AUGMENTATION,
+                SpanType.PAYLOAD_VALIDATION,
+                SpanType.POLICY_VALIDATION,
+                SpanType.AUGMENTATION_VALIDATION,
             ):
                 span.set_attribute(config_attr("span.duration_ms"), latency_attr_ms)
 
@@ -882,15 +899,19 @@ class TraceGenerator:
             # LLM span: emit gen_ai.tool.request / gen_ai.tool.response events per Confluence/semconv when tool calls present.
             if config.span_type == SpanType.LLM_CALL:
                 tool_name = span_attrs.get("gen_ai.tool.name") or overrides.get("gen_ai.tool.name")
-                tool_call_id = span_attrs.get("gen_ai.tool.call.id") or overrides.get("gen_ai.tool.call.id")
-                tool_request_count = span_attrs.get(config_attr("llm.tool.request.count")) or overrides.get(
-                    config_attr("llm.tool.request.count")
+                tool_call_id = span_attrs.get("gen_ai.tool.call.id") or overrides.get(
+                    "gen_ai.tool.call.id"
                 )
+                tool_request_count = span_attrs.get(
+                    config_attr("llm.tool.request.count")
+                ) or overrides.get(config_attr("llm.tool.request.count"))
                 try:
                     n = int(tool_request_count) if tool_request_count is not None else 0
                 except (TypeError, ValueError):
                     n = 0
-                step_ok = (overrides.get(config_attr("step.outcome")) or "").strip().lower() == "success"
+                step_ok = (
+                    overrides.get(config_attr("step.outcome")) or ""
+                ).strip().lower() == "success"
                 if (n >= 1 or tool_name) and tool_name and tool_call_id:
                     span.add_event(
                         "gen_ai.tool.request",
@@ -1042,21 +1063,21 @@ class TraceGenerator:
                     exception_type=getattr(config, "exception_type", None),
                     exception_message=getattr(config, "exception_message", None),
                 )
-            elif config.span_type == SpanType.VALIDATION_PAYLOAD and getattr(
+            elif config.span_type == SpanType.PAYLOAD_VALIDATION and getattr(
                 config, "validation_errors", None
             ):
                 # Payload validation failed with one or more validation.error events (no exception event).
                 validation_errors = config.validation_errors or []
                 error_type = overrides.get(
                     config_attr("error.type")
-                ) or _ERROR_TYPE_BY_SPAN_TYPE.get(SpanType.VALIDATION_PAYLOAD, "invalid_arguments")
+                ) or _ERROR_TYPE_BY_SPAN_TYPE.get(SpanType.PAYLOAD_VALIDATION, "invalid_arguments")
                 if error_type not in SEMCONV_ERROR_TYPE_VALUES:
                     error_type = "invalid_arguments"
                 span.set_attribute("error.type", error_type)
-                if _ERROR_CATEGORY_BY_SPAN_TYPE.get(SpanType.VALIDATION_PAYLOAD):
+                if _ERROR_CATEGORY_BY_SPAN_TYPE.get(SpanType.PAYLOAD_VALIDATION):
                     span.set_attribute(
                         config_attr("error.category"),
-                        _ERROR_CATEGORY_BY_SPAN_TYPE[SpanType.VALIDATION_PAYLOAD],
+                        _ERROR_CATEGORY_BY_SPAN_TYPE[SpanType.PAYLOAD_VALIDATION],
                     )
                 span.set_status(Status(StatusCode.ERROR, "Validation failed"))
                 event_name = config_attr("validation.error")
@@ -1084,9 +1105,9 @@ class TraceGenerator:
                 cp_span_types = {
                     SpanType.REQUEST_VALIDATION,
                     SpanType.RESPONSE_VALIDATION,
-                    SpanType.VALIDATION_PAYLOAD,
-                    SpanType.VALIDATION_POLICY,
-                    SpanType.AUGMENTATION,
+                    SpanType.PAYLOAD_VALIDATION,
+                    SpanType.POLICY_VALIDATION,
+                    SpanType.AUGMENTATION_VALIDATION,
                 }
                 if config.span_type in cp_span_types:
                     pass
@@ -1099,14 +1120,14 @@ class TraceGenerator:
             if config.span_type == SpanType.TOOLS_RECOMMEND:
                 try:
                     user_input_text: str | None = None
-                    tool_name: str = ""
+                    selected_tool_name: str = ""
                     # Use the OTEL GenAI tool name when available for this logical recommendation.
                     try:
                         span_tool_name = span.attributes.get("gen_ai.tool.name")  # type: ignore[attr-defined]
                         if isinstance(span_tool_name, str):
-                            tool_name = span_tool_name
+                            selected_tool_name = span_tool_name
                     except Exception:
-                        tool_name = ""
+                        selected_tool_name = ""
 
                     # Prefer the actual gen_ai.input.messages attribute on the span, which the
                     # AttributeGenerator serializes as JSON, and fall back to context.llm_input_messages.
@@ -1144,7 +1165,7 @@ class TraceGenerator:
                     tool_plan_payload = {
                         "tool_plan": [
                             {
-                                "tool_name": tool_name or "unknown.tool",
+                                "tool_name": selected_tool_name or "unknown.tool",
                                 "trigger_summary": user_input_text or "",
                                 "trigger_quote": user_input_text or "",
                                 "missing_info": None,
@@ -1215,9 +1236,9 @@ class TraceGenerator:
                 SpanType.PLANNER,
                 SpanType.TASK_EXECUTE,
                 SpanType.RESPONSE_COMPOSE,
-                SpanType.VALIDATION_PAYLOAD,
-                SpanType.VALIDATION_POLICY,
-                SpanType.AUGMENTATION,
+                SpanType.PAYLOAD_VALIDATION,
+                SpanType.POLICY_VALIDATION,
+                SpanType.AUGMENTATION_VALIDATION,
             ):
                 span.set_attribute(config_attr("span.duration_ms"), actual_duration_ms)
             span.end(end_time=end_time_ns)

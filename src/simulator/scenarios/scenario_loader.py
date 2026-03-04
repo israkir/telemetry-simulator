@@ -750,9 +750,9 @@ _KEY_TO_SPAN_TYPE: dict[str, SpanType] = {
     "response_compose": SpanType.RESPONSE_COMPOSE,
     "request_validation": SpanType.REQUEST_VALIDATION,
     "response_validation": SpanType.RESPONSE_VALIDATION,
-    "validation_payload": SpanType.VALIDATION_PAYLOAD,
-    "validation_policy": SpanType.VALIDATION_POLICY,
-    "augmentation": SpanType.AUGMENTATION,
+    "validation_payload": SpanType.PAYLOAD_VALIDATION,
+    "validation_policy": SpanType.POLICY_VALIDATION,
+    "augmentation": SpanType.AUGMENTATION_VALIDATION,
 }
 
 _DEFAULT_MEAN_MS: dict[SpanType, float] = {
@@ -765,9 +765,9 @@ _DEFAULT_MEAN_MS: dict[SpanType, float] = {
     SpanType.RESPONSE_COMPOSE: 60.0,
     SpanType.REQUEST_VALIDATION: 40.0,
     SpanType.RESPONSE_VALIDATION: 40.0,
-    SpanType.VALIDATION_PAYLOAD: 20.0,
-    SpanType.VALIDATION_POLICY: 20.0,
-    SpanType.AUGMENTATION: 20.0,
+    SpanType.PAYLOAD_VALIDATION: 20.0,
+    SpanType.POLICY_VALIDATION: 20.0,
+    SpanType.AUGMENTATION_VALIDATION: 20.0,
 }
 
 _DEFAULT_VARIANCE = 0.2
@@ -1339,7 +1339,7 @@ def _apply_context_to_hierarchy(
     # Tool step names in workflow order. When actual_steps is set (e.g. partial_workflow / wrong-order),
     # use it so each MCP span gets the correct tool name for the step we actually emitted.
     flow_for_tools = (
-        FlowConfig(steps=context.actual_steps)
+        FlowConfig(steps=[str(s) for s in getattr(context, "actual_steps", [])])
         if getattr(context, "actual_steps", None)
         else context.correct_flow
     )
@@ -1463,9 +1463,9 @@ _SPAN_SUFFIXES = [
     ("a2a.call", SpanType.A2A_CALL),
     ("request.validation", SpanType.REQUEST_VALIDATION),
     ("response.validation", SpanType.RESPONSE_VALIDATION),
-    ("validation.payload", SpanType.VALIDATION_PAYLOAD),
-    ("validation.policy", SpanType.VALIDATION_POLICY),
-    ("augmentation", SpanType.AUGMENTATION),
+    ("payload.validation", SpanType.PAYLOAD_VALIDATION),
+    ("policy.validation", SpanType.POLICY_VALIDATION),
+    ("augmentation.validation", SpanType.AUGMENTATION_VALIDATION),
     ("cp.request", SpanType.CP_REQUEST),
 ]
 
@@ -1533,17 +1533,18 @@ class ScenarioLoader:
 
     def load(self, scenario_name: str) -> Scenario:
         """Load a scenario by name (from YAML or from control_plane.request_scenarios registry)."""
-        scenario_file = self.scenarios_dir / f"{scenario_name}.yaml"
-        if not scenario_file.exists():
+        scenario_path: Path | None = None
+        candidate = self.scenarios_dir / f"{scenario_name}.yaml"
+        if candidate.exists():
+            scenario_path = candidate
+        else:
             # Look in subdirectories (e.g. definitions/happy_path/).
             for path in sorted(self.scenarios_dir.rglob("*.yaml")):
                 if path.stem == scenario_name:
-                    scenario_file = path
+                    scenario_path = path
                     break
-            else:
-                scenario_file = None
-        if scenario_file is not None and scenario_file.exists():
-            with open(scenario_file, encoding="utf-8") as f:
+        if scenario_path is not None and scenario_path.exists():
+            with open(scenario_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
             return self._parse_scenario(data)
         if self._is_sample_definitions_dir():
