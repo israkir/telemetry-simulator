@@ -2,7 +2,8 @@
 .PHONY: run-validate list-scenarios
 .PHONY: jaeger-up jaeger-down
 # Python and venv paths
-PYTHON := python3
+# Prefer 'python' (user's default in PATH), fallback to 'python3'. Override with PYTHON=... if needed.
+PYTHON ?= $(shell command -v python >/dev/null 2>&1 && echo python || echo python3)
 VENV := venv
 VENV_BIN := $(VENV)/bin
 VENV_ACTIVATE := $(VENV_BIN)/activate
@@ -69,6 +70,7 @@ help:
 	@echo "  make clean-venv            - Remove virtual environment"
 	@echo ""
 	@echo "Environment variables:"
+	@echo "  PYTHON                     - Interpreter for 'make venv' (default: python if in PATH, else python3)"
 	@echo "  CLI_NAME                   - CLI program name (default: otelsim)"
 	@echo "  SEMCONV                    - Path to semantic-conventions YAML (default: resource/scenarios/conventions/semconv.yaml)"
 	@echo "  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)"
@@ -96,9 +98,9 @@ venv:
 		echo "To deactivate, run:"; \
 		echo "  deactivate"; \
 	else \
-		echo "Creating virtual environment..."; \
+		echo "Creating virtual environment with $$($(PYTHON) -c 'import sys; print(sys.version.split()[0])' 2>/dev/null || echo '$(PYTHON)')..."; \
 		$(PYTHON) -m venv $(VENV); \
-		echo "✓ Virtual environment created."; \
+		echo "✓ Virtual environment created (Python: $$($(VENV_BIN)/python --version 2>/dev/null))."; \
 		echo ""; \
 		echo "To activate, run:"; \
 		echo "  source $(VENV_ACTIVATE)"; \
