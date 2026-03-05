@@ -851,9 +851,7 @@ class TraceGenerator:
         if parent_context is not None:
             kwargs["context"] = parent_context
         # Use logical start time so root encompasses children and there is a minimal gap between spans for the waterfall.
-        start_time_ns = (
-            logical_start_ns if logical_start_ns is not None else time.time_ns()
-        )
+        start_time_ns = logical_start_ns if logical_start_ns is not None else time.time_ns()
         kwargs["start_time"] = start_time_ns
         # end_on_exit=False so we can call span.end(end_time=...) once; avoids "Calling end() on an ended span" warning.
         with tracer.start_as_current_span(span_name, **kwargs, end_on_exit=False) as span:

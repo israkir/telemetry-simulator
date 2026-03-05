@@ -31,7 +31,6 @@ src/simulator/
 ### Prerequisites
 
 - Python 3.11+
-- **Schema path**: Set `SEMCONV` or pass `--semconv` (before or after the subcommand, e.g. `otelsim scenario --vendor=your_vendor --name foo --semconv /path/to/conventions.yaml`).
 - OpenTelemetry Collector running (port 4318) or use `--output-file` to export to file
 - **Tenant ID** is read from `resource/config/config.yaml` (`tenants`; scenarios reference `context.tenant` by key, e.g. `toro`); no env vars required for tenants.
 
@@ -40,17 +39,18 @@ src/simulator/
 ```bash
 # From the project root
 make venv
-make install
+source venv/bin/activate
+make install-dev
 ```
 
 ### Run Mixed Workload
 
 ```bash
-# Run mixed workload (uses simulator defaults for count/interval)
-otelsim run --vendor=your_vendor --semconv /path/to/semconv.yaml
+# Run mixed workload (runs until Ctrl+C; default interval 500ms)
+otelsim run --vendor=your_vendor
 
-# Quick run
-otelsim run --vendor=your_vendor --count 100 --interval 50
+# Run a limited number of traces
+otelsim run --vendor=your_vendor --count 100 --interval 500
 ```
 
 ### Run Specific Scenarios
@@ -123,7 +123,7 @@ For **YAML structure**, **adding new scenarios**, and **tags/workflow/mcp_retry*
 ## CLI Reference
 
 ```bash
-# Run mixed workload (all scenarios)
+# Run mixed workload (all scenarios); use --count to limit, omit to run until Ctrl+C
 otelsim run --vendor=your_vendor --count 100 --interval 500
 
 # Run only scenarios with a given tag (e.g. control-plane or data-plane)
@@ -171,7 +171,7 @@ All spans/metrics/logs are emitted with resource attributes per the OTEL resourc
 |--------|---------|-------------|
 | `--endpoint` | `http://localhost:4318` | OTLP HTTP endpoint |
 | `--semconv` | *(optional)* | Path to your semantic-conventions YAML (default: resource/scenarios/conventions/semconv.yaml; or set `SEMCONV`) |
-| `--count` | `100` | Number of traces |
+| `--count` | None | Number of traces (omit to run until Ctrl+C) |
 | `--interval` | `500` | Interval in ms |
 | `--output-file` | None | Export to file instead of OTLP |
 | `--no-metrics` | False | Disable metric generation |
