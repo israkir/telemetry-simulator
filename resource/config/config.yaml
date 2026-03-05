@@ -478,11 +478,11 @@ control_plane:
         step.outcome: pass
         validation.result: valid
       policy:
-        step.outcome: block
+        step.outcome: fail
         policy.engine: dlp
         policy.decision: block
       augmentation:
-        step.outcome: skip
+        step.outcome: pass
         augment.conversation_id.action: missing
         augment.request_id.action: missing
         augment.target_agent_id.action: missing
@@ -539,7 +539,7 @@ control_plane:
         step.outcome: fail
         augment.conversation_id.action: missing
         augment.request_id.action: missing
-        augment.target_agent_id.action: missing
+        augment.target_agent_id.action: not_found
       error_rate:
         root: 0
         payload: 0
@@ -564,7 +564,7 @@ control_plane:
         block.reason: not_found
         augment.conversation_id.action: propagated
         augment.request_id.action: created
-        augment.target_agent_id.action: missing
+        augment.target_agent_id.action: not_found
         exception:
           type: AugmentationBindError
           message: augmentation_failed
