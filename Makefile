@@ -26,6 +26,15 @@ check-venv:
 		echo "  make install"; \
 		exit 1; \
 	fi
+	@$(VENV_PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" || { \
+		echo "❌ Error: This project requires Python >=3.11. The venv at $(VENV)/ was created with an older Python."; \
+		echo ""; \
+		echo "Recreate the venv with a supported Python, e.g.:"; \
+		echo "  make clean-venv"; \
+		echo "  PYTHON=python3.14 make venv"; \
+		echo "  make install-dev"; \
+		exit 1; \
+	}
 	@if [ -z "$$VIRTUAL_ENV" ]; then \
 		echo "⚠️  Warning: Virtual environment is not activated in your shell."; \
 		echo "   Commands will still use the venv's Python, but consider activating it:"; \
@@ -105,18 +114,18 @@ venv-force: clean-venv venv
 # Install package
 install: check-venv
 	@echo "📦 Installing simulator..."
-	$(VENV_PIP) install -e .
+	$(VENV_PYTHON) -m pip install -e .
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "Run with CLI: $(CLI_NAME) run --semconv /path/to/semconv.yaml"
+	@echo "Run with CLI: $(CLI_NAME) run --vendor=your_vendor --count 100 --interval 200"
 
 # Install with development dependencies
 install-dev: check-venv
 	@echo "📦 Installing simulator with dev dependencies..."
-	$(VENV_PIP) install -e ".[dev]"
+	$(VENV_PYTHON) -m pip install -e ".[dev]"
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "Run with CLI: $(CLI_NAME) run --semconv /path/to/semconv.yaml"
+	@echo "Run with CLI: $(CLI_NAME) run --vendor=your_vendor --count 100 --interval 200"
 
 # =============================================================================
 # SIMULATOR COMMANDS
