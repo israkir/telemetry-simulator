@@ -80,6 +80,9 @@ class SpanType(Enum):
     CP_REQUEST = "cp.request"
 
 
+# Minimum gap between span end and next span start (ns) so the waterfall view shows clearly.
+_MIN_SPAN_GAP_NS = 15 * 1_000_000  # 15 ms
+
 # Span types that use vendor prefix for emitted name; others use enum value as-is.
 _VENDOR_SPAN_SUFFIXES = {
     SpanType.A2A_ORCHESTRATE,
@@ -504,7 +507,7 @@ class SpanBuilder:
         allow_spike = profile != "happy_path" or config.latency_mean_ms >= 2000.0
         if allow_spike and random.random() < 0.05:
             latency *= random.uniform(2.0, 4.0)
-        return max(10.0, latency)
+        return max(15.0, latency)
 
     def should_error(self, config: SpanConfig) -> bool:
         """Determine if span should have error status."""
@@ -755,20 +758,26 @@ class TraceGenerator:
         when the backend receives child spans before their parent (e.g. response_validation before
         a2a.orchestrate) due to multiple providers flushing in different batches.
         """
-        trace_id, span_id_req, _, _ = self._generate_span_recursive(
+        trace_id, span_id_req, end_incoming_ns, _ = self._generate_span_recursive(
             incoming_hierarchy, context, None, None, use_single_tracer=True
         )
         ctx_after_request = _context_from_trace_and_span(trace_id, span_id_req)
-        _, span_id_orchestrate, _, _ = self._generate_span_recursive(
-            data_plane_hierarchy, context, None, ctx_after_request, use_single_tracer=True
+        _, span_id_orchestrate, end_orchestrate_ns, _ = self._generate_span_recursive(
+            data_plane_hierarchy,
+            context,
+            None,
+            ctx_after_request,
+            use_single_tracer=True,
+            logical_start_ns=end_incoming_ns + _MIN_SPAN_GAP_NS,
         )
-        # Small delay so response_validation root start_time is clearly after data_plane last span
-        # end_time. Avoids Jaeger "clock skew adjustment disabled; not applying calculated delta"
-        # when the backend sees response_validation timestamps as slightly before parent end.
-        time.sleep(0.05)
         ctx_after_orchestrate = _context_from_trace_and_span(trace_id, span_id_orchestrate)
         self._generate_span_recursive(
-            outgoing_hierarchy, context, None, ctx_after_orchestrate, use_single_tracer=True
+            outgoing_hierarchy,
+            context,
+            None,
+            ctx_after_orchestrate,
+            use_single_tracer=True,
+            logical_start_ns=end_orchestrate_ns + _MIN_SPAN_GAP_NS,
         )
         return trace_id
 
@@ -780,12 +789,14 @@ class TraceGenerator:
         parent_context: Any | None = None,
         compose_accumulated_failure: str | None = None,
         use_single_tracer: bool = False,
+        logical_start_ns: int | None = None,
     ) -> tuple[str, str, int, float]:
         """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns, tool_latency_ms).
         end_time_ns is the span's logical end timestamp so parents can ensure end >= last child end.
         tool_latency_ms is the gentoro.tool.latency_ms value for this span (non-zero only for MCP tool execute/attempt).
         compose_accumulated_failure: when set, response.compose accumulates this error (step.outcome=fail, status, exception).
         use_single_tracer: when True, use the default tracer for all spans so they export in one batch (avoids parent-not-in-trace).
+        logical_start_ns: when set, use as span start time (epoch ns) so gaps and parent-encompassing children are preserved in the waterfall.
         """
         config = hierarchy.root_config
         # When at A2A root, detect if any child (including response_compose) is configured to fail;
@@ -839,9 +850,13 @@ class TraceGenerator:
         }
         if parent_context is not None:
             kwargs["context"] = parent_context
+        # Use logical start time so root encompasses children and there is a minimal gap between spans for the waterfall.
+        start_time_ns = (
+            logical_start_ns if logical_start_ns is not None else time.time_ns()
+        )
+        kwargs["start_time"] = start_time_ns
         # end_on_exit=False so we can call span.end(end_time=...) once; avoids "Calling end() on an ended span" warning.
         with tracer.start_as_current_span(span_name, **kwargs, end_on_exit=False) as span:
-            start_time_ns = time.time_ns()
             current_trace_id = format(span.get_span_context().trace_id, "032x")
             current_span_id = format(span.get_span_context().span_id, "016x")
             # When using a single tracer (unified trace), resource has no per-span component; set as span attribute for filtering.
@@ -1184,9 +1199,10 @@ class TraceGenerator:
                     # Events are best-effort; failures here must not break trace generation.
                     pass
 
-            # Generate children and collect their logical end times so parent end >= last child end.
+            # Generate children with minimal gap between spans; collect end times so parent end encompasses all children.
             last_child_end_ns = start_time_ns
             child_tool_latencies: list[float] = []
+            next_child_start_ns = start_time_ns + _MIN_SPAN_GAP_NS
             for child_hierarchy in hierarchy.children:
                 _, _, child_end_ns, child_tool_latency_ms = self._generate_span_recursive(
                     child_hierarchy,
@@ -1195,9 +1211,11 @@ class TraceGenerator:
                     None,
                     compose_accumulated_failure=child_compose_failure,
                     use_single_tracer=use_single_tracer,
+                    logical_start_ns=next_child_start_ns,
                 )
                 last_child_end_ns = max(last_child_end_ns, child_end_ns)
                 child_tool_latencies.append(child_tool_latency_ms)
+                next_child_start_ns = child_end_ns + _MIN_SPAN_GAP_NS
 
             # MCP_TOOL_EXECUTE parent: set tool.latency_ms to sum of attempt latencies (not the 10ms floor).
             if config.span_type == SpanType.MCP_TOOL_EXECUTE and child_tool_latencies:
