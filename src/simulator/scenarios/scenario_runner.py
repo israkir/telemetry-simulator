@@ -297,6 +297,7 @@ class ScenarioRunner:
                 self._emit_logs_for_hierarchy(incoming_h, context)
                 self._emit_logs_for_hierarchy(hierarchies[0], context)
                 self._emit_logs_for_hierarchy(outgoing_h, context)
+            self.trace_generator.force_flush()
             return iteration_trace_ids, all_span_names
 
         if "incoming_validation" in trace_flow:
@@ -308,6 +309,7 @@ class ScenarioRunner:
                 self._emit_metrics_for_hierarchy(incoming_h, context)
             if scenario.emit_logs and self.log_generator:
                 self._emit_logs_for_hierarchy(incoming_h, context)
+            self.trace_generator.force_flush()
 
         if has_data_plane and "data_plane" in trace_flow:
             for h in hierarchies:
@@ -318,6 +320,7 @@ class ScenarioRunner:
                     self._emit_metrics_for_hierarchy(h, context)
                 if scenario.emit_logs and self.log_generator:
                     self._emit_logs_for_hierarchy(h, context)
+                self.trace_generator.force_flush()
 
         if has_data_plane and "response_validation" in trace_flow:
             outgoing_h = self._response_validation_hierarchy(scenario)
@@ -328,6 +331,7 @@ class ScenarioRunner:
                 self._emit_metrics_for_hierarchy(outgoing_h, context)
             if scenario.emit_logs and self.log_generator:
                 self._emit_logs_for_hierarchy(outgoing_h, context)
+            self.trace_generator.force_flush()
         elif not has_data_plane:
             for h in hierarchies:
                 tid = self.trace_generator.generate_trace(h, context)
@@ -337,6 +341,7 @@ class ScenarioRunner:
                     self._emit_metrics_for_hierarchy(h, context)
                 if scenario.emit_logs and self.log_generator:
                     self._emit_logs_for_hierarchy(h, context)
+                self.trace_generator.force_flush()
 
         return iteration_trace_ids, all_span_names
 

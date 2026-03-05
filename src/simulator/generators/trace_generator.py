@@ -1265,6 +1265,21 @@ class TraceGenerator:
 
         return current_trace_id, current_span_id, end_time_ns, tool_latency_ms_return
 
+    def force_flush(self, timeout_millis: int = 5000) -> bool:
+        """Flush all tracer providers so the current batch is exported immediately.
+
+        Call after generating a control-plane-only trace so all spans of that trace
+        are sent in one OTLP export (one Kafka message when using an OTLP collector).
+        """
+        ok = True
+        for prov in self._providers:
+            try:
+                if not prov.force_flush(timeout_millis):
+                    ok = False
+            except Exception:
+                ok = False
+        return ok
+
     def shutdown(self):
         """Shutdown all tracer providers. Flush all before any shutdown so OTLP
         receives every batch (control-plane and data-plane) when using multiple providers.
