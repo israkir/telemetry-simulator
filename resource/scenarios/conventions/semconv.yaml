@@ -2130,8 +2130,8 @@ cp_request_attributes:
     type: string
     required: false
     category: first_class
-    description: "Augmentation action for target agent ID."
-    allowed_values: ["created", "propagated", "attached", "missing"]
+    description: "Augmentation action for target agent ID. Use not_found when target agent was not located (pipeline maps to DEPENDENCY_NOT_FOUND)."
+    allowed_values: ["created", "propagated", "attached", "missing", "not_found"]
 
   # Event attributes for gentoro.validation.error (payload validation failure; one event per issue)
   gentoro.validation.error.path:

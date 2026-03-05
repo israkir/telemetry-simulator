@@ -1,11 +1,13 @@
 # Augmentation fails (exception) → blocked (invalid_context). Augmentation span status=ERROR with exception.
 # Template: config control_plane.request_validation_templates.blocked_invalid_context_augment_exception.
+# Pipeline: gentoro.augment.target_agent_id.action=not_found → DEPENDENCY_NOT_FOUND (Resource Not Located).
 
 name: request_blocked_invalid_context_augment_exception
 description: >
   Control-plane request blocked due to augmentation failure; root has gentoro.request.outcome=blocked,
   gentoro.block.reason=invalid_context; augmentation span has gentoro.step.outcome=fail,
-  optional gentoro.block.reason=not_found, and exception event (AugmentationBindError, augmentation_failed).
+  gentoro.augment.target_agent_id.action=not_found (pipeline-compatible), optional gentoro.block.reason=not_found,
+  and exception event (AugmentationBindError, augmentation_failed).
 
 tags:
   - control-plane
@@ -20,6 +22,7 @@ emit_metrics: false
 emit_logs: false
 redaction_applied: none
 
+# For Gentoro pipeline: run with VENDOR=gentoro so attributes are gentoro.* (pipeline expects gentoro.augment.target_agent_id.action=not_found).
 # Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
 control_plane:
   template: blocked_invalid_context_augment_exception
