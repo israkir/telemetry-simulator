@@ -1,8 +1,6 @@
 .PHONY: help venv venv-force check-venv install install-dev clean clean-venv format lint typecheck check test
 .PHONY: run-validate list-scenarios
 .PHONY: jaeger-up jaeger-down
-.PHONY: build-binary build-binary-arm64 build-binary-amd64
-
 # Python and venv paths
 PYTHON := python3
 VENV := venv
@@ -50,12 +48,6 @@ help:
 	@echo "  make run-validate          - Validate schema and show summary"
 	@echo "  make list-scenarios        - List available scenarios"
 	@echo ""
-	@echo "Binary builds (PyInstaller):"
-	@echo "  make build-binary          - Build otelsim binary; ARCH=arm64 (default, host build) or ARCH=amd64 (container Linux build)"
-	@echo "  make build-binary-arm64    - Explicit arm64 build for current host (dist/otelsim-linux-arm64)"
-	@echo "  make build-binary-amd64    - Explicit Linux amd64 build in container (dist/otelsim-linux-amd64)"
-	@echo "                               amd64 build requires Docker/Podman with linux/amd64 support; slower, installs deps in container."
-	@echo ""
 	@echo "Code quality and tests:"
 	@echo "  make test                  - Run tests (pytest)"
 	@echo "  make format                - Format code with black"
@@ -73,7 +65,6 @@ help:
 	@echo "  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)"
 	@echo "  VENDOR                     - Attribute prefix for spans/metrics (default: vendor)"
 	@echo "  SCENARIOS_DIR              - Folder with scenario YAML files (default: built-in sample definitions)"
-	@echo "  ARCH                       - Binary arch for build-binary (arm64 [default] or amd64)"
 	@echo ""
 	@echo "Live trace visualization (Docker or Podman):"
 	@echo "  make jaeger-up             - Start Jaeger (OTLP + UI) for live traces"
@@ -258,30 +249,3 @@ clean-venv:
 clean-all: clean clean-venv
 	@echo "✅ All cleanup complete"
 
-# =============================================================================
-# BINARY BUILD (PyInstaller)
-# =============================================================================
-
-# Build single-file otelsim binary using PyInstaller and wrapper entrypoint.
-build-binary: check-venv
-	$(VENV_BIN)/pyinstaller -F -n otelsim-linux-arm64 scripts/otelsim_entry.py
-	@echo "✅ Built dist/otelsim-linux-arm64 (architecture = current host)"
-
-# Build Linux amd64 single-file otelsim binary inside a container.
-# Uses python:3.11-slim, installs this package and pyinstaller in the container only.
-build-binary-linux-amd64:
-	@if [ -z "$(CONTAINER_CMD)" ]; then \
-		echo "✗ Error: Neither podman nor docker found. Cannot build linux/amd64 binary."; \
-		exit 1; \
-	fi
-	$(CONTAINER_CMD) run --rm \
-		--platform=linux/amd64 \
-		-v "$(CURDIR)":/workspace \
-		-w /workspace \
-		python:3.11-slim bash -lc "\
-			python -m venv /tmp/venv && \
-			/tmp/venv/bin/pip install --upgrade pip && \
-			/tmp/venv/bin/pip install . pyinstaller && \
-			/tmp/venv/bin/pyinstaller -F -n otelsim-linux-amd64 scripts/otelsim_entry.py \
-		"
-	@echo "✅ Built dist/otelsim-linux-amd64 (target = linux/amd64)"
