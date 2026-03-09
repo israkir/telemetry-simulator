@@ -75,6 +75,7 @@ help:
 	@echo "  SEMCONV                    - Path to semantic-conventions YAML (default: resource/scenarios/conventions/semconv.yaml)"
 	@echo "  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)"
 	@echo "  VENDOR                     - Attribute prefix for spans/metrics (default: vendor)"
+	@echo "  TELEMETRY_SIMULATOR_TENANT_ID - Override default tenant id (otherwise first tenant from resource/config/config.yaml is used)"
 	@echo "  SCENARIOS_DIR              - Folder with scenario YAML files (default: built-in sample definitions)"
 	@echo ""
 	@echo "Live trace visualization (Docker or Podman):"

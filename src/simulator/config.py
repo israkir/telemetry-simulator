@@ -163,9 +163,18 @@ def resource_schema_url() -> str:
 
 def get_default_tenant_id(config_path: Path | None = None) -> str:
     """
-    Return the first tenant id from config (tenants map).
+    Return the default tenant id.
+
+    Resolution order:
+    1. TELEMETRY_SIMULATOR_TENANT_ID env var (when set and non-empty)
+    2. First tenant id from config (tenants map).
+
     Used by defaults and config_resolver; avoids circular imports.
     """
+    override = os.environ.get("TELEMETRY_SIMULATOR_TENANT_ID", "").strip()
+    if override:
+        return override
+
     path = config_path or _CONFIG_PATH
     data = load_yaml(path)
     if not isinstance(data, dict):

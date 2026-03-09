@@ -9,6 +9,7 @@ Returns plain dicts/lists so that scenario_loader can build ScenarioContext
 without circular imports.
 """
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,13 @@ def _load_config(config_path: Path | None = None) -> dict[str, Any]:
 
 
 def _get_tenant_uuid(tenants: dict[str, Any], tenant_key: str) -> str:
+    # Optional global override: when TELEMETRY_SIMULATOR_TENANT_ID is set,
+    # use it for all tenants regardless of key. This allows CLI to override
+    # the UUID while keeping config as the default source of truth.
+    override = os.environ.get("TELEMETRY_SIMULATOR_TENANT_ID", "").strip()
+    if override:
+        return override
+
     key = (tenant_key or "").strip().lower()
     if not key:
         raise ConfigResolutionError("context.tenant is required")
