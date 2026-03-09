@@ -32,7 +32,7 @@ src/simulator/
 
 - Python 3.11+
 - OpenTelemetry Collector running (port 4318) or use `--output-file` to export to file
-- **Tenant ID** is read from `resource/config/config.yaml` (`tenants`; scenarios reference `context.tenant` by key, e.g. `toro`); no env vars required for tenants.
+- **Tenant ID** defaults to the first tenant in `resource/config/config.yaml` (`tenants`; scenarios reference `context.tenant` by key, e.g. `toro`). You can override the default tenant id for a given run via `--tenant-id` (or `TELEMETRY_SIMULATOR_TENANT_ID`).
 
 ### Setup
 
@@ -49,8 +49,8 @@ make install-dev
 # Run mixed workload (runs until Ctrl+C; default interval 500ms)
 otelsim run --vendor=your_vendor
 
-# Run a limited number of traces
-otelsim run --vendor=your_vendor --count 100 --interval 500
+# Run a limited number of traces for a specific tenant id (overrides default from config.yaml)
+otelsim run --vendor=your_vendor --tenant-id "your-tenant-uuid" --count 100 --interval 50
 ```
 
 ### Run Specific Scenarios
@@ -68,7 +68,7 @@ otelsim scenario --vendor=your_vendor --name new_claim_phone
 otelsim scenario --vendor=your_vendor --name my_scenario --scenarios-dir /path/to/my/definitions --semconv /path/to/semconv.yaml
 ```
 
-**Note:** Tenant IDs come from `resource/config/config.yaml` (`tenants`; scenario sets `context.tenant` by key, e.g. `toro`). Use `otelsim run --vendor=your_vendor` for a mixed workload (varied trace patterns); use `otelsim scenario --vendor=your_vendor --name <name>` for a single reproducible pattern.
+**Note:** By default, tenant IDs come from `resource/config/config.yaml` (`tenants`; scenario sets `context.tenant` by key, e.g. `toro`). You can override the default tenant id for a given run using `--tenant-id` (or `TELEMETRY_SIMULATOR_TENANT_ID`). Use `otelsim run --vendor=your_vendor` for a mixed workload (varied trace patterns); use `otelsim scenario --vendor=your_vendor --name <name>` for a single reproducible pattern.
 
 ### Live trace visualization
 
@@ -126,6 +126,9 @@ For **YAML structure**, **adding new scenarios**, and **tags/workflow/mcp_retry*
 # Run mixed workload (all scenarios); use --count to limit, omit to run until Ctrl+C
 otelsim run --vendor=your_vendor --count 100 --interval 500
 
+# Run mixed workload for a specific tenant id (override default from config.yaml)
+otelsim run --vendor=your_vendor --tenant-id "your-tenant-uuid" --count 100 --interval 500
+
 # Run only scenarios with a given tag (e.g. control-plane or data-plane)
 otelsim run --vendor=your_vendor --count 50 --tags=control-plane
 otelsim run --vendor=your_vendor --count 50 --tags=data-plane,multi-turn
@@ -158,6 +161,7 @@ otelsim run --vendor=your_vendor --count 5 --show-full-spans
 | `VENDOR` | `vendor` | Vendor prefix for span names and attributes (e.g. `vendor` → `vendor.a2a.orchestrate`, `vendor.session.id`). Set to your vendor name (e.g. `acme`) so no specific vendor is hardcoded. |
 | `TELEMETRY_SIMULATOR_VENDOR_NAME` | *(capitalized prefix)* | Display name used in validation messages. |
 | `SEMCONV` | *(optional)* | Full path to your semantic-conventions YAML. Default: `resource/scenarios/conventions/semconv.yaml` (or pass `--semconv`). |
+| `TELEMETRY_SIMULATOR_TENANT_ID` | *(first tenant.id from config.yaml)* | Optional override for the default tenant id. When set, this value is used instead of the first tenant id from `resource/config/config.yaml` (equivalent to passing `--tenant-id`). |
 
 Resource attributes (`service.name`, `service.version`, `service.instance.id`, `deployment.environment.name`, `{prefix}.module`, `{prefix}.component`, `{prefix}.otel.source`) and resource `schemaUrl` are read from `resource/config/resource.yaml`. Configure them there; env vars are not used for these.
 
@@ -261,7 +265,7 @@ make check
 
 ## Pipeline Integration
 
-The simulator can run **as a container** (with your own Docker setup) or **locally** (with venv). Tenant IDs are taken from `resource/config/config.yaml`; use `--show-full-spans` to log full span content.
+The simulator can run **as a container** (with your own Docker setup) or **locally** (with venv). By default, tenant IDs are taken from `resource/config/config.yaml`; you can override the default tenant id per run with `--tenant-id` or globally with `TELEMETRY_SIMULATOR_TENANT_ID`. Use `--show-full-spans` to log full span content.
 
 ### Local run (venv)
 

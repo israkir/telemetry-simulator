@@ -139,6 +139,16 @@ Examples:
     )
 
     parser.add_argument(
+        "--tenant-id",
+        type=str,
+        default=None,
+        help=(
+            "Override the default tenant id used for telemetry. "
+            "When omitted, the first tenant id from resource/config/config.yaml is used."
+        ),
+    )
+
+    parser.add_argument(
         "--service-name",
         type=str,
         default="otelsim",
@@ -152,6 +162,7 @@ Examples:
     run_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     run_parser.add_argument("--service-name", type=str, help=argparse.SUPPRESS)
     run_parser.add_argument("--vendor", type=str, help=argparse.SUPPRESS)
+    run_parser.add_argument("--tenant-id", dest="tenant_id", type=str, help=argparse.SUPPRESS)
     run_parser.add_argument(
         "--count",
         type=int,
@@ -220,6 +231,7 @@ Examples:
     scenario_parser.add_argument("--semconv", dest="semconv", type=str, help=argparse.SUPPRESS)
     scenario_parser.add_argument("--service-name", type=str, help=argparse.SUPPRESS)
     scenario_parser.add_argument("--vendor", type=str, help=argparse.SUPPRESS)
+    scenario_parser.add_argument("--tenant-id", dest="tenant_id", type=str, help=argparse.SUPPRESS)
     scenario_parser.add_argument(
         "--name",
         type=str,
@@ -627,6 +639,14 @@ def main():
             # VENDOR_NAME: use explicit env override when set; otherwise capitalize prefix.
             custom_name = os.environ.get("TELEMETRY_SIMULATOR_VENDOR_NAME", "").strip()
             sim_config.VENDOR_NAME = custom_name or v.capitalize()
+
+    # Optional tenant override: CLI flag wins over env. This controls the tenant.id
+    # used for default tenant resolution (config.get_default_tenant_id and config_resolver).
+    tenant_id = getattr(args, "tenant_id", None)
+    if tenant_id:
+        t = tenant_id.strip()
+        if t:
+            os.environ["TELEMETRY_SIMULATOR_TENANT_ID"] = t
 
     # Subparsers that accept global options can leave endpoint/service_name unset when
     # options are given only after the subcommand; normalize so commands always get defaults.
