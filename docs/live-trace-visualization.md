@@ -23,7 +23,7 @@ View generated traces in a browser using Jaeger while the simulator runs on your
    otelsim run --vendor=your_vendor --semconv /path/to/semconv.yaml
    ```
 
-3. **Open the Jaeger UI**: [http://localhost:16686](http://localhost:16686)
+3. **Open the Jaeger UI**: [http://localhost:16686/search](http://localhost:16686/search)
 
    - Select service **otelsim**
    - Click **Find Traces** to see generated traces

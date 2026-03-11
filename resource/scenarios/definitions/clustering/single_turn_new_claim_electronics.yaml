@@ -1,0 +1,44 @@
+name: single_turn_new_claim_electronics
+description: >
+  Single-turn chained tool flow for Home electronics division: planner → LLM task →
+  tool recommendation → new_claim → get_available_slots → update_appointment →
+  response_compose, all in one trace.
+
+tags:
+  - data-plane
+  - happy-path
+  - electronics
+
+workload_weight: 2.5
+
+mcp_server: electronics
+repeat_count: 3
+interval_ms: 100
+interval_deviation_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: single_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: electronics
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+
+conversation:
+  samples:
+    - user_input: "I want to make a claim for my TV, it won’t turn on. Can you schedule the Tuesday 10am slot?"
+      llm_response: "I’ve opened a claim for your TV that won’t turn on. Your claim ID is EV-2291. I’ve checked availability and Tuesday at 10am is free, so I’ve scheduled your repair then. You’ll receive a confirmation with the visit details."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+
