@@ -169,6 +169,9 @@ class ScenarioContext:
     mcp_retry_attempts: list[dict[str, Any]] | None = None
     # Tool call arguments (OTEL gen_ai.tool.call.arguments) keyed by tool name; from config.
     tool_call_arguments: dict[str, Any] | None = None
+    # Optional: synthetic tool call results keyed by tool name; used for gen_ai.tool.call.result
+    # when present so scenarios can define domain-shaped tool payloads.
+    tool_call_results: dict[str, Any] | None = None
 
 
 def _parse_and_resolve_context(
@@ -240,6 +243,10 @@ def _parse_and_resolve_context(
     if isinstance(scenario_tool_args, dict) and scenario_tool_args:
         base = resolved.get("tool_call_arguments") or {}
         resolved["tool_call_arguments"] = {**base, **scenario_tool_args}
+    # Optional: scenario-defined tool_call_results, keyed by tool name, for gen_ai.tool.call.result.
+    scenario_tool_results = data.get("tool_call_results")
+    if isinstance(scenario_tool_results, dict) and scenario_tool_results:
+        resolved["tool_call_results"] = dict(scenario_tool_results)
     agents: list[AgentRef] = []
     for a in resolved.get("agents") or []:
         if not isinstance(a, dict):
@@ -274,6 +281,7 @@ def _parse_and_resolve_context(
         redaction_applied=resolved.get("redaction_applied", "none"),
         actual_steps=resolved.get("actual_steps"),
         tool_call_arguments=resolved.get("tool_call_arguments") or None,
+        tool_call_results=resolved.get("tool_call_results") or None,
     )
 
 
@@ -375,6 +383,7 @@ def _apply_data_plane_from_scenario(
         actual_steps=context.actual_steps,
         mcp_retry_attempts=mcp_retry_attempts,
         tool_call_arguments=context.tool_call_arguments,
+        tool_call_results=context.tool_call_results,
     )
     return updated, goal, cp_template
 
@@ -642,6 +651,9 @@ class Scenario:
     conversation_samples: list[dict[str, str]] | None = None
     # When True and conversation_samples is set, use sample at (iteration_index % len(samples)) so each run cycles through all samples.
     cycle_conversation_samples: bool = False
+    # Optional: internal LLM interaction templates for this scenario (planner/summarizer, etc.).
+    # Each item: {role: planner|summarizer|..., system_prompt: str, user_prompt_template: str}.
+    llm_interactions: list[dict[str, Any]] | None = None
     # Redaction level for {prefix}.redaction.applied (none, basic, strict). From scenario YAML or context; default none.
     redaction_applied: str = "none"
     # Overrides for scenario goal modifier (step_index_for_4xx, wrong_division_target, exception_type, exception_message, skip_steps, actual_steps).
@@ -1037,9 +1049,15 @@ def _hierarchy_from_context(
                 config_attr("step.outcome"): "success",
                 config_attr("task.type"): "llm_call",
             }
+            # LLM call spans do not perform tool execution; they represent pure model
+            # inference. Do not set any gen_ai.tool.* attributes here so tool calls are
+            # modeled only on gentoro.tools.recommend and gentoro.mcp.tool.execute spans.
             llm_overrides: dict[str, Any] = {config_attr("step.outcome"): "success"}
-            if primary_tool_name:
-                llm_overrides["gen_ai.tool.name"] = primary_tool_name
+            # Number of tools the model is expected to call for this workflow, derived
+            # directly from the scenario/template tool step list.
+            tool_request_count = len(tool_step_names)
+            if tool_request_count > 0:
+                llm_overrides[config_attr("llm.tool.request.count")] = tool_request_count
             llm_call_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.LLM_CALL,
@@ -1352,15 +1370,17 @@ def _apply_context_to_hierarchy(
         tools_by_index[0] if tools_by_index else None
     )
     resolved_primary_tool_name = first_tool.name if first_tool else ""
+    # MCP tool execution index within this LLM interaction (1..N). Used for
+    # gentoro.llm.tool.execution.count on gentoro.mcp.tool.execute spans.
     mcp_index = [0]
 
     def walk(h: TraceHierarchy) -> None:
         cfg = h.root_config
         if cfg.span_type == SpanType.LLM_CALL:
-            if resolved_primary_tool_name:
-                overrides = dict(cfg.attribute_overrides or {})
-                overrides["gen_ai.tool.name"] = resolved_primary_tool_name
-                cfg.attribute_overrides = overrides
+            # LLM call spans carry only model-call semantics (gen_ai.* for the model
+            # invocation itself). Tool-related attributes and identifiers are emitted on
+            # gentoro.tools.recommend / gentoro.mcp.tool.execute spans instead.
+            pass
         elif cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
             if id_generator:
                 call_id = id_generator.mcp_tool_call_id(tenant_id=context.tenant_uuid)
@@ -1370,6 +1390,8 @@ def _apply_context_to_hierarchy(
             overrides[config_attr("mcp.server.uuid")] = server_uuid
             overrides[config_attr("mcp.tool.call.id")] = call_id
             idx = mcp_index[0]
+            # Execution index of this logical tool call within the LLM interaction (1..N).
+            overrides[config_attr("llm.tool.execution.count")] = idx + 1
             # Resolve tool by workflow step name so each MCP span gets the correct server/tool UUID (e.g. update_appointment vs new_claim).
             step_name = tool_step_names[idx] if idx < len(tool_step_names) else None
             tool = (tools_by_name.get(step_name) if step_name else None) or (
@@ -1701,6 +1723,20 @@ class ScenarioLoader:
         conversation_samples: list[dict[str, str]] | None = None
         conv_raw = data.get("conversation")
         if isinstance(conv_raw, dict):
+            # New schema: external single-turn conversation (external user input and final agent response).
+            external_raw = conv_raw.get("external")
+            if isinstance(external_raw, dict):
+                ui = external_raw.get("user_input")
+                ar = external_raw.get("agent_response")
+                if isinstance(ui, str) and isinstance(ar, str):
+                    sample_dict: dict[str, str] = {"user_input": ui, "llm_response": ar}
+                    ui_red = external_raw.get("user_input_redacted")
+                    ar_red = external_raw.get("agent_response_redacted")
+                    if isinstance(ui_red, str) and isinstance(ar_red, str):
+                        sample_dict["user_input_redacted"] = ui_red
+                        sample_dict["llm_response_redacted"] = ar_red
+                    conversation_samples = [sample_dict]
+
             turns_raw = conv_raw.get("turns")
             if isinstance(turns_raw, list):
                 turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = []
@@ -1813,6 +1849,19 @@ class ScenarioLoader:
         control_plane_template: str | None = None
         control_plane_policy_exception_override: dict[str, str] | None = None
         control_plane_augmentation_exception_override: dict[str, str] | None = None
+        # Internal LLM interactions (planner/summarizer) from data_plane.llm_interactions, if present.
+        llm_interactions: list[dict[str, Any]] | None = None
+        dp_raw = data.get("data_plane")
+        if isinstance(dp_raw, dict):
+            li_raw = dp_raw.get("llm_interactions")
+            if isinstance(li_raw, list):
+                parsed_li: list[dict[str, Any]] = []
+                for item in li_raw:
+                    if isinstance(item, dict):
+                        parsed_li.append(dict(item))
+                if parsed_li:
+                    llm_interactions = parsed_li
+
         cp_raw = data.get("control_plane")
         if isinstance(cp_raw, dict):
             outcome = cp_raw.get("request_outcome")
@@ -1876,22 +1925,19 @@ class ScenarioLoader:
         else:
             tags = []
 
-        # Expected MCP server and tools: defined in scenario; config only maps keys → UUIDs.
+        # Expected MCP server and tools
+        ctx = data.get("context") or {}
         expected_mcp_server: str | None = None
         expected_tools: list[str] | None = None
-        expected_raw = data.get("expected")
-        if isinstance(expected_raw, dict):
-            em = expected_raw.get("mcp_server")
-            expected_mcp_server = (
-                em.strip() if isinstance(em, str) and em.strip() else None
-            ) or None
-            tools_raw = expected_raw.get("tools")
+        if isinstance(ctx, dict):
+            em = ctx.get("mcp_server")
+            if isinstance(em, str) and em.strip():
+                expected_mcp_server = em.strip()
+            tools_raw = ctx.get("tools")
             if isinstance(tools_raw, list):
                 expected_tools = [
                     str(t).strip() for t in tools_raw if t is not None and str(t).strip()
                 ]
-            elif isinstance(tools_raw, str) and tools_raw.strip():
-                expected_tools = [tools_raw.strip()]
 
         return Scenario(
             name=data.get("name", "unnamed"),
@@ -1900,7 +1946,8 @@ class ScenarioLoader:
             tenant_distribution=tenant_dist,
             repeat_count=data.get("repeat_count", 1),
             interval_ms=data.get("interval_ms", 500),
-            interval_deviation_ms=float(data.get("interval_deviation_ms", 0)),
+            # Default jitter of 50ms around the base interval when not specified.
+            interval_deviation_ms=float(data.get("interval_deviation_ms", 50)),
             workload_weight=workload_weight,
             root_step=root_step,
             emit_metrics=data.get("emit_metrics", True),
@@ -1919,6 +1966,7 @@ class ScenarioLoader:
             conversation_turn_pairs_redacted=conversation_turn_pairs_redacted,
             conversation_samples=conversation_samples,
             cycle_conversation_samples=cycle_conversation_samples,
+            llm_interactions=llm_interactions,
             redaction_applied=redaction_applied or "none",
             scenario_overrides=scenario_overrides_parsed or None,
             control_plane_request_outcome=control_plane_request_outcome,

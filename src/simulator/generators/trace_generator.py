@@ -868,6 +868,47 @@ class TraceGenerator:
             if config.span_type == SpanType.MCP_TOOL_EXECUTE_ATTEMPT:
                 span.set_attribute(config_attr("tool.latency_ms"), latency_attr_ms)
                 tool_latency_ms_return = float(latency_attr_ms)
+                # OpenTelemetry GenAI: gen_ai.tool.call.result on successful tool attempts.
+                # We emit a bounded JSON object derived from call arguments plus a simple status.
+                try:
+                    attempt_outcome = span.attributes.get(
+                        config_attr("mcp.attempt.outcome")
+                    )  # type: ignore[attr-defined]
+                    if isinstance(attempt_outcome, str) and attempt_outcome.strip().lower() == "success":
+                        tool_name_attr = span.attributes.get(
+                            "gen_ai.tool.name"
+                        )  # type: ignore[attr-defined]
+                        tool_name = (
+                            tool_name_attr.strip()
+                            if isinstance(tool_name_attr, str) and tool_name_attr.strip()
+                            else "unknown.tool"
+                        )
+                        # Prefer scenario-defined tool_call_results when available. Try exact match,
+                        # then last path segment (e.g. "new_claim" from "phone.new_claim"), then
+                        # fall back to the single entry when only one result is defined.
+                        ctx_tool_results = getattr(context, "tool_call_results", None)
+                        result_obj: dict[str, Any] | None = None
+                        if isinstance(ctx_tool_results, dict) and ctx_tool_results:
+                            val = ctx_tool_results.get(tool_name)
+                            if not isinstance(val, dict):
+                                simple_key = tool_name.split(".")[-1]
+                                val = ctx_tool_results.get(simple_key)
+                            if not isinstance(val, dict) and len(ctx_tool_results) == 1:
+                                only_val = next(iter(ctx_tool_results.values()))
+                                if isinstance(only_val, dict):
+                                    val = only_val
+                            if isinstance(val, dict):
+                                result_obj = val
+                        # Only emit gen_ai.tool.call.result when scenario-defined results are available;
+                        # do not synthesize a fallback payload from call arguments.
+                        if result_obj is not None:
+                            result_json = json.dumps(result_obj)
+                            if len(result_json) > 512:
+                                result_json = result_json[:509] + "..."
+                            span.set_attribute("gen_ai.tool.call.result", result_json)
+                except Exception:
+                    # Best-effort only; failures here must not break trace generation.
+                    pass
             elif config.span_type == SpanType.MCP_TOOL_EXECUTE:
                 pass  # parent: set tool.latency_ms after children
             elif config.span_type == SpanType.A2A_ORCHESTRATE:
@@ -905,43 +946,37 @@ class TraceGenerator:
                 ]:
                     span.set_attribute(config_attr("cp.outgoing_trace_id"), current_trace_id)
 
+            # End-user or upstream agent raw request: emit as a control-plane event on incoming validation root.
+            if config.span_type == SpanType.REQUEST_VALIDATION:
+                raw_req = getattr(context, "raw_request", None)
+                raw_req_red = getattr(context, "raw_request_redacted", None)
+                if raw_req or raw_req_red:
+                    event_attrs: dict[str, Any] = {}
+                    if raw_req:
+                        event_attrs[config_attr("enduser.request.raw")] = raw_req
+                    if raw_req_red:
+                        event_attrs[config_attr("enduser.request.raw.redacted")] = raw_req_red
+                    span.add_event("gentoro.enduser.request", event_attrs)
+
+            # Agent / A2A final response: emit as a control-plane event on outgoing response validation root.
+            if config.span_type == SpanType.RESPONSE_VALIDATION:
+                final_resp = getattr(context, "final_response", None)
+                final_resp_red = getattr(context, "final_response_redacted", None)
+                if final_resp or final_resp_red:
+                    event_attrs: dict[str, Any] = {}
+                    if final_resp:
+                        event_attrs[config_attr("agent.response.raw")] = final_resp
+                    if final_resp_red:
+                        event_attrs[config_attr("agent.response.raw.redacted")] = final_resp_red
+                    span.add_event("gentoro.agent.response", event_attrs)
+
             # Capture higher_latency_condition on a2a.orchestrate only (same span as orchestration.duration_ms).
             if config.span_type == SpanType.A2A_ORCHESTRATE:
                 _set_higher_latency_condition_attributes(span, context, config_attr)
 
-            # LLM span: emit gen_ai.tool.request / gen_ai.tool.response events per Confluence/semconv when tool calls present.
-            if config.span_type == SpanType.LLM_CALL:
-                tool_name = span_attrs.get("gen_ai.tool.name") or overrides.get("gen_ai.tool.name")
-                tool_call_id = span_attrs.get("gen_ai.tool.call.id") or overrides.get(
-                    "gen_ai.tool.call.id"
-                )
-                tool_request_count = span_attrs.get(
-                    config_attr("llm.tool.request.count")
-                ) or overrides.get(config_attr("llm.tool.request.count"))
-                try:
-                    n = int(tool_request_count) if tool_request_count is not None else 0
-                except (TypeError, ValueError):
-                    n = 0
-                step_ok = (
-                    overrides.get(config_attr("step.outcome")) or ""
-                ).strip().lower() == "success"
-                if (n >= 1 or tool_name) and tool_name and tool_call_id:
-                    span.add_event(
-                        "gen_ai.tool.request",
-                        {
-                            "gen_ai.tool.name": str(tool_name),
-                            "gen_ai.tool.call.id": str(tool_call_id),
-                        },
-                    )
-                    span.add_event(
-                        "gen_ai.tool.response",
-                        {
-                            "gen_ai.tool.name": str(tool_name),
-                            "gen_ai.tool.call.id": str(tool_call_id),
-                            "gen_ai.tool.success": step_ok,
-                        },
-                    )
-
+            # LLM span: no direct tool execution at this layer; gen_ai.* on this span only reflects the model call itself
+            # (system instructions, input/output messages, usage, etc.). Tool recommendation and execution are captured on
+            # gentoro.tools.recommend and gentoro.mcp.tool.execute spans respectively.
             is_error = self.span_builder.should_error(config)
             tool_result = overrides.get(config_attr("tool.status.result"))
             # When overrides set step.outcome=success or mcp.attempt.outcome=success, do not mark span as error.
@@ -1129,10 +1164,12 @@ class TraceGenerator:
                     span.set_status(Status(StatusCode.OK))
 
             # Diagnostic event: {prefix}.agent.tool_selection on tools.recommend spans.
-            # Captures the raw user input and a bounded JSON tool_plan structure.
+            # Captures combined system+user input and a bounded JSON tool_plan structure.
             if config.span_type == SpanType.TOOLS_RECOMMEND:
                 try:
                     user_input_text: str | None = None
+                    system_text: str | None = None
+                    combined_input_text: str | None = None
                     selected_tool_name: str = ""
                     # Use the OTEL GenAI tool name when available for this logical recommendation.
                     try:
@@ -1158,25 +1195,57 @@ class TraceGenerator:
 
                     msgs = messages_source
                     if isinstance(msgs, list) and msgs:
-                        first = msgs[0]
-                        if isinstance(first, dict):
-                            for block in first.get("content") or []:
+                        # Prefer explicit system+user messages when present (new scenario template).
+                        for msg in msgs:
+                            if not isinstance(msg, dict):
+                                continue
+                            role = msg.get("role")
+                            content = msg.get("content") or []
+                            for block in content:
                                 if isinstance(block, dict) and block.get("type") == "text":
                                     text_val = block.get("text")
-                                    if isinstance(text_val, str) and text_val.strip():
-                                        user_input_text = text_val.strip()
-                                        break
-                            # Fallbacks for simpler GenAI message shapes (no content[] wrapper).
-                            if user_input_text is None:
+                                    if not isinstance(text_val, str) or not text_val.strip():
+                                        continue
+                                    text_val = text_val.strip()
+                                    if role == "system" and system_text is None:
+                                        system_text = text_val
+                                    elif role == "user" and user_input_text is None:
+                                        user_input_text = text_val
+                        # Fallbacks for simpler GenAI message shapes (no content[] wrapper).
+                        if user_input_text is None:
+                            first = msgs[0]
+                            if isinstance(first, dict):
                                 direct_text = first.get("text")
                                 if isinstance(direct_text, str) and direct_text.strip():
                                     user_input_text = direct_text.strip()
-                            if user_input_text is None:
-                                msg_field = first.get("message")
-                                if isinstance(msg_field, str) and msg_field.strip():
-                                    user_input_text = msg_field.strip()
-                    tool_plan_payload = {
-                        "tool_plan": [
+                                if user_input_text is None:
+                                    msg_field = first.get("message")
+                                    if isinstance(msg_field, str) and msg_field.strip():
+                                        user_input_text = msg_field.strip()
+
+                    if system_text and user_input_text:
+                        combined_input_text = f"{system_text}\n\n{user_input_text}"
+                    elif user_input_text:
+                        combined_input_text = user_input_text
+                    elif system_text:
+                        combined_input_text = system_text
+
+                    # Build tool_plan entries for all recommended tools in the chain when available.
+                    tool_plan_entries: list[dict[str, Any]] = []
+                    context_tool_args = getattr(context, "tool_call_arguments", None)
+                    if isinstance(context_tool_args, dict) and context_tool_args:
+                        for tool_name in context_tool_args.keys():
+                            tool_plan_entries.append(
+                                {
+                                    "tool_name": str(tool_name) or selected_tool_name or "unknown.tool",
+                                    "trigger_summary": user_input_text or "",
+                                    "trigger_quote": user_input_text or "",
+                                    "missing_info": None,
+                                    "confidence": round(random.uniform(0.8, 0.95), 3),
+                                }
+                            )
+                    else:
+                        tool_plan_entries.append(
                             {
                                 "tool_name": selected_tool_name or "unknown.tool",
                                 "trigger_summary": user_input_text or "",
@@ -1184,10 +1253,13 @@ class TraceGenerator:
                                 "missing_info": None,
                                 "confidence": round(random.uniform(0.8, 0.95), 3),
                             }
-                        ]
-                    }
+                        )
+
+                    tool_plan_payload = {"tool_plan": tool_plan_entries}
                     event_attrs = {
-                        config_attr("agent.tool_selection.input.raw"): user_input_text or "",
+                        config_attr("agent.tool_selection.input.raw"): combined_input_text
+                        or user_input_text
+                        or "",
                         config_attr("agent.tool_selection.tool.plan"): json.dumps(
                             tool_plan_payload
                         ),

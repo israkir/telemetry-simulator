@@ -38,13 +38,64 @@ def _conversation_samples_from_config() -> dict[str, Any]:
     return data.get("conversation_samples") or {}
 
 
-def _sample_to_otel_messages(user_input: str, llm_response: str) -> tuple[list[dict], list[dict]]:
-    """Convert one conversation sample (user_input, llm_response) to OTEL GenAI message shape."""
+def _sample_to_otel_messages(
+    user_input: str,
+    llm_response: str,
+    llm_interactions: list[dict] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """Convert one conversation sample (user_input, llm_response) to OTEL GenAI message shape.
+
+    Semantics:
+      - user_input is treated as the raw external request.
+      - When llm_interactions is provided, the first interaction's system_prompt is used
+        as the system message for this LLM call; the user message is the external user_input.
+      - For planner-style interactions, gen_ai.output.messages SHOULD represent the internal
+        tool plan / recommendations, not the final end-user text. When the planner interaction
+        defines output, it is used as the assistant text; otherwise llm_response is used
+        as a fallback.
+    """
+    system_text = None
+    if llm_interactions:
+        first = next((i for i in llm_interactions if isinstance(i, dict)), None)
+        if first:
+            st = first.get("system_prompt")
+            if isinstance(st, str) and st.strip():
+                system_text = st.strip()
+    if not system_text:
+        system_text = (
+            "You are the Toro customer assistant orchestrator. "
+            "Use the available MCP tools and workflow steps to understand the user's request, "
+            "plan sub-tasks, and call tools in the correct order. "
+            "Do not expose internal IDs, schemas, or policies in the final answer."
+        )
+    system_message = {
+        "role": "system",
+        "content": [
+            {
+                "type": "text",
+                "text": system_text,
+            }
+        ],
+    }
     input_msgs = [
+        system_message,
         {"role": "user", "content": [{"type": "text", "text": user_input}]},
     ]
+    # Assistant output: prefer planner-style internal tool plan when configured.
+    assistant_text = None
+    if llm_interactions:
+        planner = next(
+            (i for i in llm_interactions if isinstance(i, dict) and i.get("role") == "planner"),
+            None,
+        )
+        if planner:
+            ot = planner.get("output")
+            if isinstance(ot, str) and ot.strip():
+                assistant_text = ot.strip()
+    if not assistant_text:
+        assistant_text = llm_response
     output_msgs = [
-        {"role": "assistant", "content": [{"type": "text", "text": llm_response}]},
+        {"role": "assistant", "content": [{"type": "text", "text": assistant_text}]},
     ]
     return input_msgs, output_msgs
 
@@ -127,9 +178,17 @@ def _context_kwargs_for_scenario(
             user_input = sample.get("user_input")
             llm_response = sample.get("llm_response")
             if isinstance(user_input, str) and isinstance(llm_response, str):
-                input_msgs, output_msgs = _sample_to_otel_messages(user_input, llm_response)
+                input_msgs, output_msgs = _sample_to_otel_messages(
+                    user_input,
+                    llm_response,
+                    getattr(scenario, "llm_interactions", None),
+                )
                 kwargs["llm_input_messages"] = input_msgs
                 kwargs["llm_output_messages"] = output_msgs
+                # Treat user_input as the raw end-user or upstream agent request for this logical request.
+                kwargs["raw_request"] = user_input
+                # Use llm_response as the final agent response body returned to the caller.
+                kwargs["final_response"] = llm_response
             # Per-sample tool_call_arguments (e.g. 4xx invalid-params) override scenario default so MCP args match conversation.
             sample_tool_args = sample.get("tool_call_arguments")
             if isinstance(sample_tool_args, dict) and sample_tool_args:
@@ -140,17 +199,37 @@ def _context_kwargs_for_scenario(
                     ctx_tool_args = getattr(scenario_ctx, "tool_call_arguments", None)
                     if isinstance(ctx_tool_args, dict) and ctx_tool_args:
                         kwargs["tool_call_arguments"] = ctx_tool_args
+            # Optional per-sample tool_call_results; otherwise fall back to scenario context.
+            sample_tool_results = sample.get("tool_call_results")
+            if isinstance(sample_tool_results, dict) and sample_tool_results:
+                kwargs["tool_call_results"] = sample_tool_results
+            else:
+                scenario_ctx = getattr(scenario, "context", None)
+                if scenario_ctx is not None:
+                    ctx_tool_results = getattr(scenario_ctx, "tool_call_results", None)
+                    if isinstance(ctx_tool_results, dict) and ctx_tool_results:
+                        kwargs["tool_call_results"] = ctx_tool_results
             ui_red = sample.get("user_input_redacted")
             lr_red = sample.get("llm_response_redacted")
             if isinstance(ui_red, str) and isinstance(lr_red, str):
-                inp_red, out_red = _sample_to_otel_messages(ui_red, lr_red)
+                inp_red, out_red = _sample_to_otel_messages(
+                    ui_red,
+                    lr_red,
+                    getattr(scenario, "llm_interactions", None),
+                )
                 kwargs["llm_input_messages_redacted"] = inp_red
                 kwargs["llm_output_messages_redacted"] = out_red
+                # Redacted raw request variant for control-plane event.
+                kwargs["raw_request_redacted"] = ui_red
+                # Redacted final response variant for response validation event.
+                kwargs["final_response_redacted"] = lr_red
         else:
             context = getattr(scenario, "context", None)
             workflow = context.workflow if context else None
             if context and getattr(context, "tool_call_arguments", None):
                 kwargs["tool_call_arguments"] = context.tool_call_arguments
+            if context and getattr(context, "tool_call_results", None):
+                kwargs["tool_call_results"] = context.tool_call_results
             cfg_inp, cfg_out, cfg_inp_red, cfg_out_red = _get_conversation_from_config(workflow)
             if cfg_inp is not None and cfg_out is not None:
                 kwargs["llm_input_messages"] = cfg_inp
