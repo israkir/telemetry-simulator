@@ -13,12 +13,7 @@ tags:
   - electronics
 
 workload_weight: 1.0
-
-mcp_server: electronics
-repeat_count: 3
 interval_ms: 80
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -29,21 +24,50 @@ data_plane:
   higher_latency_condition:
     zip_code: "10001"
 
-expected:
-  mcp_server: electronics
-  tools:
-    - update_appointment
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to reschedule a TV or electronics repair appointment and produce a
+        tool plan that calls the "update_appointment" MCP tool on server
+        "electronics" with the claim ID, new slot, and reschedule reason. This
+        scenario represents higher latency when scheduling in certain zip
+        codes, such as 10001.
+      output: >
+        PLAN:
+          1) Call MCP tool "update_appointment" on server "electronics" with
+             arguments from the external request (claim_id, new slot,
+             reason=reschedule_by_customer).
+          2) Return a confirmation including the new appointment window and
+             reference.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the update_appointment tool call into a clear
+        final response for the end user, including the new appointment time
+        and any reference they should keep.
 
 conversation:
-  samples:
-    - user_input: "I need to reschedule my TV repair. Claim EV-2291."
-      llm_response: "For claim EV-2291, next week I have Mon 9am, Wed 2pm, Fri 11am. Which do you want?"
-    - user_input: "Reschedule my laptop repair—claim EV-4400."
-      llm_response: "For EV-4400 I have Tue 10am, Thu 3pm. Which slot?"
-    - user_input: "Can you move my electronics appointment to the following week?"
-      llm_response: "I've rescheduled your technician visit to Tuesday 10am–2pm next week. You'll get a confirmation by email."
+  external:
+    user_input: "I need to reschedule my TV repair for claim EV-2291 to a different slot."
+    agent_response: "I’ve rescheduled your TV repair for claim EV-2291 to the next available slot and updated your appointment. Your new visit is confirmed, and I’ve sent you an updated confirmation message."
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - update_appointment
+  tool_call_arguments:
+    update_appointment:
+      claim_id: "EV-2291"
+      slot: "2025-03-15T10:00:00Z"
+      reason: "reschedule_by_customer"
+  tool_call_results:
+    update_appointment:
+      claim_id: "EV-2291"
+      appointment:
+        start: "2025-03-15T10:00:00Z"
+        end: "2025-03-15T14:00:00Z"
+        status: "booked"
+      confirmation_id: "EV-2291-APT-2"
+      reason: "reschedule_by_customer"

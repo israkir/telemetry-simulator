@@ -15,8 +15,6 @@ tags:
 workload_weight: 2.5
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:

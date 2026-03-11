@@ -19,7 +19,7 @@ tags:
   - cancel-claim
 
 # Wrong-division routing is a rare but visible failure mode.
-workload_weight: 0.5
+workload_weight: 1.0
 interval_ms: 100
 redaction_applied: none
 
@@ -28,6 +28,24 @@ data_plane:
   goal: wrong_division
   latency_profile: happy_path
   control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. User wants to cancel their
+        phone claim. In this failure scenario the agent incorrectly routes
+        to electronics MCP; trace modifier swaps cancel_claim to electronics.
+      output: >
+        PLAN:
+          1) Choose a division based on the ambiguous request and call MCP
+             tool "cancel_claim" on the selected server with claim_id and
+             reason. In this scenario the selected division is electronics
+             instead of phone.
+          2) Attempt to return a confirmation that the claim has been
+             cancelled, but the wrong division can result in a backend error.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome. When wrong division occurs the response may
+        still say "claim cancelled" or reflect a division error.
 
 scenario_overrides:
   wrong_division_target: electronics
@@ -35,29 +53,25 @@ scenario_overrides:
   exception_type: "WrongDivisionError"
   exception_message: "Claim not found in this division; cancellation context is for another division."
 
-# Expected (correct) division and tool; emitted trace will show electronics due to modifier.
-expected:
-  mcp_server: phone
-  tools:
-    - cancel_claim
-
-# Ambiguous inputs: "cancel" could be claim or product, and division unspecified.
-conversation:
-  samples:
-    - user_input: "I want to cancel my claim."
-      llm_response: "I've cancelled the claim. You'll get a confirmation email shortly."
-    - user_input: "Cancel it please."
-      llm_response: "Done. The claim has been cancelled. Anything else?"
-    - user_input: "Can you cancel that for me?"
-      llm_response: "Cancelled. Confirmation will be sent to your email."
-    - user_input: "I don't need it anymore, cancel."
-      llm_response: "I've cancelled it. You won't receive further updates."
-    - user_input: "Stop the claim."
-      llm_response: "Claim has been cancelled. If you had an appointment, it's been released."
-
+# Ambiguous input: "cancel" could be claim or product, division unspecified; agent routes to electronics.
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - cancel_claim
   tool_call_arguments:
-    cancel_claim: { claim_id: "clm_abc123", reason: "customer_requested" }
+    cancel_claim:
+      claim_id: "PH-8842"
+      reason: "customer_requested"
+  tool_call_results:
+    cancel_claim:
+      claim_id: "PH-8842"
+      status: "failed"
+      error_type: "WrongDivisionError"
+      error_message: "Claim not found in this division; cancellation context is for another division."
+
+conversation:
+  external:
+    user_input: "I want to cancel my claim."
+    agent_response: "I’ve tried to cancel your claim, but I can’t find it in this part of our system. I’m not able to complete the cancellation here, so please check you’re in the right account or contact support to finish cancelling the claim."

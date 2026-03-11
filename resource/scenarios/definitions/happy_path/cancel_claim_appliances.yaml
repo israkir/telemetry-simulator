@@ -15,8 +15,6 @@ tags:
 workload_weight: 2.0
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -60,24 +58,6 @@ context:
       reason: "customer_requested"
 
 conversation:
-  samples:
-    - user_input: "Cancel my dishwasher claim HA-7733."
-      llm_response: "I've cancelled claim HA-7733. You'll get a confirmation email shortly."
-      user_input_redacted: "Cancel my dishwasher claim HA-7733."
-      llm_response_redacted: "I've cancelled claim <CLAIM_ID>. You'll get a confirmation email shortly."
-    - user_input: "I don't need the fridge repair anymore. Please cancel claim HA-5521."
-      llm_response: "Claim HA-5521 has been cancelled, including any scheduled appointment. We've sent a confirmation."
-      user_input_redacted: "I don't need the fridge repair anymore. Please cancel claim HA-5521."
-      llm_response_redacted: "Claim <CLAIM_ID> has been cancelled, including any scheduled appointment. We've sent a confirmation."
-    - user_input: "Can you cancel my washing machine claim HA-4412? I've fixed it myself."
-      llm_response: "I've cancelled claim HA-4412. You won't receive any further updates for this claim."
-      user_input_redacted: "Can you cancel my washing machine claim HA-4412? I've fixed it myself."
-      llm_response_redacted: "I've cancelled claim <CLAIM_ID>. You won't receive any further updates for this claim."
-    - user_input: "Stop the claim for my dryer — HA-2298."
-      llm_response: "Claim HA-2298 has been cancelled. If you had an appointment scheduled, it's been released."
-      user_input_redacted: "Stop the claim for my dryer — HA-2298."
-      llm_response_redacted: "Claim <CLAIM_ID> has been cancelled. If you had an appointment scheduled, it's been released."
-    - user_input: "I want to cancel my oven repair claim. The number is HA-6614."
-      llm_response: "I've cancelled claim HA-6614. You'll get a confirmation email. Anything else?"
-      user_input_redacted: "I want to cancel my oven repair claim. The number is HA-6614."
-      llm_response_redacted: "I've cancelled claim <CLAIM_ID>. You'll get a confirmation email. Anything else?"
+  external:
+    user_input: "I don't need the repair anymore — please cancel my dishwasher claim HA-7733."
+    agent_response: "I've cancelled your dishwasher claim HA-7733 at your request. The claim is now marked as cancelled, and any associated appointments have been released. You'll receive a confirmation email shortly."

@@ -21,13 +21,8 @@ tags:
   - wrong-order
   - new-claim
 
-workload_weight: 0.45
-
-mcp_server: phone
-repeat_count: 2
+workload_weight: 1.0
 interval_ms: 100
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -35,6 +30,22 @@ data_plane:
   goal: partial_workflow
   latency_profile: happy_path
   control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to start a phone claim. In this failure scenario the agent has no
+        context about sequence and calls update_appointment before new_claim.
+      output: >
+        PLAN:
+          1) Call MCP tool "update_appointment" first, then call "new_claim"
+             using details from the external request and session.
+          2) Return a confirmation including the new claim ID and appointment
+             details in a single response.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the tool calls. The response may reference
+        both an appointment check and a new claim in the wrong order.
 
 # Hierarchy built with update_appointment before new_claim so first MCP span is wrong tool.
 scenario_overrides:
@@ -48,22 +59,41 @@ scenario_overrides:
   exception_type: "WrongToolOrderError"
   exception_message: "First tool called was not the first in expected sequence; no context about workflow order."
 
-# Expected (correct) flow has only new_claim; emitted trace shows update_appointment then new_claim.
-expected:
-  mcp_server: phone
-  tools:
-    - new_claim
-
-conversation:
-  samples:
-    - user_input: "I need to start a claim for my phone."
-      llm_response: "I've checked your appointments and started a new claim (PH-8842). You can update the appointment in the next step."
-    - user_input: "My phone is damaged, I want to make a claim."
-      llm_response: "I looked up your existing appointment and created claim PH-7721. Would you like to reschedule?"
-    - user_input: "Start a claim for my cracked screen."
-      llm_response: "I've updated the appointment slot and opened claim PH-6601. Next available: Wednesday 9am or Friday 2pm."
-
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - new_claim
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Screen cracked after a drop down the stairs"
+      incident_date: "2025-03-10"
+    update_appointment:
+      claim_id: "PH-8842"
+      slot: "2025-03-12T09:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-8842"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for cracked phone screen (called after update_appointment in wrong order)."
+    update_appointment:
+      claim_id: "PH-8842"
+      appointment:
+        start: "2025-03-12T09:00:00Z"
+        end: "2025-03-12T11:00:00Z"
+        status: "booked"
+      confirmation_id: "PH-8842-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  external:
+    user_input: "I need to start a claim for my phone — the screen is cracked."
+    agent_response: "I've checked your appointments and started a new claim (PH-8842). You can update the appointment in the next step if needed."
