@@ -1,0 +1,47 @@
+name: outlier_generic_policy_appliances
+description: >
+  Outlier: user asks for a washing machine repair visit, but the assistant
+  responds with generic policy information only. No MCP tools are invoked —
+  conversation-only response with no claim, ID, or appointment.
+
+tags:
+  - data-plane
+  - outlier
+  - clustering
+  - agent-confusion
+
+workload_weight: 1.2
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tools: []
+  tool_call_arguments: {}
+  tool_call_results: {}
+
+conversation:
+  external:
+    user_input: "My washing machine is making a loud banging noise. Can you get someone to look at it?"
+    agent_response: "For appliance issues, our policy generally covers mechanical breakdown, accidental damage, and call-out fees subject to your policy limits and excess. You can read your full terms in the policy documents in your account. Is there anything else I can help you with?"
+
+data_plane:
+  workflow: new_claim
+  goal: outlier_no_tools
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        about a noisy washing machine and decide whether to use tools or to
+        respond with general policy information only.
+      output: >
+        PLAN:
+          1) Respond with general policy coverage information.
+          2) Do not call any MCP tools.
+    - role: summarizer
+      system_prompt: >
+        Provide a generic policy summary to the user, without creating a
+        claim or offering repair appointments.

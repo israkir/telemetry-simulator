@@ -1,0 +1,95 @@
+name: multi_turn_new_claim_phone_water_damage
+description: >
+  Multi-turn phone claim variant: phone fell in water and won't turn on.
+  User initially undecided on slot, then picks one. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 2.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Phone fell in water and will not turn on"
+      incident_date: "2025-03-09"
+    get_available_slots:
+      claim_id: "PH-7744"
+      from_date: "2025-03-12"
+      to_date: "2025-03-20"
+    update_appointment:
+      claim_id: "PH-7744"
+      slot: "2025-03-12T15:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-7744"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_water_damage"
+        deductible: 75
+      notes: "Claim created for phone water damage — device will not power on."
+    get_available_slots:
+      claim_id: "PH-7744"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-11T11:00:00Z"
+          end: "2025-03-11T13:00:00Z"
+          status: "available"
+        - start: "2025-03-12T15:00:00Z"
+          end: "2025-03-12T17:00:00Z"
+          status: "available"
+        - start: "2025-03-14T09:30:00Z"
+          end: "2025-03-14T11:30:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "PH-7744"
+      appointment:
+        start: "2025-03-12T15:00:00Z"
+        end: "2025-03-12T17:00:00Z"
+        status: "booked"
+      confirmation_id: "PH-7744-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "My phone fell in water and won't turn on. Please start a claim."
+      agent_response: "I've opened a claim for your phone and recorded that it stopped working after water damage. Your claim ID is PH-7744. I can offer repair slots on Tuesday 11:00, Wednesday 15:00, or Friday 9:30. Would you like me to book one of these now, or do you want to wait and decide later?"
+    - user_input: "Let's do Wednesday at 3."
+      agent_response: "No problem — I've scheduled your repair for Wednesday at 15:00 under claim PH-7744. You'll get a confirmation shortly."
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a water-damaged phone and produce a tool plan for starting a claim,
+        presenting available repair slots, and booking the slot the user
+        selects.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "phone" with product_type=phone and a
+             description of the water damage.
+          2) Call "get_available_slots" to retrieve candidate repair slots.
+          3) Call "update_appointment" with the slot the user chooses.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

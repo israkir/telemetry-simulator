@@ -1,0 +1,56 @@
+name: outlier_checks_status_only_electronics
+description: >
+  Outlier: user asks to make a new TV claim but the assistant only checks the
+  status of an existing claim. Tool chain is claim_status only — no new_claim,
+  get_available_slots, or update_appointment.
+
+tags:
+  - data-plane
+  - outlier
+  - clustering
+  - agent-confusion
+
+workload_weight: 1.2
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tools:
+    - claim_status
+  tool_call_arguments:
+    claim_status:
+      claim_id: "EV-2291"
+  tool_call_results:
+    claim_status:
+      claim_id: "EV-2291"
+      status: "completed"
+      last_updated: "2025-03-05T14:00:00Z"
+      next_step: "none"
+      notes: "Technician visit completed. No further action pending."
+
+conversation:
+  external:
+    user_input: "My TV fell over and the screen smashed. I need to make a new claim."
+    agent_response: "I've checked your existing records and found claim EV-2291, which is already completed. The technician visit is closed and no further action is pending. Is there anything else you want to know about that claim?"
+
+data_plane:
+  workflow: claim_status
+  goal: outlier_wrong_flow
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        about a damaged TV and decide how to handle the user's claim-related
+        question.
+      output: >
+        PLAN:
+          1) Call "claim_status" on server "electronics" with existing claim_id
+             EV-2291 to retrieve the current status.
+    - role: summarizer
+      system_prompt: >
+        Report the existing claim status to the user, even though the user
+        asked for a brand-new claim.

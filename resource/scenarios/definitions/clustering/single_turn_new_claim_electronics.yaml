@@ -1,0 +1,89 @@
+name: single_turn_new_claim_electronics
+description: >
+  Single-turn chained tool flow for Home electronics division: planner → LLM task →
+  tool recommendation → new_claim → get_available_slots → update_appointment →
+  response_compose, all in one trace.
+
+tags:
+  - data-plane
+  - happy-path
+  - clustering
+
+workload_weight: 4.0
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "electronics"
+      description: "TV will not power on after a recent storm"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "EV-2291"
+      from_date: "2025-03-12"
+      to_date: "2025-03-20"
+    update_appointment:
+      claim_id: "EV-2291"
+      slot: "2025-03-11T10:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "EV-2291"
+      product_type: "electronics"
+      status: "opened"
+      coverage:
+        type: "electronics_repair"
+        deductible: 100
+      notes: "Claim created for TV not powering on after storm."
+    get_available_slots:
+      claim_id: "EV-2291"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-11T10:00:00Z"
+          end: "2025-03-11T12:00:00Z"
+          status: "available"
+        - start: "2025-03-12T09:00:00Z"
+          end: "2025-03-12T11:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "EV-2291"
+      appointment:
+        start: "2025-03-11T10:00:00Z"
+        end: "2025-03-11T12:00:00Z"
+        status: "booked"
+      confirmation_id: "EV-2291-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  external:
+    user_input: "I want to make a claim for my TV that won’t turn on. Can you schedule the Tuesday 10am slot?"
+    agent_response: "I’ve opened a claim for your TV that won’t turn on. Your claim ID is EV-2291. I’ve checked availability and Tuesday at 10am is free, so I’ve scheduled your repair then. You’ll receive a confirmation with the visit details."
+
+data_plane:
+  workflow: single_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        and produce a tool plan for starting a home electronics claim, finding
+        available technician slots, and booking an appointment.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "electronics" with arguments from the external request
+             (product_type=electronics, incident_description, incident_date).
+          2) Call MCP tool "get_available_slots" to fetch repair slots for the created claim.
+          3) Call MCP tool "update_appointment" to book the slot closest to the requested time.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of all tool calls into a final response for the end user.
+

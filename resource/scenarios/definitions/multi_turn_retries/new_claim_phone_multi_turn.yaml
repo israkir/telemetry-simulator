@@ -15,12 +15,7 @@ tags:
 
 # Multi-turn conversations are a meaningful minority of sessions.
 workload_weight: 2.0
-
-mcp_server: phone
-repeat_count: 1
 interval_ms: 0
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -28,11 +23,27 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: phone
-  tools:
-    - new_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze each user message
+        in a phone claim journey and decide whether to call the "new_claim"
+        MCP tool on server "phone" or simply continue the conversation.
+        Ensure that the first message creates the claim and later messages
+        focus on clarifying details and confirming appointments.
+      output: >
+        PLAN:
+          1) On the first turn, call MCP tool "new_claim" on server "phone"
+             with arguments from the external request (product_type=phone,
+             incident_description, incident_date) and return the claim ID.
+          2) On subsequent turns in the same session, reference the existing
+             claim and guide the user through describing the damage and
+             selecting an appointment slot without creating a new claim.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn of the conversation into a clear assistant message
+        for the end user, keeping the claim ID and appointment details
+        consistent across turns so the session feels continuous.
 
 # Multi-turn: one trace per turn; same session_id for all turns in one run.
 # Each turn's user_input/llm_response → gen_ai.input.messages / gen_ai.output.messages on that trace.
@@ -50,3 +61,19 @@ context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Screen cracked after a drop down the stairs"
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-8842"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for cracked phone screen after a drop; subsequent turns clarify details and confirm appointment."

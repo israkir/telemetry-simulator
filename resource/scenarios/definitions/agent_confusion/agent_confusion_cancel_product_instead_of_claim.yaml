@@ -18,13 +18,8 @@ tags:
   - cancel-product
   - cancel-claim
 
-workload_weight: 0.45
-
-mcp_server: electronics
-repeat_count: 2
+workload_weight: 1.0
 interval_ms: 100
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -32,33 +27,50 @@ data_plane:
   goal: ungrounded_response
   latency_profile: happy_path
   control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. User intent is to cancel a
+        claim, but in this failure scenario the agent incorrectly invokes
+        cancel_product (similar name) on the electronics server.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_product" on server "electronics" with
+             policy_id and reason based on the external request.
+          2) Return a confirmation that the product has been cancelled and
+             when cover will end.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome. The agent responds as if cancel_product was
+        executed (product/policy cancelled) although the user wanted to
+        cancel a claim.
 
 # response_compose is marked fail so wrong-tool traffic appears in error metrics.
 scenario_overrides:
   exception_type: "WrongToolError"
   exception_message: "Agent invoked cancel_product instead of cancel_claim; response not valid for user intent."
 
-# Emitted trace shows cancel_product (what agent called); correct intent was cancel_claim.
-expected:
-  mcp_server: electronics
-  tools:
-    - cancel_product
-
 # User wording suggests cancel_claim; agent responds as if cancel_product was executed.
-conversation:
-  samples:
-    - user_input: "I want to cancel my claim."
-      llm_response: "I've cancelled the product. Your cover will end at the next billing date."
-    - user_input: "Cancel the claim please."
-      llm_response: "Done. The product has been cancelled. No further charges."
-    - user_input: "Can you cancel it? I don't need the repair anymore."
-      llm_response: "Cancelled. Your policy for this product will not renew."
-    - user_input: "Stop my claim."
-      llm_response: "I've cancelled the product. You'll get a confirmation email."
-
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - cancel_product
   tool_call_arguments:
-    cancel_product: { policy_id: "pol_xyz789", reason: "replacement" }
+    cancel_product:
+      policy_id: "EV-COV-3001"
+      effective_date: "2025-03-31"
+      reason: "customer_request"
+  tool_call_results:
+    cancel_product:
+      policy_id: "EV-COV-3001"
+      status: "cancelled"
+      effective_date: "2025-03-31"
+      refund_amount: 4.75
+      reason: "customer_request"
+
+conversation:
+  external:
+    user_input: "I want to cancel my claim — I don't need the repair anymore."
+    agent_response: "I've cancelled the product. Your cover will end at the next billing date."

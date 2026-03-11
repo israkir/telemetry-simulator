@@ -38,13 +38,64 @@ def _conversation_samples_from_config() -> dict[str, Any]:
     return data.get("conversation_samples") or {}
 
 
-def _sample_to_otel_messages(user_input: str, llm_response: str) -> tuple[list[dict], list[dict]]:
-    """Convert one conversation sample (user_input, llm_response) to OTEL GenAI message shape."""
+def _sample_to_otel_messages(
+    user_input: str,
+    llm_response: str,
+    llm_interactions: list[dict] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """Convert one conversation sample (user_input, llm_response) to OTEL GenAI message shape.
+
+    Semantics:
+      - user_input is treated as the raw external request.
+      - When llm_interactions is provided, the first interaction's system_prompt is used
+        as the system message for this LLM call; the user message is the external user_input.
+      - For planner-style interactions, gen_ai.output.messages SHOULD represent the internal
+        tool plan / recommendations, not the final end-user text. When the planner interaction
+        defines output, it is used as the assistant text; otherwise llm_response is used
+        as a fallback.
+    """
+    system_text = None
+    if llm_interactions:
+        first = next((i for i in llm_interactions if isinstance(i, dict)), None)
+        if first:
+            st = first.get("system_prompt")
+            if isinstance(st, str) and st.strip():
+                system_text = st.strip()
+    if not system_text:
+        system_text = (
+            "You are the Toro customer assistant orchestrator. "
+            "Use the available MCP tools and workflow steps to understand the user's request, "
+            "plan sub-tasks, and call tools in the correct order. "
+            "Do not expose internal IDs, schemas, or policies in the final answer."
+        )
+    system_message = {
+        "role": "system",
+        "content": [
+            {
+                "type": "text",
+                "text": system_text,
+            }
+        ],
+    }
     input_msgs = [
+        system_message,
         {"role": "user", "content": [{"type": "text", "text": user_input}]},
     ]
+    # Assistant output: prefer planner-style internal tool plan when configured.
+    assistant_text = None
+    if llm_interactions:
+        planner = next(
+            (i for i in llm_interactions if isinstance(i, dict) and i.get("role") == "planner"),
+            None,
+        )
+        if planner:
+            ot = planner.get("output")
+            if isinstance(ot, str) and ot.strip():
+                assistant_text = ot.strip()
+    if not assistant_text:
+        assistant_text = llm_response
     output_msgs = [
-        {"role": "assistant", "content": [{"type": "text", "text": llm_response}]},
+        {"role": "assistant", "content": [{"type": "text", "text": assistant_text}]},
     ]
     return input_msgs, output_msgs
 
@@ -127,9 +178,17 @@ def _context_kwargs_for_scenario(
             user_input = sample.get("user_input")
             llm_response = sample.get("llm_response")
             if isinstance(user_input, str) and isinstance(llm_response, str):
-                input_msgs, output_msgs = _sample_to_otel_messages(user_input, llm_response)
+                input_msgs, output_msgs = _sample_to_otel_messages(
+                    user_input,
+                    llm_response,
+                    getattr(scenario, "llm_interactions", None),
+                )
                 kwargs["llm_input_messages"] = input_msgs
                 kwargs["llm_output_messages"] = output_msgs
+                # Treat user_input as the raw end-user or upstream agent request for this logical request.
+                kwargs["raw_request"] = user_input
+                # Use llm_response as the final agent response body returned to the caller.
+                kwargs["final_response"] = llm_response
             # Per-sample tool_call_arguments (e.g. 4xx invalid-params) override scenario default so MCP args match conversation.
             sample_tool_args = sample.get("tool_call_arguments")
             if isinstance(sample_tool_args, dict) and sample_tool_args:
@@ -140,17 +199,37 @@ def _context_kwargs_for_scenario(
                     ctx_tool_args = getattr(scenario_ctx, "tool_call_arguments", None)
                     if isinstance(ctx_tool_args, dict) and ctx_tool_args:
                         kwargs["tool_call_arguments"] = ctx_tool_args
+            # Optional per-sample tool_call_results; otherwise fall back to scenario context.
+            sample_tool_results = sample.get("tool_call_results")
+            if isinstance(sample_tool_results, dict) and sample_tool_results:
+                kwargs["tool_call_results"] = sample_tool_results
+            else:
+                scenario_ctx = getattr(scenario, "context", None)
+                if scenario_ctx is not None:
+                    ctx_tool_results = getattr(scenario_ctx, "tool_call_results", None)
+                    if isinstance(ctx_tool_results, dict) and ctx_tool_results:
+                        kwargs["tool_call_results"] = ctx_tool_results
             ui_red = sample.get("user_input_redacted")
             lr_red = sample.get("llm_response_redacted")
             if isinstance(ui_red, str) and isinstance(lr_red, str):
-                inp_red, out_red = _sample_to_otel_messages(ui_red, lr_red)
+                inp_red, out_red = _sample_to_otel_messages(
+                    ui_red,
+                    lr_red,
+                    getattr(scenario, "llm_interactions", None),
+                )
                 kwargs["llm_input_messages_redacted"] = inp_red
                 kwargs["llm_output_messages_redacted"] = out_red
+                # Redacted raw request variant for control-plane event.
+                kwargs["raw_request_redacted"] = ui_red
+                # Redacted final response variant for response validation event.
+                kwargs["final_response_redacted"] = lr_red
         else:
             context = getattr(scenario, "context", None)
             workflow = context.workflow if context else None
             if context and getattr(context, "tool_call_arguments", None):
                 kwargs["tool_call_arguments"] = context.tool_call_arguments
+            if context and getattr(context, "tool_call_results", None):
+                kwargs["tool_call_results"] = context.tool_call_results
             cfg_inp, cfg_out, cfg_inp_red, cfg_out_red = _get_conversation_from_config(workflow)
             if cfg_inp is not None and cfg_out is not None:
                 kwargs["llm_input_messages"] = cfg_inp
@@ -364,8 +443,9 @@ class ScenarioRunner:
         for i in range(scenario.repeat_count):
             tenant_id = random.choices(tenants, weights=weights)[0]
             ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id, iteration_index=i)
-            # One session_id per logical session (iteration); all turns in this iteration share it.
+            # One session_id and one enduser.pseudo.id per logical session (iteration); all turns share them.
             session_id = ctx_kwargs["session_id"]
+            user_id = ctx_kwargs.get("user_id") or generate_enduser_pseudo_id(tenant_id=tenant_id)
             id_gen = getattr(scenario, "id_generator", None)
 
             # Control-plane and data-plane flow from config/template/scenario only (trace_flow).
@@ -379,11 +459,69 @@ class ScenarioRunner:
                 turn_pairs_redacted = (
                     getattr(scenario, "conversation_turn_pairs_redacted", None) or []
                 )
+                scenario_ctx = getattr(scenario, "context", None)
+                original_actual_steps = (
+                    getattr(scenario_ctx, "actual_steps", None) if scenario_ctx is not None else None
+                )
+                per_turn_steps = getattr(scenario, "per_turn_actual_steps", None) or []
+                # Ensure multi-turn traces inherit scenario-level tool_call_arguments/results so
+                # MCP attempt spans can emit gen_ai.tool.call.arguments/result just like single-turn.
+                if scenario_ctx is not None:
+                    ctx_tool_args = getattr(scenario_ctx, "tool_call_arguments", None)
+                    if isinstance(ctx_tool_args, dict) and ctx_tool_args:
+                        ctx_kwargs["tool_call_arguments"] = ctx_tool_args
+                    ctx_tool_results = getattr(scenario_ctx, "tool_call_results", None)
+                    if isinstance(ctx_tool_results, dict) and ctx_tool_results:
+                        ctx_kwargs["tool_call_results"] = ctx_tool_results
                 for turn_index, (input_msgs, output_msgs) in enumerate(turn_pairs):
+                    # Introduce a small, realistic delay between turns in the same session
+                    # so multi-turn traces do not all share nearly identical timestamps.
+                    # Ensure at least ~1s separation between turns, with modest jitter.
+                    if turn_index > 0:
+                        base_ms = scenario.interval_ms if scenario.interval_ms > 0 else 1000.0
+                        delay_ms = max(1000.0, base_ms)
+                        jitter_ms = min(delay_ms * 0.3, 300.0)
+                        delay_ms = max(
+                            0.0,
+                            delay_ms
+                            + random.uniform(
+                                -jitter_ms,
+                                jitter_ms,
+                            ),
+                        )
+                        time.sleep(delay_ms / 1000.0)
                     ctx_kwargs["session_id"] = session_id
+                    ctx_kwargs["user_id"] = user_id
                     ctx_kwargs["turn_index"] = turn_index
                     ctx_kwargs["llm_input_messages"] = input_msgs
                     ctx_kwargs["llm_output_messages"] = output_msgs
+                    # Derive raw_request and final_response for this turn from OTEL GenAI messages
+                    # so gentoro.enduser.input and related fields are per-turn instead of shared.
+                    user_text = None
+                    if isinstance(input_msgs, list):
+                        for msg in reversed(input_msgs):
+                            if isinstance(msg, dict) and msg.get("role") == "user":
+                                contents = msg.get("content") or []
+                                if contents and isinstance(contents[0], dict):
+                                    user_text = contents[0].get("text")
+                                break
+                    if isinstance(user_text, str) and user_text:
+                        ctx_kwargs["raw_request"] = user_text
+                    else:
+                        ctx_kwargs.pop("raw_request", None)
+
+                    assistant_text = None
+                    if isinstance(output_msgs, list):
+                        for msg in reversed(output_msgs):
+                            if isinstance(msg, dict) and msg.get("role") == "assistant":
+                                contents = msg.get("content") or []
+                                if contents and isinstance(contents[0], dict):
+                                    assistant_text = contents[0].get("text")
+                                break
+                    if isinstance(assistant_text, str) and assistant_text:
+                        ctx_kwargs["final_response"] = assistant_text
+                    else:
+                        ctx_kwargs.pop("final_response", None)
                     if (
                         turn_index < len(turn_pairs_redacted)
                         and turn_pairs_redacted[turn_index] is not None
@@ -391,9 +529,48 @@ class ScenarioRunner:
                         inp_red, out_red = turn_pairs_redacted[turn_index]
                         ctx_kwargs["llm_input_messages_redacted"] = inp_red
                         ctx_kwargs["llm_output_messages_redacted"] = out_red
+                        red_user_text = None
+                        if isinstance(inp_red, list):
+                            for msg in reversed(inp_red):
+                                if isinstance(msg, dict) and msg.get("role") == "user":
+                                    contents = msg.get("content") or []
+                                    if contents and isinstance(contents[0], dict):
+                                        red_user_text = contents[0].get("text")
+                                    break
+                        if isinstance(red_user_text, str) and red_user_text:
+                            ctx_kwargs["raw_request_redacted"] = red_user_text
+                        else:
+                            ctx_kwargs.pop("raw_request_redacted", None)
+
+                        red_assistant_text = None
+                        if isinstance(out_red, list):
+                            for msg in reversed(out_red):
+                                if isinstance(msg, dict) and msg.get("role") == "assistant":
+                                    contents = msg.get("content") or []
+                                    if contents and isinstance(contents[0], dict):
+                                        red_assistant_text = contents[0].get("text")
+                                    break
+                        if isinstance(red_assistant_text, str) and red_assistant_text:
+                            ctx_kwargs["final_response_redacted"] = red_assistant_text
+                        else:
+                            ctx_kwargs.pop("final_response_redacted", None)
                     else:
                         ctx_kwargs.pop("llm_input_messages_redacted", None)
                         ctx_kwargs.pop("llm_output_messages_redacted", None)
+                        ctx_kwargs.pop("raw_request_redacted", None)
+                        ctx_kwargs.pop("final_response_redacted", None)
+                    # Per-turn workflow override: when per_turn_actual_steps is set, use it to
+                    # adjust context.actual_steps so data-plane tools differ by turn.
+                    if scenario_ctx is not None:
+                        if turn_index < len(per_turn_steps) and per_turn_steps[turn_index]:
+                            scenario_ctx.actual_steps = per_turn_steps[turn_index]
+                        else:
+                            scenario_ctx.actual_steps = original_actual_steps
+                        # Recompute hierarchies for this turn with the updated context.
+                        _, hierarchies, has_data_plane = self._get_trace_flow_and_hierarchies(
+                            scenario
+                        )
+
                     if isinstance(id_gen, ScenarioIdGenerator):
                         ctx_kwargs["request_id"] = id_gen.request_id(tenant_id=tenant_id)
                     else:
@@ -405,6 +582,10 @@ class ScenarioRunner:
                     iteration_trace_ids.extend(tids)
                     trace_ids.extend(tids)
                     all_span_names = names  # last turn's span names for progress
+
+                # Restore original actual_steps after all turns in this session.
+                if scenario_ctx is not None:
+                    scenario_ctx.actual_steps = original_actual_steps
             else:
                 ctx_kwargs["turn_index"] = i % 10
                 context = GenerationContext.create(**ctx_kwargs)

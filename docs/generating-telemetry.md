@@ -57,7 +57,7 @@ The simulator is driven by **`resource/config/config.yaml`**. What exists today:
 | **tools_recommend** | Tool recommendation (tools.recommend span) attributes: `selection_strategy`, `selection_constraints`, `tools_selected_count`, `selection_fallback_used`. Together with MCP server tools list and `latency_profiles.<profile>.spans.tools_recommend` (mcp.selection.latency.ms), all tools.recommend span attributes come from config. |
 | **mcp_retry** | `retry_policy` (e.g. none, exponential) and `latency_by_error_type` (timeout, unavailable, tool_error, etc.) for latency on failed MCP attempts. Used when building MCP hierarchies from templates. |
 | **mcp_retry_templates** | Named templates for MCP tool retry behavior. Each template has `attempts`: list of `{ outcome: success \| failure, optional error_type, optional latency_mean_ms }`. Scenario `data_plane.mcp_retry` can reference a template by name or define `attempts` inline. When set, MCP spans get one child per attempt with deterministic outcomes. |
-| **tool_call_arguments** | Optional. Keyed by tool name (e.g. `new_claim`, `update_appointment`). Each value is an object of arguments; serialized as JSON and set as `gen_ai.tool.call.arguments` on the mcp.tool.execute parent span (OTEL GenAI). |
+| **tool_call_arguments** | Optional, but defined **per scenario** (in `context.tool_call_arguments` or per-sample `tool_call_arguments`), not in global config. Keyed by tool name (e.g. `new_claim`, `update_appointment`). Each value is an object of arguments; serialized as JSON and set as `gen_ai.tool.call.arguments` on the mcp.tool.execute parent span (OTEL GenAI). |
 | **tenants** | Key → id (e.g. `toro` → tenant UUID). Scenarios reference `context.tenant` by key. |
 | **agents** | List of agents by `id` (e.g. `toro-customer-assistant-001`). Scenarios reference `context.agent` by id. No channel or division on agent; scenario sets `context.mcp_server`. |
 | **mcp_servers** | Key → mcp_server_uuid + tools (name, tool_uuid). Scenarios reference `context.mcp_server` by key. |
@@ -477,7 +477,7 @@ To view traces in a browser, run Jaeger and point the simulator at it (no data-p
 ```bash
 make jaeger-up
 otelsim run --vendor=your_vendor --semconv /path/to/conventions/semconv.yaml
-# Open http://localhost:16686, select service "otelsim"
+# Open http://localhost:16686/search, select service "otelsim"
 make jaeger-down   # when done
 ```
 

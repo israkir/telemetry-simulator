@@ -4,6 +4,7 @@ name: claim_status_electronics
 description: >
   Happy path for Home electronics mcp_server: planner → task → tools_recommend → claim_status → response_compose.
   User asks for status of a TV/electronics claim; tool returns status and assistant summarizes.
+  Single-turn external conversation paired with structured context for clustering-friendly traces.
 
 tags:
   - data-plane
@@ -12,13 +13,8 @@ tags:
   - claim-status
 
 workload_weight: 4.0
-
-mcp_server: electronics
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -26,13 +22,40 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: electronics
-  tools:
-    - claim_status
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for the status of a TV or electronics claim and produce a tool plan
+        that calls the "claim_status" MCP tool on server "electronics" with
+        the claim ID.
+      output: >
+        PLAN:
+          1) Call MCP tool "claim_status" on server "electronics" with the claim_id
+             from the external request.
+          2) Return a summary of the current status and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the claim_status tool call into a clear final
+        response for the end user, explaining where the claim is in the journey.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - claim_status
+  tool_call_arguments:
+    claim_status:
+      claim_id: "EV-2291"
+  tool_call_results:
+    claim_status:
+      claim_id: "EV-2291"
+      status: "approved"
+      last_updated: "2025-03-11T09:45:00Z"
+      next_step: "awaiting_repair_booking"
+
+conversation:
+  external:
+    user_input: "What’s the latest on my TV insurance claim EV-2291?"
+    agent_response: "I’ve checked your TV claim EV-2291. It’s been approved and is now with our repair partner. You should receive a message shortly with your appointment details and next steps."

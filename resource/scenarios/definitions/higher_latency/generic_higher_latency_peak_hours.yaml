@@ -14,12 +14,7 @@ tags:
 
 # Peak-hours / post–long-weekend higher latency is a minority of traffic.
 workload_weight: 1.5
-
-mcp_server: phone
-repeat_count: 3
 interval_ms: 80
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -36,22 +31,47 @@ data_plane:
     post_long_weekend:
       days_after: 1
 
-expected:
-  mcp_server: phone
-  tools:
-    - new_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to start a phone claim and produce a tool plan that calls the "new_claim"
+        MCP tool on server "phone" with the incident description and date. This
+        scenario represents peak hours or the day after a long weekend, where
+        latencies are higher.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "phone" with arguments from the
+             external request (product_type=phone, incident_description, incident_date).
+          2) Return a confirmation including the new claim ID and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the new_claim tool call into a clear final
+        response for the end user, including the claim ID and what happens next.
 
 # Single-turn conversation (peak hours / post long weekend higher-latency).
 conversation:
-  samples:
-    - user_input: "I dropped my phone, how do I start a claim?"
-      llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
-    - user_input: "My phone screen is cracked. I need to make a claim."
-      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
-    - user_input: "I need to file a claim for a cracked screen."
-      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+  external:
+    user_input: "I dropped my phone and the screen is cracked. How do I start a claim?"
+    agent_response: "I’ve started a claim for your phone and noted the cracked screen. Your claim ID is PH-8842. You can now upload photos of the damage, and I’ll confirm your cover and the next steps once the review is complete."
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Screen cracked after a drop down the stairs"
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-8842"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for cracked phone screen during peak hours."

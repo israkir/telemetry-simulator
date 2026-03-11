@@ -16,6 +16,24 @@ OTLP_ENDPOINT ?= http://localhost:4318
 # CLI program name (from project.scripts in pyproject.toml; use variable to avoid hardcoding)
 CLI_NAME ?= otelsim
 
+# Basic ANSI colors (can be disabled with COLOR=0)
+COLOR ?= 1
+ifeq ($(COLOR),0)
+	COLOR_RESET  :=
+	COLOR_BOLD   :=
+	COLOR_BLUE   :=
+	COLOR_GREEN  :=
+	COLOR_YELLOW :=
+	COLOR_RED    :=
+else
+	COLOR_RESET  := \033[0m
+	COLOR_BOLD   := \033[1m
+	COLOR_BLUE   := \033[34m
+	COLOR_GREEN  := \033[32m
+	COLOR_YELLOW := \033[33m
+	COLOR_RED    := \033[31m
+endif
+
 # Check if venv exists and is usable
 check-venv:
 	@if [ ! -f "$(VENV_PYTHON)" ]; then \
@@ -45,48 +63,41 @@ check-venv:
 
 # Default target
 help:
-	@echo "Telemetry Simulator"
-	@echo "Schema-driven OTEL telemetry simulation for LLM observability"
-	@echo ""
-	@echo "Setup:"
-	@echo "  make venv                  - Create virtual environment (if not exists)"
-	@echo "  make venv-force            - Force recreate virtual environment"
-	@echo "  make install               - Install the package in development mode"
-	@echo "  make install-dev           - Install with development dependencies"
-	@echo ""
-	@echo "Running the simulator (default schema: resource/scenarios/conventions/semconv.yaml):"
-	@echo "  make run-validate          - Validate schema and show summary"
-	@echo "  make list-scenarios        - List available scenarios"
-	@echo ""
-	@echo "Code quality and tests:"
-	@echo "  make test                  - Run tests (pytest)"
-	@echo "  make format                - Format code with black"
-	@echo "  make lint                  - Lint code with ruff"
-	@echo "  make typecheck             - Type check with mypy"
-	@echo "  make check                 - Run format, lint, and typecheck"
-	@echo ""
-	@echo "Cleanup:"
-	@echo "  make clean                 - Clean generated cache files"
-	@echo "  make clean-venv            - Remove virtual environment"
-	@echo ""
-	@echo "Environment variables:"
-	@echo "  PYTHON                     - Interpreter for 'make venv' (default: python if in PATH, else python3)"
-	@echo "  CLI_NAME                   - CLI program name (default: otelsim)"
-	@echo "  SEMCONV                    - Path to semantic-conventions YAML (default: resource/scenarios/conventions/semconv.yaml)"
-	@echo "  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)"
-	@echo "  VENDOR                     - Attribute prefix for spans/metrics (default: vendor)"
-	@echo "  TELEMETRY_SIMULATOR_TENANT_ID - Override default tenant id (otherwise first tenant from resource/config/config.yaml is used)"
-	@echo "  SCENARIOS_DIR              - Folder with scenario YAML files (default: built-in sample definitions)"
-	@echo ""
-	@echo "Live trace visualization (Docker or Podman):"
-	@echo "  make jaeger-up             - Start Jaeger (OTLP + UI) for live traces"
-	@echo "  make jaeger-down           - Stop and remove Jaeger container"
-	@echo "  (then run simulator with CLI and open http://localhost:16686)"
-	@echo ""
-	@echo "Example workflows:"
-	@echo "  make venv && make install"
-	@echo "  $(CLI_NAME) run --semconv /path/to/semconv.yaml"
-	@echo "  make jaeger-up && $(CLI_NAME) run --semconv /path/to/semconv.yaml"
+	@printf '$(COLOR_BOLD)Telemetry Simulator$(COLOR_RESET)\n'
+	@printf 'Schema-driven OTEL telemetry simulation for LLM observability\n\n'
+	@printf 'Setup:\n'
+	@printf '  $(COLOR_GREEN)make venv$(COLOR_RESET)                  - Create virtual environment (if not exists)\n'
+	@printf '  $(COLOR_GREEN)make venv-force$(COLOR_RESET)            - Force recreate virtual environment\n'
+	@printf '  $(COLOR_GREEN)make install$(COLOR_RESET)               - Install the package in development mode\n'
+	@printf '  $(COLOR_GREEN)make install-dev$(COLOR_RESET)           - Install with development dependencies\n\n'
+	@printf 'Running the simulator (default schema: resource/scenarios/conventions/semconv.yaml):\n'
+	@printf '  $(COLOR_GREEN)make run-validate$(COLOR_RESET)          - Validate schema and show summary\n'
+	@printf '  $(COLOR_GREEN)make list-scenarios$(COLOR_RESET)        - List available scenarios\n\n'
+	@printf 'Code quality and tests:\n'
+	@printf '  $(COLOR_GREEN)make test$(COLOR_RESET)                  - Run tests (pytest)\n'
+	@printf '  $(COLOR_GREEN)make format$(COLOR_RESET)                - Format code with black\n'
+	@printf '  $(COLOR_GREEN)make lint$(COLOR_RESET)                  - Lint code with ruff\n'
+	@printf '  $(COLOR_GREEN)make typecheck$(COLOR_RESET)             - Type check with mypy\n'
+	@printf '  $(COLOR_GREEN)make check$(COLOR_RESET)                 - Run format, lint, and typecheck\n\n'
+	@printf 'Cleanup:\n'
+	@printf '  $(COLOR_GREEN)make clean$(COLOR_RESET)                 - Clean generated cache files\n'
+	@printf '  $(COLOR_GREEN)make clean-venv$(COLOR_RESET)            - Remove virtual environment\n\n'
+	@printf 'Environment variables:\n'
+	@printf '  PYTHON                     - Interpreter for '"'"'make venv'"'"' (default: python if in PATH, else python3)\n'
+	@printf '  CLI_NAME                   - CLI program name (default: otelsim)\n'
+	@printf '  SEMCONV                    - Path to semantic-conventions YAML (default: resource/scenarios/conventions/semconv.yaml)\n'
+	@printf '  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)\n'
+	@printf '  VENDOR                     - Attribute prefix for spans/metrics (default: vendor)\n'
+	@printf '  TELEMETRY_SIMULATOR_TENANT_ID - Override default tenant id (otherwise first tenant from resource/config/config.yaml is used)\n'
+	@printf '  SCENARIOS_DIR              - Folder with scenario YAML files (default: built-in sample definitions)\n\n'
+	@printf 'Live trace visualization (Docker or Podman):\n'
+	@printf '  $(COLOR_GREEN)make jaeger-up$(COLOR_RESET)             - Start Jaeger (OTLP + UI) for live traces\n'
+	@printf '  $(COLOR_GREEN)make jaeger-down$(COLOR_RESET)           - Stop and remove Jaeger container\n'
+	@printf '  (then run simulator with CLI and open http://localhost:16686/search)\n\n'
+	@printf 'Example workflows:\n'
+	@printf '  $(COLOR_GREEN)make venv$(COLOR_RESET) && $(COLOR_GREEN)make install$(COLOR_RESET)\n'
+	@printf '  $(CLI_NAME) run --semconv /path/to/semconv.yaml\n'
+	@printf '  make jaeger-up && $(CLI_NAME) run --semconv /path/to/semconv.yaml\n'
 
 # Virtual environment
 venv:
@@ -150,7 +161,7 @@ list-scenarios: check-venv
 # LIVE TRACE VISUALIZATION (Jaeger)
 # =============================================================================
 # Start Jaeger all-in-one with OTLP receiver. Simulator sends to localhost:4318.
-# Open http://localhost:16686 to view traces. See docs/live-trace-visualization.md.
+# Open http://localhost:16686/search to view traces. See docs/live-trace-visualization.md.
 # Prefer Podman if available, otherwise Docker.
 
 JAEGER_IMAGE ?= jaegertracing/jaeger:2.15.0
@@ -172,7 +183,7 @@ jaeger-up:
 	fi
 	@if $(CONTAINER_CMD) ps -q -f name=^/$(JAEGER_NAME)$$ 2>/dev/null | grep -q .; then \
 		echo "✓ Jaeger is already running (container: $(JAEGER_NAME))"; \
-		echo "  UI: http://localhost:16686  OTLP: http://localhost:4318"; \
+		echo "  UI: http://localhost:16686/search  OTLP: http://localhost:4318"; \
 	else \
 		echo "Starting Jaeger with $(CONTAINER_CMD) (OTLP :4317/:4318, UI :16686)..."; \
 		$(CONTAINER_CMD) rm -f $(JAEGER_NAME) 2>/dev/null || true; \
@@ -183,7 +194,7 @@ jaeger-up:
 			-e JAEGER_LISTEN_HOST=0.0.0.0 \
 			$(JAEGER_IMAGE) 2>&1) || true; \
 		if $(CONTAINER_CMD) ps -q -f name=^/$(JAEGER_NAME)$$ 2>/dev/null | grep -q .; then \
-			echo "✓ Jaeger started. UI: http://localhost:16686  OTLP: http://localhost:4318"; \
+			echo "✓ Jaeger started. UI: http://localhost:16686/search  OTLP: http://localhost:4318"; \
 			echo "  Run: $(CLI_NAME) run --semconv /path/to/semconv.yaml then open the UI."; \
 		else \
 			echo "✗ Failed to start Jaeger."; \

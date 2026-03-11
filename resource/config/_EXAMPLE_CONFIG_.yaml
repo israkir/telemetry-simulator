@@ -94,17 +94,6 @@ mcp_servers:
   # electronics:, appliances: ... (see config.yaml for full list)
 
 # -----------------------------------------------------------------------------
-# tool_call_arguments – Optional. Keyed by tool name; object serialized as JSON → gen_ai.tool.call.arguments on mcp.tool.execute span.
-# -----------------------------------------------------------------------------
-tool_call_arguments:
-  new_claim:
-    product_type: "phone"
-    description: "Screen cracked after drop"
-    incident_date: "2025-02-15"
-  claim_status:
-    claim_id: "clm_abc123"
-
-# -----------------------------------------------------------------------------
 # scenarios – Scenario modifier: divisions, error_templates (goal → error_type, http_status_codes), workflow_templates (name → step list).
 # Scenario YAML sets data_plane.workflow (key here), data_plane.goal; scenario_overrides can set exception_type, exception_message, etc.
 #
@@ -214,25 +203,3 @@ control_plane:
       policy: { step.outcome: pass, policy.engine: dlp, policy.decision: allow }
       error_rate: { root: 0, policy: 0 }
 
-# -----------------------------------------------------------------------------
-# conversation_samples – Per workflow key. Used when scenario has no conversation.samples or conversation.turns.
-# Structure: <workflow_key>: { samples: [ { user_input, llm_response [, user_input_redacted, llm_response_redacted ] } ], optional status_enum? }
-# default: fallback when workflow key not found. See config.yaml for full samples.
-# -----------------------------------------------------------------------------
-conversation_samples:
-  new_claim:
-    samples:
-      - user_input: "I dropped my phone, how do I start a claim?"
-        llm_response: "I've started a claim (PH-8842). Describe what happened..."
-      - user_input: "Start a claim. My address is 42 High Street and policy POL-8892."
-        llm_response: "I've started a claim at 42 High Street under policy POL-8892."
-        user_input_redacted: "Start a claim. My address is <ADDRESS> and policy <POLICY_ID>."
-        llm_response_redacted: "I've started a claim at <ADDRESS> under policy <POLICY_ID>."
-  claim_status:
-    samples:
-      - user_input: "What's the status of my claim PH-8842?"
-        llm_response: "Claim PH-8842: appointment scheduled for Thursday 10am."
-  default:
-    samples:
-      - user_input: "What can you help me with?"
-        llm_response: "I can help with claims, document uploads, insurance quotes, and payments."

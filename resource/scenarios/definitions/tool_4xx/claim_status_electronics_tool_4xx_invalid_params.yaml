@@ -17,12 +17,8 @@ tags:
   - electronics
 
 workload_weight: 0.45
-
-mcp_server: electronics
-repeat_count: 2
 interval_ms: 60
-emit_metrics: false
-emit_logs: false
+interval_deviation_ms: 50
 redaction_applied: none
 
 data_plane:
@@ -30,18 +26,24 @@ data_plane:
   goal: 4xx_invalid_arguments
   latency_profile: happy_path
   control_plane_template: allowed
-
-# Exception event on the failing MCP attempt (avoids generic "RuntimeError: Error occurred").
-scenario_overrides:
-  exception_type: "InvalidClaimIdFormat"
-  exception_message: "Claim ID must include division prefix (e.g. EL-8821). Received malformed or missing claim_id."
-# Optional: fix which tool step gets 4xx (0 = first MCP call).
-#   step_index_for_4xx: 0
-
-expected:
-  mcp_server: electronics
-  tools:
-    - claim_status
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for the status of a TV or electronics claim and produce a tool plan
+        that calls the "claim_status" MCP tool on server "electronics" with
+        the claim ID.
+      output: >
+        PLAN:
+          1) Call MCP tool "claim_status" on server "electronics" with the claim_id
+             from the external request.
+          2) Return a summary of the current status and next steps, or explain
+             why the claim ID was not accepted.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the claim_status tool call into a clear final
+        response for the end user, including any validation errors when the
+        claim ID format is invalid.
 
 # tool_call_arguments: wrong claim_id format (no prefix) so MCP receives invalid params → 4xx.
 # Per-sample args match user_input (8821, 5521, 4412) so gen_ai.tool.call.arguments are consistent with conversation.
@@ -49,20 +51,18 @@ context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - claim_status
   tool_call_arguments:
-    claim_status: { claim_id: "8821" }
+    claim_status:
+      claim_id: "8821"
+  tool_call_results:
+    claim_status:
+      error_type: "invalid_arguments"
+      http_status_code: 404
+      message: "Claim ID must include division prefix (e.g. EL-8821). Received 8821."
 
 conversation:
-  samples:
-    - user_input: "What's the status of my TV claim 8821?"
-      llm_response: "I couldn't find that claim. Please use the full claim ID (e.g. EL-8821) so I can look it up."
-      tool_call_arguments:
-        claim_status: { claim_id: "8821" }
-    - user_input: "Status for my laptop repair — the number is 5521."
-      llm_response: "The system expects the claim ID with division prefix, e.g. EL-5521. I've got 5521 but need the full format."
-      tool_call_arguments:
-        claim_status: { claim_id: "5521" }
-    - user_input: "How's my gaming console claim? Claim 4412."
-      llm_response: "I tried looking up 4412 but the tool needs the full ID like EL-4412. Can you confirm your claim ID from the email we sent?"
-      tool_call_arguments:
-        claim_status: { claim_id: "4412" }
+  external:
+    user_input: "What's the status of my TV claim 8821?"
+    agent_response: "I couldn't find that claim. Please use the full claim ID (e.g. EL-8821) so I can look it up."

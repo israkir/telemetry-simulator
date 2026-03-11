@@ -12,13 +12,8 @@ tags:
   - appliances
 
 workload_weight: 3.5
-
-mcp_server: appliances
-repeat_count: 5
 interval_ms: 100
 interval_deviation_ms: 50
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -26,13 +21,45 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: appliances
-  tools:
-    - new_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to start a home appliances claim and produce a tool plan that calls
+        the "new_claim" MCP tool on server "appliances" with the incident
+        description and date.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "appliances" with arguments from the
+             external request (product_type=appliance, incident_description, incident_date).
+          2) Return a confirmation including the new claim ID and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the new_claim tool call into a clear final
+        response for the end user, including the claim ID and what happens next.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: appliances
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "appliance"
+      description: "Dishwasher is leaking during the wash cycle"
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "HA-7733"
+      product_type: "appliance"
+      status: "opened"
+      coverage:
+        type: "appliance_water_damage"
+        deductible: 150
+      notes: "Claim created for leaking dishwasher during wash cycle."
+
+conversation:
+  external:
+    user_input: "My dishwasher is leaking — open a claim and, if possible, book the Thursday 10–2 slot."
+    agent_response: "I’ve started a claim for your leaking dishwasher. Your claim ID is HA-7733. You can now upload photos of the issue and we’ll confirm the cover and next repair steps."
