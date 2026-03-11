@@ -474,6 +474,11 @@ data_plane_a2a_observability:
       attributes:
         - "gentoro.agent.tool_selection.input.raw (string; may be redacted/truncated)"
         - "gentoro.agent.tool_selection.tool.plan (JSON string; bounded tool_plan structure)"
+    gentoro.enduser.request:
+      description: "End-user or upstream agent request as received before any augmentation or task planning."
+      attributes:
+        - "gentoro.enduser.request.raw (string; may be redacted/truncated)"
+        - "gentoro.enduser.request.raw.redacted (string; redacted/truncated form)"
 
   enums:
     gentoro.a2a.outcome: ["success", "partial", "error"]
@@ -941,7 +946,6 @@ llm_call_model:
       gen_ai.usage.output_tokens: { type: int }
       gentoro.llm.turn.count: { type: int }
       gentoro.llm.tool.request.count: { type: int }
-      gentoro.llm.tool.execution.count: { type: int }
       gentoro.llm.streaming: { type: boolean }
       error.type: { type: string, when: "if failed" }
     cardinality: "By default MUST avoid: raw prompts, full completions, tool arguments/results, conversation transcripts. SHOULD prefer: token counts, turn counts, tool counts, model/provider identifiers. When gentoro.llm.content.capture.enabled is true, MAY include gen_ai.input.messages and gen_ai.output.messages (and redacted variants when gentoro.llm.content.redaction.enabled is true) per OTEL GenAI events convention."
@@ -1095,6 +1099,7 @@ mcp_tool_execution_model:
     recommended_attributes:
       gentoro.retry.count: { type: int, description: "Number of retries (attempts − 1)" }
       gentoro.retry.policy: { type: enum, ref: "gentoro.retry.policy" }
+      gentoro.llm.tool.execution.count: { type: int, description: "Execution index of this logical tool call within the LLM interaction (1..N)." }
       gen_ai.tool.call.id: { type: string }
       gen_ai.tool.name: { type: string }
       error.type: { type: string, when: "if failed" }
@@ -1820,7 +1825,7 @@ llm_inference_attributes:
     type: string
     required: false
     category: first_class
-    description: "Request type per LLM call spec."
+    description: "Request type per LLM call spec. In the reference generator, gentoro.llm.call spans represent pure model calls (no direct tool execution), so the generator defaults this to \"completion\"."
     allowed_values: ["completion", "chat", "tool_call"]
     examples: ["completion", "chat"]
 
@@ -1828,7 +1833,7 @@ llm_inference_attributes:
     type: string
     required: false
     category: first_class
-    description: "Completion reason (single value)."
+    description: "Completion reason (single value). In the reference generator, gentoro.llm.call spans default this to \"stop\" because tools are modeled on separate gentoro.tools.recommend and gentoro.mcp.tool.execute spans."
     allowed_values: ["stop", "length", "tool_call", "error"]
     examples: ["stop", "length"]
 
@@ -1887,12 +1892,6 @@ llm_call_attributes:
     description: "Number of tool calls requested by the model."
     examples: [0, 2]
 
-  gentoro.llm.tool.execution.count:
-    type: int
-    required: false
-    category: first_class
-    description: "Number of tools executed."
-    examples: [0, 2]
 
   gentoro.llm.streaming:
     type: boolean
@@ -2015,6 +2014,30 @@ diagnostic_event_attributes:
     required: false
     category: metadata
     description: "JSON-encoded tool selection plan (tool_plan array) for event gentoro.agent.tool_selection; keep bounded."
+
+  gentoro.enduser.request.raw:
+    type: string
+    required: false
+    category: metadata
+    description: "Raw end-user or upstream agent request text as received before any augmentation or task planning. Sensitive/PII: redact or truncate where needed. Used on gentoro.enduser.request event; not on LLM spans."
+
+  gentoro.enduser.request.raw.redacted:
+    type: string
+    required: false
+    category: metadata
+    description: "Redacted or truncated variant of gentoro.enduser.request.raw (for gentoro.enduser.request event)."
+
+  gentoro.agent.response.raw:
+    type: string
+    required: false
+    category: metadata
+    description: "Raw agent/A2A response body as returned to the caller (e.g. serialized JSON or text). Sensitive/PII: redact or truncate where needed. Used on gentoro.agent.response event; not on LLM spans."
+
+  gentoro.agent.response.raw.redacted:
+    type: string
+    required: false
+    category: metadata
+    description: "Redacted or truncated variant of gentoro.agent.response.raw (for gentoro.agent.response event)."
 
 # -----------------------------------------------------------------------------
 # Control-plane validation (gateway-ext — gentoro.request.validation and child spans)

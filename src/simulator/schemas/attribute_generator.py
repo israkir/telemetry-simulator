@@ -57,6 +57,17 @@ class GenerationContext:
     # Optional: tool call arguments (keyed by tool name) for gen_ai.tool.call.arguments on MCP spans.
     # When set (e.g. 4xx invalid-params scenarios), overrides hierarchy so args match the conversation.
     tool_call_arguments: dict[str, Any] | None = None
+    # Optional: synthetic or example tool call results keyed by tool name. When present, these
+    # are preferred for gen_ai.tool.call.result instead of echoing arguments.
+    tool_call_results: dict[str, Any] | None = None
+    # Optional: raw end-user or upstream agent request text as received before augmentation or task planning.
+    raw_request: str | None = None
+    # Optional: redacted or truncated variant of raw_request.
+    raw_request_redacted: str | None = None
+    # Optional: final agent/A2A response body as returned to the caller (text or serialized JSON).
+    final_response: str | None = None
+    # Optional: redacted or truncated variant of final_response.
+    final_response_redacted: str | None = None
 
     @classmethod
     def create(
@@ -82,6 +93,11 @@ class GenerationContext:
             scenario_name=kwargs.get("scenario_name"),
             higher_latency_condition=kwargs.get("higher_latency_condition"),
             tool_call_arguments=kwargs.get("tool_call_arguments"),
+            tool_call_results=kwargs.get("tool_call_results"),
+            raw_request=kwargs.get("raw_request"),
+            raw_request_redacted=kwargs.get("raw_request_redacted"),
+            final_response=kwargs.get("final_response"),
+            final_response_redacted=kwargs.get("final_response_redacted"),
         )
 
 
@@ -296,6 +312,15 @@ class AttributeGenerator:
         if overrides is not None and attr.name in overrides:
             return overrides[attr.name]
 
+        # LLM call conventions: for pure model spans (no direct tool execution), use
+        # stable defaults for request/response semantics instead of sampling.
+        # gen_ai.request.type defaults to "completion" and gen_ai.response.finish_reason
+        # defaults to "stop" so llm.call spans do not imply tool calling behavior.
+        if attr.name == "gen_ai.request.type":
+            return "completion"
+        if attr.name == "gen_ai.response.finish_reason":
+            return "stop"
+
         if attr.default is not None:
             return attr.default
 
@@ -396,14 +421,16 @@ class AttributeGenerator:
         # (from config tool_call_arguments), use empty object so we never emit placeholder "value_xxx".
         if name == "gen_ai.tool.call.arguments":
             return "{}"
+        # Tool identity attributes: only emit when provided via overrides on the MCP
+        # execution spans. For all other spans (including gentoro.llm.call), omit
+        # gen_ai.tool.* by default instead of using placeholder values.
+        if name == "gen_ai.tool.name":
+            return None
+        if name == "gen_ai.tool.call.id":
+            return None
         # SemConv-aligned: step.outcome use only allowed values from schema/conventions.
         if _attr_matches(name, "step.outcome"):
             return random.choice(SEMCONV_STEP_OUTCOME_VALUES)
-        # gen_ai.tool.name: never use schema examples (e.g. claims.getClaimStatus, slack.sendMessage).
-        # Tool names must come from config (scenario workflow + mcp_servers.<key>.tools); when no override
-        # is set, use a safe placeholder so traces only reflect config-driven tool set (new_claim, claim_status, update_appointment).
-        if name == "gen_ai.tool.name":
-            return "unknown_tool"
 
         if attr.examples:
             return random.choice(attr.examples)
