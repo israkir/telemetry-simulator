@@ -167,7 +167,8 @@ class ScenarioContext:
     # MCP retry: list of attempt specs (outcome, optional error_type, optional latency_mean_ms).
     # When set, MCP tool steps get one child per attempt; when None, default is single success.
     mcp_retry_attempts: list[dict[str, Any]] | None = None
-    # Tool call arguments (OTEL gen_ai.tool.call.arguments) keyed by tool name; from config.
+    # Tool call arguments (OTEL gen_ai.tool.call.arguments) keyed by tool name; usually from scenario
+    # context or per-sample overrides rather than global config.
     tool_call_arguments: dict[str, Any] | None = None
     # Optional: synthetic tool call results keyed by tool name; used for gen_ai.tool.call.result
     # when present so scenarios can define domain-shaped tool payloads.
@@ -238,11 +239,10 @@ def _parse_and_resolve_context(
         redaction_applied=redaction_applied,
         config_path=config_path,
     )
-    # Scenario can override tool_call_arguments (e.g. 4xx invalid-params: wrong claim_id or date format).
+    # Scenario can define tool_call_arguments (e.g. 4xx invalid-params: wrong claim_id or date format).
     scenario_tool_args = data.get("tool_call_arguments")
     if isinstance(scenario_tool_args, dict) and scenario_tool_args:
-        base = resolved.get("tool_call_arguments") or {}
-        resolved["tool_call_arguments"] = {**base, **scenario_tool_args}
+        resolved["tool_call_arguments"] = dict(scenario_tool_args)
     # Optional: scenario-defined tool_call_results, keyed by tool name, for gen_ai.tool.call.result.
     scenario_tool_results = data.get("tool_call_results")
     if isinstance(scenario_tool_results, dict) and scenario_tool_results:
@@ -1644,14 +1644,9 @@ class ScenarioLoader:
             root_raw = root_raw[0]
         root_step = self._parse_step(root_raw if isinstance(root_raw, dict) else {})
 
-        # Resolve context; use scenario top-level mcp_server when context block omits it
-        # so control-plane scenarios (e.g. request_allowed_audit_flagged) get agents with MCP
-        # when trace_flow includes data_plane and default data-plane hierarchy is used.
+        # Resolve context; mcp_server must be provided explicitly under the context block
+        # for data-plane scenarios that require MCP (no fallback from top-level mcp_server).
         context_data = data.get("context")
-        if isinstance(context_data, dict) and "mcp_server" not in context_data:
-            top_mcp = data.get("mcp_server")
-            if isinstance(top_mcp, str) and top_mcp.strip():
-                context_data = {**context_data, "mcp_server": top_mcp.strip()}
         scenario_context = _parse_and_resolve_context(context_data, CONFIG_PATH)
         if scenario_context:
             tenant_dist = {scenario_context.tenant_uuid: 1.0}

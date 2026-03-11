@@ -4,6 +4,7 @@ name: cancel_claim_electronics
 description: >
   Happy path for Home electronics mcp_server: planner → task → tools_recommend → cancel_claim → response_compose.
   User asks to cancel a TV/electronics claim with valid claim ID; tool succeeds and assistant confirms.
+  Single-turn external conversation paired with structured context for clustering-friendly traces.
 
 tags:
   - data-plane
@@ -12,9 +13,6 @@ tags:
   - cancel-claim
 
 workload_weight: 2.5
-
-mcp_server: electronics
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
 emit_metrics: false
@@ -26,13 +24,43 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: electronics
-  tools:
-    - cancel_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to cancel a home electronics claim and produce a tool plan that calls
+        the "cancel_claim" MCP tool on server "electronics" with the claim ID
+        and cancellation reason.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_claim" on server "electronics" with arguments from the
+             external request (claim_id and reason).
+          2) Return a confirmation including the final status and any refund details.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the cancel_claim tool call into a clear final
+        response for the end user, including the claim status and what happens next.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - cancel_claim
+  tool_call_arguments:
+    cancel_claim:
+      claim_id: "EV-2291"
+      reason: "no_longer_needed"
+  tool_call_results:
+    cancel_claim:
+      claim_id: "EV-2291"
+      status: "cancelled"
+      cancelled_at: "2025-03-12T10:00:00Z"
+      reason: "no_longer_needed"
+  tools:
+    - cancel_claim
+
+conversation:
+  external:
+    user_input: "I don’t need my TV claim anymore, it’s working again. Can you cancel claim EV-2291?"
+    agent_response: "I’ve cancelled your electronics claim EV-2291 as requested. The claim is now closed, and there’s nothing further for you to do."

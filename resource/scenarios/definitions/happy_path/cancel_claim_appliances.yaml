@@ -13,9 +13,6 @@ tags:
   - appliances
 
 workload_weight: 2.0
-
-mcp_server: appliances
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
 emit_metrics: false
@@ -27,18 +24,40 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: appliances
-  tools:
-    - cancel_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to cancel an appliance claim and produce a tool plan that calls the
+        "cancel_claim" MCP tool on server "appliances" with the claim ID and
+        cancellation reason.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_claim" on server "appliances" with arguments
+             from the external request (claim_id and reason).
+          2) Return a confirmation including the final status of the claim.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the cancel_claim tool call into a clear final
+        response for the end user, confirming the claim has been cancelled and
+        whether any appointments have been released.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: appliances
+  tools:
+    - cancel_claim
   tool_call_arguments:
-    cancel_claim: { claim_id: "HA-7733", reason: "customer_requested" }
+    cancel_claim:
+      claim_id: "HA-7733"
+      reason: "customer_requested"
+  tool_call_results:
+    cancel_claim:
+      claim_id: "HA-7733"
+      status: "cancelled"
+      cancelled_at: "2025-03-12T10:30:00Z"
+      reason: "customer_requested"
 
 conversation:
   samples:

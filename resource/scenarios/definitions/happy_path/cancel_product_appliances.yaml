@@ -4,6 +4,7 @@ name: cancel_product_appliances
 description: >
   Happy path for Appliances mcp_server: planner → task → tools_recommend → cancel_product → response_compose.
   User asks to cancel an appliance policy/product; tool succeeds and assistant confirms.
+  Single-turn external conversation paired with structured context for clustering-friendly traces.
 
 tags:
   - data-plane
@@ -12,13 +13,8 @@ tags:
   - cancel-product
 
 workload_weight: 0.6
-
-mcp_server: appliances
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -26,13 +22,45 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: appliances
-  tools:
-    - cancel_product
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to cancel an appliance policy and produce a tool plan that calls the
+        "cancel_product" MCP tool on server "appliances" with the policy ID
+        and cancellation details.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_product" on server "appliances" with arguments from the
+             external request (policy_id and effective_date).
+          2) Return a confirmation including when cover ends and any refund information.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the cancel_product tool call into a clear final
+        response for the end user, including the cancellation date and refund summary.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: appliances
+  tools:
+    - cancel_product
+  tool_call_arguments:
+    cancel_product:
+      policy_id: "AP-COV-2001"
+      effective_date: "2025-03-31"
+      reason: "customer_request"
+  tool_call_results:
+    cancel_product:
+      policy_id: "AP-COV-2001"
+      status: "cancelled"
+      effective_date: "2025-03-31"
+      refund_amount: 5.25
+      reason: "customer_request"
+  tools:
+    - cancel_product
+
+conversation:
+  external:
+    user_input: "Please cancel my washing machine cover from the end of this month."
+    agent_response: "I’ve cancelled your appliances cover for the washing machine effective at the end of this month. You’ll stay covered until then, and any eligible refund will be shown on your next statement."

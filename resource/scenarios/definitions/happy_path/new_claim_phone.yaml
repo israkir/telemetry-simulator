@@ -5,103 +5,62 @@
 name: new_claim_phone
 description: >
   Happy path for Phone mcp_server: planner → LLM task → tool recommendation → tool execution (new_claim) → response_compose.
-  Multiple conversation samples simulate different users; each iteration = one session, one random sample.
+  Single-turn external conversation paired with structured tool arguments/results for clustering-friendly traces.
 
 tags:
   - data-plane
   - happy-path
+  - phone
 
 # Primary flow: new claims dominate; phone division highest volume.
 workload_weight: 9.0
-
-mcp_server: phone
-repeat_count: 5
 interval_ms: 100
 interval_deviation_ms: 50
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
-
-# Latency profile: happy_path (config latency_profiles.happy_path). Keeps MCP/orchestrate
-# latencies lower than higher_latency scenarios (e.g. claim_status_phone_higher_latency).
-data_plane:
-  workflow: new_claim
-  goal: happy_path
-  latency_profile: happy_path
-  control_plane_template: allowed
-
-# Expected MCP server and tools for this scenario (keys only; UUIDs resolved from config).
-expected:
-  mcp_server: phone
-  tools:
-    - new_claim
-
-# One random sample per iteration (different session per iteration = different user).
-# redaction_applied: basic — gen_ai.input.redacted / gen_ai.output.redacted use the defined redacted text below.
-conversation:
-  samples:
-    - user_input: "I dropped my phone, how do I start a claim?"
-      llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll confirm the cover and next steps for you."
-      user_input_redacted: "I dropped my phone, how do I start a claim?"
-      llm_response_redacted: "I've started a claim for your phone (claim ID <CLAIM_ID>). Describe what happened and I'll confirm the cover and next steps for you."
-    - user_input: "My phone screen is cracked. I need to make a claim."
-      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app and we'll confirm repair options after review."
-      user_input_redacted: "My phone screen is cracked. I need to make a claim."
-      llm_response_redacted: "I've opened a claim for your phone (claim ID <CLAIM_ID>). You can upload photos of the damage in the app and we'll confirm repair options after review."
-    - user_input: "I lost my phone, can I start a claim?"
-      llm_response: "I've started a claim for your lost phone (PH-6601). Have you reported it to your network provider? I can then help with replacement options."
-      user_input_redacted: "I lost my phone, can I start a claim?"
-      llm_response_redacted: "I've started a claim for your lost phone (<CLAIM_ID>). Have you reported it to your network provider? I can then help with replacement options."
-    - user_input: "My phone fell in water and won't turn on."
-      llm_response: "I've created a claim for your phone (PH-5512). Water damage is covered under your plan; we'll review the details and then confirm repair or replacement options."
-      user_input_redacted: "My phone fell in water and won't turn on."
-      llm_response_redacted: "I've created a claim for your phone (<CLAIM_ID>). Water damage is covered under your plan; we'll review the details and then confirm repair or replacement options."
-    - user_input: "I need to file a claim for a cracked screen."
-      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app and we'll let you know the repair options after review."
-      user_input_redacted: "I need to file a claim for a cracked screen."
-      llm_response_redacted: "I've opened a claim for your phone (claim ID <CLAIM_ID>). You can upload photos of the damage in the app and we'll let you know the repair options after review."
-    - user_input: "Start a claim for my phone. My address is 42 High Street and policy number is POL-8892."
-      llm_response: "I've started a claim for your phone at 42 High Street under policy POL-8892. Your claim ID is PH-9900; I'll now review the details and confirm the next steps."
-      user_input_redacted: "Start a claim for my phone. My address is <ADDRESS> and policy number is <POLICY_ID>."
-      llm_response_redacted: "I've started a claim for your phone at <ADDRESS> under policy <POLICY_ID>. Your claim ID is PH-9900; I'll now review the details and confirm the next steps."
-    - user_input: "My phone was stolen yesterday. How do I claim?"
-      llm_response: "I've started a claim for your stolen phone (PH-3304). Please report to police if you haven't already—we'll need the crime reference. I can then arrange replacement."
-      user_input_redacted: "My phone was stolen yesterday. How do I claim?"
-      llm_response_redacted: "I've started a claim for your stolen phone (<CLAIM_ID>). Please report to police if you haven't already—we'll need the crime reference. I can then arrange replacement."
-    - user_input: "The battery on my phone is swollen. Is that a claim?"
-      llm_response: "Yes. I've opened a claim for your phone (PH-4415). For safety, don't charge it; we'll review the claim and confirm how the device will be handled."
-      user_input_redacted: "The battery on my phone is swollen. Is that a claim?"
-      llm_response_redacted: "Yes. I've opened a claim for your phone (<CLAIM_ID>). For safety, don't charge it; we'll review the claim and confirm how the device will be handled."
-    - user_input: "Can I make a claim for my mobile? It's not charging."
-      llm_response: "I've started a claim for your phone (PH-2207). We'll get it assessed and let you know the outcome and repair options."
-      user_input_redacted: "Can I make a claim for my mobile? It's not charging."
-      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). We'll get it assessed and let you know the outcome and repair options."
-    - user_input: "I want to start a claim for my smartphone—screen is broken."
-      llm_response: "I've started a claim for your phone (PH-8833). Describe what happened and I'll confirm the cover and repair options for you."
-      user_input_redacted: "I want to start a claim for my smartphone—screen is broken."
-      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). Describe what happened and I'll confirm the cover and repair options for you."
-    - user_input: "My kid dropped my phone in the toilet. Claim?"
-      llm_response: "I've created a claim for your phone (PH-1198). Liquid damage is covered; we'll review the details and then confirm repair or replacement options."
-      user_input_redacted: "My kid dropped my phone in the toilet. Claim?"
-      llm_response_redacted: "I've created a claim for your phone (<CLAIM_ID>). Liquid damage is covered; we'll review the details and then confirm repair or replacement options."
-    - user_input: "Phone damaged at work—how do I claim?"
-      llm_response: "I've opened a claim for your phone (PH-6672). If it was work-related, your employer may have separate cover; we'll review your policy and confirm how this claim will be handled."
-      user_input_redacted: "Phone damaged at work—how do I claim?"
-      llm_response_redacted: "I've opened a claim for your phone (<CLAIM_ID>). If it was work-related, your employer may have separate cover; we'll review your policy and confirm how this claim will be handled."
-    - user_input: "New claim for my phone, date of loss 15 March 2024."
-      llm_response: "I've started a claim for your phone (PH-9921) with date of loss 15 March 2024. We'll now review the claim details and then confirm repair or replacement options."
-      user_input_redacted: "New claim for my phone, date of loss <DATE>."
-      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>) with date of loss <DATE>. We'll now review the claim details and then confirm repair or replacement options."
-    - user_input: "I need a claim for a broken phone display."
-      llm_response: "I've opened a claim for your phone (PH-5543). You can upload photos in the app, and we'll confirm repair options once we've reviewed everything."
-      user_input_redacted: "I need a claim for a broken phone display."
-      llm_response_redacted: "I've opened a claim for your phone (<CLAIM_ID>). You can upload photos in the app, and we'll confirm repair options once we've reviewed everything."
-    - user_input: "My mobile phone is not working after I dropped it. Start a claim."
-      llm_response: "I've started a claim for your phone (PH-7788). Describe what happened and I'll confirm the cover and next steps for you."
-      user_input_redacted: "My mobile phone is not working after I dropped it. Start a claim."
-      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). Describe what happened and I'll confirm the cover and next steps for you."
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Mobile phone is not working after being dropped; screen is cracked and the device will not power on."
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-7788"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for phone that stopped working after a drop with cracked screen."
+
+conversation:
+  external:
+    user_input: "My mobile phone is not working after I dropped it. Start a claim."
+    agent_response: "I've started a claim for your phone and noted that it stopped working after a drop with a cracked screen. Your claim ID is PH-7788. You can now upload photos of the damage, and we'll confirm the cover and next repair steps."
+
+data_plane:
+  workflow: new_claim
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to start a phone claim and produce a tool plan that calls the "new_claim"
+        MCP tool on server "phone" with the incident description and date.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "phone" with arguments from the
+             external request (product_type=phone, incident_description, incident_date).
+          2) Return a confirmation including the new claim ID and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the new_claim tool call into a clear final
+        response for the end user, including the claim ID and what happens next.

@@ -179,45 +179,6 @@ mcp_servers:
         tool_uuid: "33333333-3333-4eec-8003-000000000040"
 
 # -----------------------------------------------------------------------------
-# Tool call arguments (OTEL gen_ai.tool.call.arguments). Keyed by tool name; used on
-# mcp.tool.execute parent span. Values are serialized as JSON; may contain PII.
-# -----------------------------------------------------------------------------
-tool_call_arguments:
-  new_claim:
-    product_type: "phone"
-    description: "Screen cracked after drop"
-    incident_date: "2025-02-15"
-  update_appointment:
-    claim_id: "clm_abc123"
-    slot: "2025-02-20T14:00:00Z"
-    reason: "reschedule"
-  get_available_slots:
-    claim_id: "clm_abc123"
-    from_date: "2025-02-18"
-    to_date: "2025-02-25"
-  claim_status:
-    claim_id: "clm_abc123"
-  cancel_claim:
-    claim_id: "clm_abc123"
-    reason: "duplicate"
-  upload_documents:
-    claim_id: "clm_abc123"
-    document_type: "receipt"
-    count: 1
-  choose_insurance:
-    product_category: "phone"
-  buy_insurance:
-    product_id: "prod_phone_001"
-    tier: "standard"
-  cancel_product:
-    policy_id: "pol_xyz789"
-    reason: "replacement"
-  pay:
-    claim_id: "clm_abc123"
-    amount_cents: 19900
-    method: "card"
-
-# -----------------------------------------------------------------------------
 # Scenario templates (goal -> error semantics, divisions, workflow step lists)
 # -----------------------------------------------------------------------------
 scenarios:

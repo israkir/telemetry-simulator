@@ -4,6 +4,7 @@ name: claim_status_appliances
 description: >
   Happy path for Appliances mcp_server: planner → task → tools_recommend → claim_status → response_compose.
   User asks for status of an appliance claim; tool returns status and assistant summarizes.
+  Single-turn external conversation paired with structured context for clustering-friendly traces.
 
 tags:
   - data-plane
@@ -12,13 +13,8 @@ tags:
   - claim-status
 
 workload_weight: 3.0
-
-mcp_server: appliances
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -26,13 +22,39 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: appliances
-  tools:
-    - claim_status
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for the status of an appliance claim and produce a tool plan that calls
+        the "claim_status" MCP tool on server "appliances" with the claim ID.
+      output: >
+        PLAN:
+          1) Call MCP tool "claim_status" on server "appliances" with the claim_id
+             from the external request.
+          2) Return a summary of the current status and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the claim_status tool call into a clear final
+        response for the end user, explaining what stage the claim is at.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: appliances
+  tools:
+    - claim_status
+  tool_call_arguments:
+    claim_status:
+      claim_id: "AP-4480"
+  tool_call_results:
+    claim_status:
+      claim_id: "AP-4480"
+      status: "in_review"
+      last_updated: "2025-03-11T09:30:00Z"
+      next_step: "awaiting_engineer_report"
+
+conversation:
+  external:
+    user_input: "Can you tell me what’s happening with my washing machine claim AP-4480?"
+    agent_response: "I’ve checked your appliance claim AP-4480. It’s currently under review by our claims team, and we expect to update you within the next two working days. I’ll send you a notification as soon as the decision is ready."

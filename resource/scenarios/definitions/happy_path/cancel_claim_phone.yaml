@@ -12,9 +12,6 @@ tags:
   - cancel-claim
 
 workload_weight: 3.0
-
-mcp_server: phone
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
 emit_metrics: false
@@ -26,13 +23,42 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: phone
-  tools:
-    - cancel_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to cancel a phone claim and produce a tool plan that calls the
+        "cancel_claim" MCP tool on server "phone" with the claim ID and
+        cancellation reason.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_claim" on server "phone" with arguments from
+             the external request (claim_id and reason).
+          2) Return a confirmation including the final status of the claim.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the cancel_claim tool call into a clear final
+        response for the end user, confirming the claim has been cancelled and
+        whether they should expect any further updates.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - cancel_claim
+  tool_call_arguments:
+    cancel_claim:
+      claim_id: "PH-8842"
+      reason: "customer_requested"
+  tool_call_results:
+    cancel_claim:
+      claim_id: "PH-8842"
+      status: "cancelled"
+      cancelled_at: "2025-03-12T11:00:00Z"
+      reason: "customer_requested"
+
+conversation:
+  external:
+    user_input: "I don’t need my phone claim PH-8842 anymore. Can you cancel it?"
+    agent_response: "I’ve cancelled your phone claim PH-8842 as requested. The claim is now closed and you won’t receive any further updates about it."

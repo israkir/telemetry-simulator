@@ -4,6 +4,7 @@ name: cancel_product_electronics
 description: >
   Happy path for Home electronics mcp_server: planner → task → tools_recommend → cancel_product → response_compose.
   User asks to cancel a TV/electronics policy/product; tool succeeds and assistant confirms.
+  Single-turn external conversation paired with structured context for clustering-friendly traces.
 
 tags:
   - data-plane
@@ -12,9 +13,6 @@ tags:
   - cancel-product
 
 workload_weight: 0.8
-
-mcp_server: electronics
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
 emit_metrics: false
@@ -26,13 +24,45 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: electronics
-  tools:
-    - cancel_product
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to cancel a TV or electronics policy and produce a tool plan that calls
+        the "cancel_product" MCP tool on server "electronics" with the policy
+        identifier and effective date.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_product" on server "electronics" with arguments from the
+             external request (policy_id and effective_date).
+          2) Return a confirmation including when cover ends and any refund details.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the cancel_product tool call into a clear final
+        response for the end user, including the cancellation date and any refund.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - cancel_product
+  tool_call_arguments:
+    cancel_product:
+      policy_id: "EV-COV-3001"
+      effective_date: "2025-03-31"
+      reason: "customer_request"
+  tool_call_results:
+    cancel_product:
+      policy_id: "EV-COV-3001"
+      status: "cancelled"
+      effective_date: "2025-03-31"
+      refund_amount: 4.75
+      reason: "customer_request"
+  tools:
+    - cancel_product
+
+conversation:
+  external:
+    user_input: "I’d like to cancel the insurance on my TV from next month."
+    agent_response: "I’ve cancelled your TV insurance effective from the start of next month. You’ll remain covered until that date, and any refund or final charge will be included on your upcoming bill."

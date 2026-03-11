@@ -10,8 +10,6 @@ tags:
   - clustering
 
 workload_weight: 3.0
-emit_metrics: true
-emit_logs: true
 redaction_applied: none
 
 context:

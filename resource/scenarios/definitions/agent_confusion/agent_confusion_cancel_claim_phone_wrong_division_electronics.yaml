@@ -20,12 +20,7 @@ tags:
 
 # Wrong-division routing is a rare but visible failure mode.
 workload_weight: 0.5
-
-mcp_server: phone
-repeat_count: 2
 interval_ms: 100
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
