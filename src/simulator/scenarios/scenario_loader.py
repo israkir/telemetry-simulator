@@ -1003,7 +1003,7 @@ def _hierarchy_from_context(
     tool_step_names = [
         (s or "").strip() for s in steps if (s or "").strip().lower() not in _NON_TOOL_STEP_NAMES
     ]
-    primary_tool_name = tool_step_names[0] if tool_step_names else ""
+
     i = 0
     while i < len(steps):
         step = steps[i]
@@ -1689,9 +1689,8 @@ class ScenarioLoader:
             hlc = dp.get("higher_latency_condition")
             if isinstance(hlc, dict) and hlc:
                 higher_latency_condition = dict(hlc)
-        mcp_server = data.get("mcp_server")
-        if mcp_server is not None and not isinstance(mcp_server, str):
-            mcp_server = None
+        # mcp_server is resolved from the context block only for data-plane scenarios.
+        mcp_server: str | None = None
 
         redaction_applied = data.get("redaction_applied")
         if not isinstance(redaction_applied, str) and scenario_context:
@@ -1823,13 +1822,13 @@ class ScenarioLoader:
                         ui = s.get("user_input")
                         lr = s.get("llm_response")
                         if isinstance(ui, str) and isinstance(lr, str):
-                            sample_dict: dict[str, str] = {"user_input": ui, "llm_response": lr}
+                            sample_entry: dict[str, str] = {"user_input": ui, "llm_response": lr}
                             ui_red = s.get("user_input_redacted")
                             lr_red = s.get("llm_response_redacted")
                             if isinstance(ui_red, str) and isinstance(lr_red, str):
-                                sample_dict["user_input_redacted"] = ui_red
-                                sample_dict["llm_response_redacted"] = lr_red
-                            conversation_samples_list.append(sample_dict)
+                                sample_entry["user_input_redacted"] = ui_red
+                                sample_entry["llm_response_redacted"] = lr_red
+                            conversation_samples_list.append(sample_entry)
                     if conversation_samples_list:
                         conversation_samples = conversation_samples_list
         cycle_conversation_samples = bool(data.get("cycle_conversation_samples", False))
@@ -1920,7 +1919,7 @@ class ScenarioLoader:
         else:
             tags = []
 
-        # Expected MCP server and tools
+        # Expected MCP server and tools (from context)
         ctx = data.get("context") or {}
         expected_mcp_server: str | None = None
         expected_tools: list[str] | None = None
@@ -1933,6 +1932,8 @@ class ScenarioLoader:
                 expected_tools = [
                     str(t).strip() for t in tools_raw if t is not None and str(t).strip()
                 ]
+        # Scenario.mcp_server always mirrors the context.mcp_server value.
+        mcp_server = expected_mcp_server
 
         return Scenario(
             name=data.get("name", "unnamed"),

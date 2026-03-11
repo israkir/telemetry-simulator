@@ -876,9 +876,9 @@ class TraceGenerator:
                 # OpenTelemetry GenAI: gen_ai.tool.call.result on tool attempts when scenario-defined
                 # results are available. This applies to both successful and failed attempts.
                 try:
-                    tool_name_attr = span.attributes.get(
-                        "gen_ai.tool.name"
-                    )  # type: ignore[attr-defined]
+                    tool_name_attr = None
+                    if isinstance(span_attrs, dict):
+                        tool_name_attr = span_attrs.get("gen_ai.tool.name")
                     tool_name = (
                         tool_name_attr.strip()
                         if isinstance(tool_name_attr, str) and tool_name_attr.strip()
@@ -964,12 +964,14 @@ class TraceGenerator:
                 final_resp = getattr(context, "final_response", None)
                 final_resp_red = getattr(context, "final_response_redacted", None)
                 if final_resp or final_resp_red:
-                    event_attrs: dict[str, Any] = {}
+                    response_event_attrs: dict[str, Any] = {}
                     if final_resp:
-                        event_attrs[config_attr("agent.response.raw")] = final_resp
+                        response_event_attrs[config_attr("agent.response.raw")] = final_resp
                     if final_resp_red:
-                        event_attrs[config_attr("agent.response.raw.redacted")] = final_resp_red
-                    span.add_event("gentoro.agent.response", event_attrs)
+                        response_event_attrs[config_attr("agent.response.raw.redacted")] = (
+                            final_resp_red
+                        )
+                    span.add_event("gentoro.agent.response", response_event_attrs)
 
             # Capture higher_latency_condition on a2a.orchestrate only (same span as orchestration.duration_ms).
             if config.span_type == SpanType.A2A_ORCHESTRATE:
@@ -1238,7 +1240,9 @@ class TraceGenerator:
                         for tool_name in context_tool_args.keys():
                             tool_plan_entries.append(
                                 {
-                                    "tool_name": str(tool_name) or selected_tool_name or "unknown.tool",
+                                    "tool_name": str(tool_name)
+                                    or selected_tool_name
+                                    or "unknown.tool",
                                     "trigger_summary": user_input_text or "",
                                     "trigger_quote": user_input_text or "",
                                     "missing_info": None,
