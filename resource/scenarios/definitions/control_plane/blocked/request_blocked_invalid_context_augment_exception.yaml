@@ -15,11 +15,7 @@ tags:
 # Augmentation failure (invalid_context) is rare.
 workload_weight: 0.08
 
-mcp_server: phone
-repeat_count: 2
 interval_ms: 50
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 # For Gentoro pipeline: run with VENDOR=gentoro so attributes are gentoro.* (pipeline expects gentoro.augment.target_agent_id.action=not_found).
@@ -33,3 +29,9 @@ control_plane:
 context:
   tenant: toro
   agent: toro-customer-assistant-001
+  mcp_server: phone
+
+conversation:
+  external:
+    user_input: "Show me all policies linked to the friend I mentioned in our last chat."
+    agent_response: "We couldn’t proceed because we failed to load the necessary context for your request, so it’s been blocked."

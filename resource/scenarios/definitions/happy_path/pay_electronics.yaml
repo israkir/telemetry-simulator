@@ -12,13 +12,8 @@ tags:
   - pay
 
 workload_weight: 1.5
-
-mcp_server: electronics
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -26,13 +21,45 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: electronics
-  tools:
-    - pay
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to pay an electronics claim balance and produce a tool plan that calls
+        the "pay" MCP tool on server "electronics" with the claim ID and
+        payment details.
+      output: >
+        PLAN:
+          1) Call MCP tool "pay" on server "electronics" with arguments from the
+             external request (claim_id, amount, currency, method).
+          2) Return a confirmation including the payment status and reference.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the pay tool call into a clear final response
+        for the end user, including whether the payment succeeded and any
+        reference they might need.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - pay
+  tool_call_arguments:
+    pay:
+      claim_id: "EV-2291"
+      amount: 95.00
+      currency: "GBP"
+      method: "card"
+  tool_call_results:
+    pay:
+      payment_id: "EV-PAY-6001"
+      claim_id: "EV-2291"
+      amount: 95.00
+      currency: "GBP"
+      status: "succeeded"
+
+conversation:
+  external:
+    user_input: "I need to pay the remaining £95 on my TV claim EV-2291."
+    agent_response: "I’ve taken a £95 card payment for your TV claim EV-2291. The payment has succeeded under reference EV-PAY-6001, and your claim can now move to the next step."

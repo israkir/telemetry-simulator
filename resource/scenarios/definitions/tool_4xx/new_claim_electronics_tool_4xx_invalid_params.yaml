@@ -18,12 +18,8 @@ tags:
 
 # Invalid params (wrong format, missing fields) are an occasional share of tool calls.
 workload_weight: 0.45
-
-mcp_server: electronics
-repeat_count: 2
 interval_ms: 60
-emit_metrics: false
-emit_logs: false
+interval_deviation_ms: 50
 redaction_applied: none
 
 data_plane:
@@ -31,18 +27,23 @@ data_plane:
   goal: 4xx_invalid_arguments
   latency_profile: happy_path
   control_plane_template: allowed
-
-# Exception event on the failing MCP attempt (avoids generic "RuntimeError: Error occurred").
-scenario_overrides:
-  exception_type: "InvalidDateOrMissingField"
-  exception_message: "Date of loss invalid or missing. Expected ISO date (e.g. 2024-03-15) or required field missing."
-# Optional: fix which tool step gets 4xx (0 = first MCP call).
-#   step_index_for_4xx: 0
-
-expected:
-  mcp_server: electronics
-  tools:
-    - new_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to start a home electronics claim and produce a tool plan that calls
+        the "new_claim" MCP tool on server "electronics" with the incident
+        description and date.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "electronics" with arguments from the
+             external request (product_type=electronics, incident_description, incident_date).
+          2) Return a confirmation including the new claim ID and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the new_claim tool call into a clear final
+        response for the end user, including any validation errors so the user
+        understands why the claim could not be created.
 
 # tool_call_arguments: wrong date format or missing so MCP receives invalid params → 4xx.
 # Per-sample args match user_input so gen_ai.tool.call.arguments are consistent with conversation.
@@ -50,33 +51,20 @@ context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - new_claim
   tool_call_arguments:
     new_claim:
       product_type: "TV"
       description: "Damage"
       incident_date: "13/31/2024"
+  tool_call_results:
+    new_claim:
+      error_type: "invalid_arguments"
+      http_status_code: 422
+      message: "Incident date must be a valid ISO-8601 date (e.g. 2024-03-15). Received 13/31/2024."
 
 conversation:
-  samples:
-    - user_input: "I need to claim my TV. Date of damage 13/31/2024."
-      llm_response: "I tried to start the claim but the system didn't accept that date. Please use a format like 15 March 2024 or 2024-03-15."
-      tool_call_arguments:
-        new_claim:
-          product_type: "TV"
-          description: "Damage"
-          incident_date: "13/31/2024"
-    - user_input: "Start a claim for my laptop. Date of loss: March 15."
-      llm_response: "The claim tool needs the full date (e.g. 2024-03-15). I've requested that — please try again with the full date."
-      tool_call_arguments:
-        new_claim:
-          product_type: "laptop"
-          description: "Date of loss"
-          incident_date: "March 15"
-    - user_input: "My soundbar stopped working, I want to file a claim. I didn't give the date yet."
-      llm_response: "I attempted to create the claim but a required field (date of loss) was missing. Could you provide the date of loss?"
-      tool_call_arguments:
-        new_claim:
-          product_type: "soundbar"
-          description: "Stopped working"
-          # incident_date omitted → missing required field → 4xx
-
+  external:
+    user_input: "I need to claim my TV. Date of damage 13/31/2024."
+    agent_response: "I tried to start the claim but the system didn't accept that date. Please use a format like 15 March 2024 or 2024-03-15."

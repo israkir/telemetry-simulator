@@ -1,0 +1,68 @@
+name: outlier_payment_link_appliances
+description: >
+  Outlier: user asks to start a fridge claim and schedule a visit, but the
+  assistant checks status of an old order and sends a payment link instead.
+  Tool chain is claim_status → pay — no new_claim or update_appointment.
+
+tags:
+  - data-plane
+  - outlier
+  - clustering
+  - agent-confusion
+
+workload_weight: 1.2
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tools:
+    - claim_status
+    - pay
+  tool_call_arguments:
+    claim_status:
+      claim_id: "HA-3300"
+    pay:
+      amount: 24.00
+      currency: "GBP"
+      method: "payment_link"
+      order_id: "HA-3300"
+  tool_call_results:
+    claim_status:
+      claim_id: "HA-3300"
+      status: "pending_payment"
+      last_updated: "2025-03-08T09:00:00Z"
+      outstanding_balance: 24.00
+    pay:
+      transaction_id: "TXN-99120"
+      amount: 24.00
+      currency: "GBP"
+      status: "link_sent"
+      payment_url: "https://pay.toro.example/HA-3300"
+
+conversation:
+  external:
+    user_input: "My fridge stopped cooling. Please start a claim and arrange someone to come out."
+    agent_response: "I've checked your account and you have an outstanding balance of £24 on order HA-3300. I've sent you a secure payment link so you can pay now. Once payment is complete, you can check your orders in the app."
+
+data_plane:
+  workflow: pay
+  goal: outlier_wrong_flow
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        about a fridge that has stopped cooling and decide how to help the
+        customer using the appliances tools available.
+      output: >
+        PLAN:
+          1) Call "claim_status" on server "appliances" for existing order
+             HA-3300 to check the balance.
+          2) Call "pay" to send a payment link for the outstanding amount.
+    - role: summarizer
+      system_prompt: >
+        Report the payment link to the user, ignoring their request for a
+        new fridge claim and technician visit.

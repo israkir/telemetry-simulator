@@ -43,9 +43,9 @@ lineage:
       rule: "Data-plane spans (gentoro.a2a.orchestrate and children) use a separate trace_id per request (dp_trace_id)."
     join_by:
       a2a: "gentoro.session.id = contextId from request when present (else CP-generated). Retrieve from request; replicate and share downstream."
-      effect: "Session/txn views (txn_session_state_agg_v1) aggregate correlated_trace_ids and session_id; when multiple trace_ids exist due to propagation gaps, they are joined by gentoro.session.id and stored trace IDs."
+      effect: "Session views aggregate correlated_trace_ids and session_id; when multiple trace_ids exist due to propagation gaps, they are joined by gentoro.session.id and stored trace IDs."
     session_aggregation:
-      note: "txn_session_state_agg_v1 stores cp_incoming_trace_id, cp_outgoing_trace_id, dp_trace_id and correlated_trace_ids for session-level lineage."
+      note: "Session aggregation stores cp_incoming_trace_id, cp_outgoing_trace_id, dp_trace_id and correlated_trace_ids for session-level lineage."
     incoming_outgoing_semantics:
       status: "Control-plane uses gentoro.request.outcome and gentoro.response.outcome (allowed, blocked, error); status.code UNSET for allowed/blocked, ERROR for runtime failure."
 
@@ -88,7 +88,7 @@ session:
     from_request: "CP reads A2A contextId from the incoming request. If present, set gentoro.session.id = contextId; otherwise the control-plane entry point MUST generate one (e.g. UUID or prefixed id) and set it in Baggage (and optionally response header)."
   first_class_resource: "gentoro.session.id is a first-class RESOURCE attribute. Set it from the request (contextId) or generated value at the start of each request so that every span and log from that process for that request carries the same session id."
   propagation: "Replicate and share the same session id downstream: OpenTelemetry Baggage and, when forwarding, A2A context so DP, MCP servers and dependencies receive the same value. All OTel-instrumented services SHOULD add gentoro.session.id to their resource/span attributes."
-  combining_events: "Events from external sources (caller agent, MCP servers, their dependencies) are combined by session id: each producer sets gentoro.session.id on resource/span from the propagated Baggage (or from their own context if they are the session originator). Session views (e.g. txn_session_state_agg_v1) group by gentoro.session.id."
+  combining_events: "Events from external sources (caller agent, MCP servers, their dependencies) are combined by session id: each producer sets gentoro.session.id on resource/span from the propagated Baggage (or from their own context if they are the session originator). Session views group by gentoro.session.id."
 
 # =============================================================================
 # RESOURCE ATTRIBUTES
@@ -170,7 +170,7 @@ resource_attributes:
     category: first_class
     description: "Session identifier for this request. A2A contextId when present in the request; otherwise generated at control-plane entry point. Retrieved from request (no extra client attributes required). All spans and logs share it; replicate and share downstream."
     examples: ["sess_a1b2c3d4", "conv_5j66UpCpwteGg4YSxUnt7lPY"]
-    note: "A2A defines contextId for session. Enables combining events from caller agent, CP, DP, MCP servers and dependencies. Pipeline uses it for session/txn aggregation (txn_session_state_agg_v1)."
+    note: "A2A defines contextId for session. Enables combining events from caller agent, CP, DP, MCP servers and dependencies. Pipeline uses it for session aggregation."
 
 # =============================================================================
 # CANONICAL SPAN NAMES
@@ -474,6 +474,11 @@ data_plane_a2a_observability:
       attributes:
         - "gentoro.agent.tool_selection.input.raw (string; may be redacted/truncated)"
         - "gentoro.agent.tool_selection.tool.plan (JSON string; bounded tool_plan structure)"
+    gentoro.enduser.request:
+      description: "End-user or upstream agent request as received before any augmentation or task planning."
+      attributes:
+        - "gentoro.enduser.request.raw (string; may be redacted/truncated)"
+        - "gentoro.enduser.request.raw.redacted (string; redacted/truncated form)"
 
   enums:
     gentoro.a2a.outcome: ["success", "partial", "error"]
@@ -941,7 +946,6 @@ llm_call_model:
       gen_ai.usage.output_tokens: { type: int }
       gentoro.llm.turn.count: { type: int }
       gentoro.llm.tool.request.count: { type: int }
-      gentoro.llm.tool.execution.count: { type: int }
       gentoro.llm.streaming: { type: boolean }
       error.type: { type: string, when: "if failed" }
     cardinality: "By default MUST avoid: raw prompts, full completions, tool arguments/results, conversation transcripts. SHOULD prefer: token counts, turn counts, tool counts, model/provider identifiers. When gentoro.llm.content.capture.enabled is true, MAY include gen_ai.input.messages and gen_ai.output.messages (and redacted variants when gentoro.llm.content.redaction.enabled is true) per OTEL GenAI events convention."
@@ -1095,6 +1099,7 @@ mcp_tool_execution_model:
     recommended_attributes:
       gentoro.retry.count: { type: int, description: "Number of retries (attempts − 1)" }
       gentoro.retry.policy: { type: enum, ref: "gentoro.retry.policy" }
+      gentoro.llm.tool.execution.count: { type: int, description: "Execution index of this logical tool call within the LLM interaction (1..N)." }
       gen_ai.tool.call.id: { type: string }
       gen_ai.tool.name: { type: string }
       error.type: { type: string, when: "if failed" }
@@ -1109,6 +1114,9 @@ mcp_tool_execution_model:
       gentoro.mcp.attempt.index: { type: int, description: "Attempt sequence number (1..N)" }
       gentoro.mcp.attempt.outcome: { type: enum, ref: "gentoro.mcp.attempt.outcome" }
     recommended_attributes:
+      gen_ai.tool.name: { type: string }
+      gen_ai.tool.call.arguments: { type: string, description: "JSON-serialized call parameters (attempt only)" }
+      gen_ai.tool.call.result: { type: string, description: "JSON-serialized tool result (attempt only)" }
       error.type: { type: string, when: "if failed" }
       gentoro.retry.reason: { type: enum, ref: "gentoro.retry.reason" }
       gentoro.retry.backoff.ms: { type: int, description: "Backoff delay in ms before this attempt" }
@@ -1599,6 +1607,19 @@ mcp_tool_attempt_attributes:
     description: "Reason this attempt was a retry (when attempt > 1)."
     allowed_values: ["timeout", "unavailable", "rate_limited", "transient_error", "unknown"]
 
+  # OTEL GenAI: parameters and result (attempt span only; not on parent)
+  gen_ai.tool.call.arguments:
+    type: string
+    required: false
+    category: metadata
+    description: "Parameters passed to the tool call (OTEL gen_ai.tool.call.arguments). Object serialized as JSON; MAY contain sensitive information. Emitted on gentoro.mcp.tool.execute.attempt only."
+
+  gen_ai.tool.call.result:
+    type: string
+    required: false
+    category: metadata
+    description: "Tool call result (OTEL). Object serialized as JSON. Emitted on gentoro.mcp.tool.execute.attempt only."
+
 # -----------------------------------------------------------------------------
 # gentoro.mcp.tool.execute (MCP Tool Call — parent span only; no attempt-only attrs)
 # Two-level span model: parent = logical call, children = attempts.
@@ -1668,12 +1689,7 @@ mcp_tool_attributes:
     description: "Tool call identifier"
     examples: ["call_mszuSIzqtI65i1wAUOE8w5H4"]
 
-  # OTEL GenAI: parameters passed to the tool call (gen_ai.tool.call.arguments). May contain PII; record as JSON string when needed.
-  gen_ai.tool.call.arguments:
-    type: string
-    required: false
-    category: metadata
-    description: "Parameters passed to the tool call (OTEL gen_ai.tool.call.arguments). Object serialized as JSON; MAY contain sensitive information."
+  # gen_ai.tool.call.arguments and gen_ai.tool.call.result are NOT on the parent; they are on gentoro.mcp.tool.execute.attempt only.
 
   # OTEL standard; set when span is in error (status.code=ERROR). See error_recording.
   error.type:
@@ -1820,7 +1836,7 @@ llm_inference_attributes:
     type: string
     required: false
     category: first_class
-    description: "Request type per LLM call spec."
+    description: "Request type per LLM call spec. When tools are modeled on separate gentoro.tools.recommend and gentoro.mcp.tool.execute spans, gentoro.llm.call represents pure model calls (no direct tool execution); use \"completion\"."
     allowed_values: ["completion", "chat", "tool_call"]
     examples: ["completion", "chat"]
 
@@ -1828,7 +1844,7 @@ llm_inference_attributes:
     type: string
     required: false
     category: first_class
-    description: "Completion reason (single value)."
+    description: "Completion reason (single value). When tools are on separate gentoro.tools.recommend and gentoro.mcp.tool.execute spans, use \"stop\" for gentoro.llm.call."
     allowed_values: ["stop", "length", "tool_call", "error"]
     examples: ["stop", "length"]
 
@@ -1887,12 +1903,6 @@ llm_call_attributes:
     description: "Number of tool calls requested by the model."
     examples: [0, 2]
 
-  gentoro.llm.tool.execution.count:
-    type: int
-    required: false
-    category: first_class
-    description: "Number of tools executed."
-    examples: [0, 2]
 
   gentoro.llm.streaming:
     type: boolean
@@ -2015,6 +2025,30 @@ diagnostic_event_attributes:
     required: false
     category: metadata
     description: "JSON-encoded tool selection plan (tool_plan array) for event gentoro.agent.tool_selection; keep bounded."
+
+  gentoro.enduser.request.raw:
+    type: string
+    required: false
+    category: metadata
+    description: "Raw end-user or upstream agent request text as received before any augmentation or task planning. Sensitive/PII: redact or truncate where needed. Used on gentoro.enduser.request event; not on LLM spans."
+
+  gentoro.enduser.request.raw.redacted:
+    type: string
+    required: false
+    category: metadata
+    description: "Redacted or truncated variant of gentoro.enduser.request.raw (for gentoro.enduser.request event)."
+
+  gentoro.agent.response.raw:
+    type: string
+    required: false
+    category: metadata
+    description: "Raw agent/A2A response body as returned to the caller (e.g. serialized JSON or text). Sensitive/PII: redact or truncate where needed. Used on gentoro.agent.response event; not on LLM spans."
+
+  gentoro.agent.response.raw.redacted:
+    type: string
+    required: false
+    category: metadata
+    description: "Redacted or truncated variant of gentoro.agent.response.raw (for gentoro.agent.response event)."
 
 # -----------------------------------------------------------------------------
 # Control-plane validation (gateway-ext — gentoro.request.validation and child spans)
@@ -2191,7 +2225,7 @@ cp_request_attributes:
     required: false
     category: first_class
     description: "Data-plane trace ID. Set on data-plane spans; session/txn views aggregate to link CP and DP. DP has its own trace_id (different from CP)."
-    note: "Join CP and DP via gentoro.session.id and stored trace IDs (cp_incoming_trace_id, cp_outgoing_trace_id, dp_trace_id) in txn_session_state_agg_v1."
+    note: "Join CP and DP via gentoro.session.id and stored trace IDs (cp_incoming_trace_id, cp_outgoing_trace_id, dp_trace_id) in session views."
 
   # OpenTelemetry context source (how the active OTel context was established for emitted spans)
   # Internal: set by the platform; not open for tenant configuration.

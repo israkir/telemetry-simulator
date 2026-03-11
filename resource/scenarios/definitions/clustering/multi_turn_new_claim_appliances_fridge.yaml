@@ -1,0 +1,92 @@
+name: multi_turn_new_claim_appliances_fridge
+description: >
+  Multi-turn appliances claim variant: fridge not staying cold.
+  User provides limited info, picks an afternoon window. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 2.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "appliance"
+      description: "Fridge not staying cold"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "HA-7440"
+      from_date: "2025-03-12"
+      to_date: "2025-03-20"
+    update_appointment:
+      claim_id: "HA-7440"
+      slot: "2025-03-13T12:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "HA-7440"
+      product_type: "appliance"
+      status: "opened"
+      coverage:
+        type: "appliance_cooling_failure"
+        deductible: 150
+      notes: "Claim created for fridge not maintaining temperature."
+    get_available_slots:
+      claim_id: "HA-7440"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-11T10:00:00Z"
+          end: "2025-03-11T14:00:00Z"
+          status: "available"
+        - start: "2025-03-13T12:00:00Z"
+          end: "2025-03-13T16:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "HA-7440"
+      appointment:
+        start: "2025-03-13T12:00:00Z"
+        end: "2025-03-13T16:00:00Z"
+        status: "booked"
+      confirmation_id: "HA-7440-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "My fridge isn't staying cold. Can you start a claim and set up a visit?"
+      agent_response: "I've created a claim for your fridge that isn't cooling properly. Your claim ID is HA-7440. I've checked availability and can offer Tuesday 10:00-14:00 or Thursday 12:00-16:00. Which slot would you prefer?"
+    - user_input: "Thursday 12-4, please."
+      agent_response: "I've scheduled your fridge service for Thursday 12:00-16:00 under claim HA-7440. You'll receive confirmation shortly."
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a fridge that is not staying cold and produce a tool plan for
+        starting a home appliances claim, finding available visit windows,
+        and booking the window the user chooses.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "appliances" with product_type=appliance
+             and a description of the cooling failure.
+          2) Call "get_available_slots" to retrieve candidate visit windows.
+          3) Call "update_appointment" with the window the user chooses.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

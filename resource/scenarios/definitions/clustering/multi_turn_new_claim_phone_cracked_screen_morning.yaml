@@ -1,0 +1,106 @@
+name: multi_turn_new_claim_phone_cracked_screen_morning
+description: >
+  Multi-turn phone claim variant: user asks about tomorrow morning availability
+  for a cracked screen repair before deciding. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 2.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Cracked phone screen"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "PH-6620"
+      from_date: "2025-03-11"
+      to_date: "2025-03-12"
+    update_appointment:
+      claim_id: "PH-6620"
+      slot: "2025-03-11T11:30:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-6620"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for cracked phone screen."
+    get_available_slots:
+      claim_id: "PH-6620"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-11T09:00:00Z"
+          end: "2025-03-11T11:00:00Z"
+          status: "available"
+        - start: "2025-03-11T11:30:00Z"
+          end: "2025-03-11T13:30:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "PH-6620"
+      appointment:
+        start: "2025-03-11T11:30:00Z"
+        end: "2025-03-11T13:30:00Z"
+        status: "booked"
+      confirmation_id: "PH-6620-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "Can someone come tomorrow morning for my cracked phone screen and start a claim for it?"
+      agent_response: "Yes, I can help. I've created a claim for your phone with a cracked screen; your claim ID is PH-6620. For tomorrow morning I have 9:00 and 11:30 available. Which time would you prefer?"
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - new_claim
+        - get_available_slots
+        - response_compose
+    - user_input: "11:30, please."
+      agent_response: "I've booked a repair for tomorrow at 11:30 under claim PH-6620. You'll receive confirmation and details of the visit."
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - update_appointment
+        - response_compose
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a cracked phone screen and produce a tool plan for starting a claim,
+        finding next-day morning repair slots, and booking the slot the user
+        chooses.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "phone" with product_type=phone and a
+             description of the cracked screen.
+          2) Call "get_available_slots" with a narrow date range for tomorrow
+             morning.
+          3) Call "update_appointment" with the morning slot the user chooses.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

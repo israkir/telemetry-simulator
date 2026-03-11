@@ -1,0 +1,106 @@
+name: multi_turn_new_claim_appliances
+description: >
+  Multi-turn chained tool flow for Home appliances division: two traces in one session.
+  Turn 1: new_claim + get_available_slots. Turn 2: update_appointment.
+  Same session_id and gen_ai.conversation.id across both traces.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 3.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "appliance"
+      description: "Dishwasher is leaking"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "HA-7733"
+      from_date: "2025-03-12"
+      to_date: "2025-03-20"
+    update_appointment:
+      claim_id: "HA-7733"
+      slot: "2025-03-13T10:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "HA-7733"
+      product_type: "appliance"
+      status: "opened"
+      coverage:
+        type: "appliance_water_damage"
+        deductible: 150
+      notes: "Claim created for leaking dishwasher."
+    get_available_slots:
+      claim_id: "HA-7733"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-13T10:00:00Z"
+          end: "2025-03-13T14:00:00Z"
+          status: "available"
+        - start: "2025-03-18T10:00:00Z"
+          end: "2025-03-18T14:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "HA-7733"
+      appointment:
+        start: "2025-03-13T10:00:00Z"
+        end: "2025-03-13T14:00:00Z"
+        status: "booked"
+      confirmation_id: "HA-7733-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "My dishwasher is leaking. Can someone come out?"
+      agent_response: "I've opened a claim for your leaking dishwasher. Your claim ID is HA-7733. I've checked our technician availability and the next visit slots are Thursday 10:00-14:00 or Tuesday 10:00-14:00 next week. Which one would you like me to book?"
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - new_claim
+        - get_available_slots
+        - response_compose
+    - user_input: "Thursday 10-2 please."
+      agent_response: "All set — I've scheduled your visit for Thursday 10:00-14:00 under claim HA-7733. You'll receive a confirmation email shortly."
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - update_appointment
+        - response_compose
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        and produce a tool plan for starting a home appliances claim, finding
+        available technician slots, and booking an appointment with
+        update_appointment.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "appliances" with
+             product_type=appliance, incident_description, and incident_date.
+          2) Call MCP tool "get_available_slots" to present suitable options.
+          3) Call MCP tool "update_appointment" to book the slot the user selects.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

@@ -167,8 +167,12 @@ class ScenarioContext:
     # MCP retry: list of attempt specs (outcome, optional error_type, optional latency_mean_ms).
     # When set, MCP tool steps get one child per attempt; when None, default is single success.
     mcp_retry_attempts: list[dict[str, Any]] | None = None
-    # Tool call arguments (OTEL gen_ai.tool.call.arguments) keyed by tool name; from config.
+    # Tool call arguments (OTEL gen_ai.tool.call.arguments) keyed by tool name; usually from scenario
+    # context or per-sample overrides rather than global config.
     tool_call_arguments: dict[str, Any] | None = None
+    # Optional: synthetic tool call results keyed by tool name; used for gen_ai.tool.call.result
+    # when present so scenarios can define domain-shaped tool payloads.
+    tool_call_results: dict[str, Any] | None = None
 
 
 def _parse_and_resolve_context(
@@ -235,11 +239,14 @@ def _parse_and_resolve_context(
         redaction_applied=redaction_applied,
         config_path=config_path,
     )
-    # Scenario can override tool_call_arguments (e.g. 4xx invalid-params: wrong claim_id or date format).
+    # Scenario can define tool_call_arguments (e.g. 4xx invalid-params: wrong claim_id or date format).
     scenario_tool_args = data.get("tool_call_arguments")
     if isinstance(scenario_tool_args, dict) and scenario_tool_args:
-        base = resolved.get("tool_call_arguments") or {}
-        resolved["tool_call_arguments"] = {**base, **scenario_tool_args}
+        resolved["tool_call_arguments"] = dict(scenario_tool_args)
+    # Optional: scenario-defined tool_call_results, keyed by tool name, for gen_ai.tool.call.result.
+    scenario_tool_results = data.get("tool_call_results")
+    if isinstance(scenario_tool_results, dict) and scenario_tool_results:
+        resolved["tool_call_results"] = dict(scenario_tool_results)
     agents: list[AgentRef] = []
     for a in resolved.get("agents") or []:
         if not isinstance(a, dict):
@@ -274,6 +281,7 @@ def _parse_and_resolve_context(
         redaction_applied=resolved.get("redaction_applied", "none"),
         actual_steps=resolved.get("actual_steps"),
         tool_call_arguments=resolved.get("tool_call_arguments") or None,
+        tool_call_results=resolved.get("tool_call_results") or None,
     )
 
 
@@ -375,6 +383,7 @@ def _apply_data_plane_from_scenario(
         actual_steps=context.actual_steps,
         mcp_retry_attempts=mcp_retry_attempts,
         tool_call_arguments=context.tool_call_arguments,
+        tool_call_results=context.tool_call_results,
     )
     return updated, goal, cp_template
 
@@ -633,6 +642,9 @@ class Scenario:
     # Per-turn (input_messages, output_messages) for one span per interaction; same session_id for all.
     # Built from conversation.turns in loader. When set, runner emits one trace per turn with same session_id.
     conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = None
+    # Optional: per-turn actual workflow steps for data-plane (e.g. different tools per turn).
+    # When set, ScenarioRunner can override context.actual_steps on a per-turn basis.
+    per_turn_actual_steps: list[list[str]] | None = None
     # Optional redacted message pairs per turn (same length as conversation_turn_pairs). None at index i = no redacted variant for that turn.
     conversation_turn_pairs_redacted: (
         list[(tuple[list[dict[str, Any]], list[dict[str, Any]]]) | None] | None
@@ -642,6 +654,9 @@ class Scenario:
     conversation_samples: list[dict[str, str]] | None = None
     # When True and conversation_samples is set, use sample at (iteration_index % len(samples)) so each run cycles through all samples.
     cycle_conversation_samples: bool = False
+    # Optional: internal LLM interaction templates for this scenario (planner/summarizer, etc.).
+    # Each item: {role: planner|summarizer|..., system_prompt: str, user_prompt_template: str}.
+    llm_interactions: list[dict[str, Any]] | None = None
     # Redaction level for {prefix}.redaction.applied (none, basic, strict). From scenario YAML or context; default none.
     redaction_applied: str = "none"
     # Overrides for scenario goal modifier (step_index_for_4xx, wrong_division_target, exception_type, exception_message, skip_steps, actual_steps).
@@ -991,7 +1006,7 @@ def _hierarchy_from_context(
     tool_step_names = [
         (s or "").strip() for s in steps if (s or "").strip().lower() not in _NON_TOOL_STEP_NAMES
     ]
-    primary_tool_name = tool_step_names[0] if tool_step_names else ""
+
     i = 0
     while i < len(steps):
         step = steps[i]
@@ -1037,9 +1052,15 @@ def _hierarchy_from_context(
                 config_attr("step.outcome"): "success",
                 config_attr("task.type"): "llm_call",
             }
+            # LLM call spans do not perform tool execution; they represent pure model
+            # inference. Do not set any gen_ai.tool.* attributes here so tool calls are
+            # modeled only on gentoro.tools.recommend and gentoro.mcp.tool.execute spans.
             llm_overrides: dict[str, Any] = {config_attr("step.outcome"): "success"}
-            if primary_tool_name:
-                llm_overrides["gen_ai.tool.name"] = primary_tool_name
+            # Number of tools the model is expected to call for this workflow, derived
+            # directly from the scenario/template tool step list.
+            tool_request_count = len(tool_step_names)
+            if tool_request_count > 0:
+                llm_overrides[config_attr("llm.tool.request.count")] = tool_request_count
             llm_call_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.LLM_CALL,
@@ -1116,12 +1137,6 @@ def _hierarchy_from_context(
                 config_attr("retry.count"): retry_count,
                 config_attr("retry.policy"): retry_policy,
             }
-            tool_call_args = getattr(context, "tool_call_arguments", None)
-            if tool_call_args is not None and step in tool_call_args:
-                args = tool_call_args[step]
-                parent_overrides["gen_ai.tool.call.arguments"] = (
-                    json.dumps(args) if isinstance(args, dict) else str(args)
-                )
             if not any_success and attempts_spec:
                 last_att = attempts_spec[-1]
                 last_err = (
@@ -1352,15 +1367,17 @@ def _apply_context_to_hierarchy(
         tools_by_index[0] if tools_by_index else None
     )
     resolved_primary_tool_name = first_tool.name if first_tool else ""
+    # MCP tool execution index within this LLM interaction (1..N). Used for
+    # gentoro.llm.tool.execution.count on gentoro.mcp.tool.execute spans.
     mcp_index = [0]
 
     def walk(h: TraceHierarchy) -> None:
         cfg = h.root_config
         if cfg.span_type == SpanType.LLM_CALL:
-            if resolved_primary_tool_name:
-                overrides = dict(cfg.attribute_overrides or {})
-                overrides["gen_ai.tool.name"] = resolved_primary_tool_name
-                cfg.attribute_overrides = overrides
+            # LLM call spans carry only model-call semantics (gen_ai.* for the model
+            # invocation itself). Tool-related attributes and identifiers are emitted on
+            # gentoro.tools.recommend / gentoro.mcp.tool.execute spans instead.
+            pass
         elif cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
             if id_generator:
                 call_id = id_generator.mcp_tool_call_id(tenant_id=context.tenant_uuid)
@@ -1370,6 +1387,8 @@ def _apply_context_to_hierarchy(
             overrides[config_attr("mcp.server.uuid")] = server_uuid
             overrides[config_attr("mcp.tool.call.id")] = call_id
             idx = mcp_index[0]
+            # Execution index of this logical tool call within the LLM interaction (1..N).
+            overrides[config_attr("llm.tool.execution.count")] = idx + 1
             # Resolve tool by workflow step name so each MCP span gets the correct server/tool UUID (e.g. update_appointment vs new_claim).
             step_name = tool_step_names[idx] if idx < len(tool_step_names) else None
             tool = (tools_by_name.get(step_name) if step_name else None) or (
@@ -1378,11 +1397,8 @@ def _apply_context_to_hierarchy(
             if tool:
                 overrides["gen_ai.tool.name"] = tool.name
                 overrides[config_attr("mcp.tool.uuid")] = tool.uuid
-                if context.tool_call_arguments and tool.name in context.tool_call_arguments:
-                    args = context.tool_call_arguments[tool.name]
-                    overrides["gen_ai.tool.call.arguments"] = (
-                        json.dumps(args) if isinstance(args, dict) else str(args)
-                    )
+                # Do not set gen_ai.tool.call.arguments or tool_call_results on parent;
+                # they are emitted only on gentoro.mcp.tool.execute.attempt.
             mcp_index[0] += 1
             cfg.attribute_overrides = overrides
             for attempt_child in h.children:
@@ -1622,14 +1638,9 @@ class ScenarioLoader:
             root_raw = root_raw[0]
         root_step = self._parse_step(root_raw if isinstance(root_raw, dict) else {})
 
-        # Resolve context; use scenario top-level mcp_server when context block omits it
-        # so control-plane scenarios (e.g. request_allowed_audit_flagged) get agents with MCP
-        # when trace_flow includes data_plane and default data-plane hierarchy is used.
+        # Resolve context; mcp_server must be provided explicitly under the context block
+        # for data-plane scenarios that require MCP (no fallback from top-level mcp_server).
         context_data = data.get("context")
-        if isinstance(context_data, dict) and "mcp_server" not in context_data:
-            top_mcp = data.get("mcp_server")
-            if isinstance(top_mcp, str) and top_mcp.strip():
-                context_data = {**context_data, "mcp_server": top_mcp.strip()}
         scenario_context = _parse_and_resolve_context(context_data, CONFIG_PATH)
         if scenario_context:
             tenant_dist = {scenario_context.tenant_uuid: 1.0}
@@ -1672,9 +1683,8 @@ class ScenarioLoader:
             hlc = dp.get("higher_latency_condition")
             if isinstance(hlc, dict) and hlc:
                 higher_latency_condition = dict(hlc)
-        mcp_server = data.get("mcp_server")
-        if mcp_server is not None and not isinstance(mcp_server, str):
-            mcp_server = None
+        # mcp_server is resolved from the context block only for data-plane scenarios.
+        mcp_server: str | None = None
 
         redaction_applied = data.get("redaction_applied")
         if not isinstance(redaction_applied, str) and scenario_context:
@@ -1700,7 +1710,22 @@ class ScenarioLoader:
         ) = None
         conversation_samples: list[dict[str, str]] | None = None
         conv_raw = data.get("conversation")
+        per_turn_actual_steps: list[list[str]] | None = None
         if isinstance(conv_raw, dict):
+            # New schema: external single-turn conversation (external user input and final agent response).
+            external_raw = conv_raw.get("external")
+            if isinstance(external_raw, dict):
+                ui = external_raw.get("user_input")
+                ar = external_raw.get("agent_response")
+                if isinstance(ui, str) and isinstance(ar, str):
+                    sample_dict: dict[str, str] = {"user_input": ui, "llm_response": ar}
+                    ui_red = external_raw.get("user_input_redacted")
+                    ar_red = external_raw.get("agent_response_redacted")
+                    if isinstance(ui_red, str) and isinstance(ar_red, str):
+                        sample_dict["user_input_redacted"] = ui_red
+                        sample_dict["llm_response_redacted"] = ar_red
+                    conversation_samples = [sample_dict]
+
             turns_raw = conv_raw.get("turns")
             if isinstance(turns_raw, list):
                 turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = []
@@ -1711,7 +1736,8 @@ class ScenarioLoader:
                     if not isinstance(t, dict):
                         continue
                     user_input = t.get("user_input")
-                    llm_response = t.get("llm_response")
+                    # Accept either llm_response or agent_response (same as single-turn external).
+                    llm_response = t.get("llm_response") or t.get("agent_response")
                     if isinstance(user_input, str) and isinstance(llm_response, str):
                         input_msgs = [
                             {"role": "user", "content": [{"type": "text", "text": user_input}]},
@@ -1724,7 +1750,7 @@ class ScenarioLoader:
                         ]
                         turn_pairs.append((input_msgs, output_msgs))
                         ui_red = t.get("user_input_redacted")
-                        lr_red = t.get("llm_response_redacted")
+                        lr_red = t.get("llm_response_redacted") or t.get("agent_response_redacted")
                         if isinstance(ui_red, str) and isinstance(lr_red, str):
                             inp_red = [
                                 {"role": "user", "content": [{"type": "text", "text": ui_red}]},
@@ -1738,6 +1764,25 @@ class ScenarioLoader:
                             turn_pairs_redacted.append((inp_red, out_red))
                         else:
                             turn_pairs_redacted.append(None)
+                # Optional: per-turn actual workflow steps (e.g. different tools per turn).
+                steps_by_turn: list[list[str]] = []
+                for t in turns_raw:
+                    if not isinstance(t, dict):
+                        steps_by_turn.append([])
+                        continue
+                    raw_steps = t.get("steps")
+                    if isinstance(raw_steps, list):
+                        step_list = [
+                            str(s).strip()
+                            for s in raw_steps
+                            if s is not None and str(s).strip()
+                        ]
+                        steps_by_turn.append(step_list)
+                    else:
+                        steps_by_turn.append([])
+                if any(steps_by_turn):
+                    per_turn_actual_steps = steps_by_turn
+
                 if turn_pairs:
                     conversation_turns = [
                         {"role": "user", "text": inp[0]["content"][0]["text"]}
@@ -1792,13 +1837,13 @@ class ScenarioLoader:
                         ui = s.get("user_input")
                         lr = s.get("llm_response")
                         if isinstance(ui, str) and isinstance(lr, str):
-                            sample_dict: dict[str, str] = {"user_input": ui, "llm_response": lr}
+                            sample_entry: dict[str, str] = {"user_input": ui, "llm_response": lr}
                             ui_red = s.get("user_input_redacted")
                             lr_red = s.get("llm_response_redacted")
                             if isinstance(ui_red, str) and isinstance(lr_red, str):
-                                sample_dict["user_input_redacted"] = ui_red
-                                sample_dict["llm_response_redacted"] = lr_red
-                            conversation_samples_list.append(sample_dict)
+                                sample_entry["user_input_redacted"] = ui_red
+                                sample_entry["llm_response_redacted"] = lr_red
+                            conversation_samples_list.append(sample_entry)
                     if conversation_samples_list:
                         conversation_samples = conversation_samples_list
         cycle_conversation_samples = bool(data.get("cycle_conversation_samples", False))
@@ -1813,6 +1858,47 @@ class ScenarioLoader:
         control_plane_template: str | None = None
         control_plane_policy_exception_override: dict[str, str] | None = None
         control_plane_augmentation_exception_override: dict[str, str] | None = None
+        # Internal LLM interactions (planner/summarizer) from data_plane.llm_interactions, if present.
+        llm_interactions: list[dict[str, Any]] | None = None
+        dp_raw = data.get("data_plane")
+        if isinstance(dp_raw, dict):
+            li_raw = dp_raw.get("llm_interactions")
+            if isinstance(li_raw, list):
+                parsed_li: list[dict[str, Any]] = []
+                for item in li_raw:
+                    if isinstance(item, dict):
+                        parsed_li.append(dict(item))
+                if parsed_li:
+                    llm_interactions = parsed_li
+
+        # When we have multi-turn conversation_turn_pairs and llm_interactions with a system_prompt,
+        # prepend the system message to each turn's input so traces include system + user (same as single-turn).
+        if conversation_turn_pairs and llm_interactions:
+            first = next((i for i in llm_interactions if isinstance(i, dict)), None)
+            system_text = None
+            if first:
+                st = first.get("system_prompt")
+                if isinstance(st, str) and st.strip():
+                    system_text = st.strip()
+            if system_text:
+                system_message: dict[str, Any] = {
+                    "role": "system",
+                    "content": [{"type": "text", "text": system_text}],
+                }
+                for inp_msgs, _ in conversation_turn_pairs:
+                    if (
+                        isinstance(inp_msgs, list)
+                        and inp_msgs
+                        and (not isinstance(inp_msgs[0], dict) or inp_msgs[0].get("role") != "system")
+                    ):
+                        inp_msgs.insert(0, system_message)
+                if conversation_turn_pairs_redacted:
+                    for inp_red, _ in conversation_turn_pairs_redacted:
+                        if inp_red is not None and isinstance(inp_red, list) and inp_red and (
+                            not isinstance(inp_red[0], dict) or inp_red[0].get("role") != "system"
+                        ):
+                            inp_red.insert(0, system_message)
+
         cp_raw = data.get("control_plane")
         if isinstance(cp_raw, dict):
             outcome = cp_raw.get("request_outcome")
@@ -1876,22 +1962,21 @@ class ScenarioLoader:
         else:
             tags = []
 
-        # Expected MCP server and tools: defined in scenario; config only maps keys → UUIDs.
+        # Expected MCP server and tools (from context)
+        ctx = data.get("context") or {}
         expected_mcp_server: str | None = None
         expected_tools: list[str] | None = None
-        expected_raw = data.get("expected")
-        if isinstance(expected_raw, dict):
-            em = expected_raw.get("mcp_server")
-            expected_mcp_server = (
-                em.strip() if isinstance(em, str) and em.strip() else None
-            ) or None
-            tools_raw = expected_raw.get("tools")
+        if isinstance(ctx, dict):
+            em = ctx.get("mcp_server")
+            if isinstance(em, str) and em.strip():
+                expected_mcp_server = em.strip()
+            tools_raw = ctx.get("tools")
             if isinstance(tools_raw, list):
                 expected_tools = [
                     str(t).strip() for t in tools_raw if t is not None and str(t).strip()
                 ]
-            elif isinstance(tools_raw, str) and tools_raw.strip():
-                expected_tools = [tools_raw.strip()]
+        # Scenario.mcp_server always mirrors the context.mcp_server value.
+        mcp_server = expected_mcp_server
 
         return Scenario(
             name=data.get("name", "unnamed"),
@@ -1900,7 +1985,8 @@ class ScenarioLoader:
             tenant_distribution=tenant_dist,
             repeat_count=data.get("repeat_count", 1),
             interval_ms=data.get("interval_ms", 500),
-            interval_deviation_ms=float(data.get("interval_deviation_ms", 0)),
+            # Default jitter of 50ms around the base interval when not specified.
+            interval_deviation_ms=float(data.get("interval_deviation_ms", 50)),
             workload_weight=workload_weight,
             root_step=root_step,
             emit_metrics=data.get("emit_metrics", True),
@@ -1917,8 +2003,10 @@ class ScenarioLoader:
             conversation_turns=conversation_turns,
             conversation_turn_pairs=conversation_turn_pairs,
             conversation_turn_pairs_redacted=conversation_turn_pairs_redacted,
+            per_turn_actual_steps=per_turn_actual_steps,
             conversation_samples=conversation_samples,
             cycle_conversation_samples=cycle_conversation_samples,
+            llm_interactions=llm_interactions,
             redaction_applied=redaction_applied or "none",
             scenario_overrides=scenario_overrides_parsed or None,
             control_plane_request_outcome=control_plane_request_outcome,

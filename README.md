@@ -76,7 +76,7 @@ To view traces in a browser while running the simulator on the host:
 
 1. Start Jaeger: `make jaeger-up`
 2. Run the simulator: `otelsim run --vendor=your_vendor --semconv /path/to/semconv.yaml`
-3. Open **http://localhost:16686** and select service `otelsim`
+3. Open **http://localhost:16686/search** and select service `otelsim`
 4. Stop Jaeger when done: `make jaeger-down`
 
 See [docs/live-trace-visualization.md](docs/live-trace-visualization.md) for details.

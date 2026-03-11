@@ -1,0 +1,105 @@
+name: multi_turn_new_claim_appliances_dishwasher_earliest_morning
+description: >
+  Multi-turn appliances claim variant: dishwasher leaking on floor.
+  User wants earliest morning slot. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 2.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "appliance"
+      description: "Dishwasher leaking water onto kitchen floor"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "HA-8200"
+      from_date: "2025-03-12"
+      to_date: "2025-03-20"
+    update_appointment:
+      claim_id: "HA-8200"
+      slot: "2025-03-13T08:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "HA-8200"
+      product_type: "appliance"
+      status: "opened"
+      coverage:
+        type: "appliance_water_damage"
+        deductible: 150
+      notes: "Claim created for dishwasher leaking onto kitchen floor."
+    get_available_slots:
+      claim_id: "HA-8200"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-13T08:00:00Z"
+          end: "2025-03-13T12:00:00Z"
+          status: "available"
+        - start: "2025-03-14T09:00:00Z"
+          end: "2025-03-14T13:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "HA-8200"
+      appointment:
+        start: "2025-03-13T08:00:00Z"
+        end: "2025-03-13T12:00:00Z"
+        status: "booked"
+      confirmation_id: "HA-8200-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "My dishwasher is leaking all over the floor. Please open a claim and get me the earliest morning slot."
+      agent_response: "That sounds frustrating — I've opened a claim for your leaking dishwasher. Your claim ID is HA-8200. The earliest morning window I have is Thursday 8:00-12:00. Do you want me to book that slot?"
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - new_claim
+        - get_available_slots
+        - response_compose
+    - user_input: "Yes, book Thursday morning."
+      agent_response: "I've scheduled a technician visit for Thursday 8:00-12:00 under claim HA-8200. You'll receive confirmation with the time window."
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - update_appointment
+        - response_compose
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a leaking dishwasher and produce a tool plan for starting a home
+        appliances claim, finding the earliest available morning slots, and
+        booking the earliest morning window.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "appliances" with product_type=appliance
+             and a description of the leak.
+          2) Call "get_available_slots" and filter for morning availability.
+          3) Call "update_appointment" with the earliest morning slot.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

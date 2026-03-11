@@ -19,13 +19,8 @@ tags:
   - partial-workflow
   - new-claim
 
-workload_weight: 0.45
-
-mcp_server: phone
-repeat_count: 2
+workload_weight: 1.0
 interval_ms: 100
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -33,6 +28,24 @@ data_plane:
   goal: partial_workflow
   latency_profile: happy_path
   control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to start a phone claim and decide how to respond. In this failure
+        scenario the agent proceeds directly to response_compose without
+        executing any MCP tools.
+      output: >
+        PLAN:
+          1) Provide generic guidance on how the user can start a phone claim
+             in the app, instead of invoking any MCP tools.
+          2) Suggest that the user has their policy details ready for when
+             they follow the in-app flow.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome for the end user. In the partial workflow the
+        agent responds without having called new_claim, so the response is
+        generic guidance rather than a real claim ID or next steps.
 
 # Hierarchy is built from actual_steps (no new_claim); modifier marks response_compose as fail.
 scenario_overrides:
@@ -44,22 +57,28 @@ scenario_overrides:
   exception_type: "PartialWorkflowError"
   exception_message: "Required tool not called in workflow; no context about sequence."
 
-# Expected (correct) flow would include new_claim; emitted trace has no new_claim tool call.
-expected:
-  mcp_server: phone
-  tools:
-    - new_claim
-
-conversation:
-  samples:
-    - user_input: "I dropped my phone, how do I start a claim?"
-      llm_response: "You can start a claim in the app under Claims, or I can guide you through the steps."
-    - user_input: "My phone screen is cracked. I need to make a claim."
-      llm_response: "For a cracked screen, go to the Claims section and select New Claim. You'll need your policy details."
-    - user_input: "I want to file a claim for my phone."
-      llm_response: "To file a claim, please open the app and choose File a claim. If you have your policy number ready, the process is quick."
-
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Screen cracked after a drop down the stairs"
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-8842"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for cracked phone screen (not executed in partial workflow)."
+
+conversation:
+  external:
+    user_input: "I dropped my phone and the screen is cracked. How do I start a claim?"
+    agent_response: "You can start a claim in the app under Claims, or I can guide you through the steps there. Have your policy details ready."

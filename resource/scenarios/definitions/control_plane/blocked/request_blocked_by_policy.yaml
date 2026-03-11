@@ -10,12 +10,7 @@ tags:
 
 # Policy blocks are the most common block type; still a small share of traffic.
 workload_weight: 0.35
-
-mcp_server: phone
-repeat_count: 2
 interval_ms: 50
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 # Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
@@ -26,3 +21,9 @@ control_plane:
 context:
   tenant: toro
   agent: toro-customer-assistant-001
+  mcp_server: phone
+
+conversation:
+  external:
+    user_input: "Please cancel my phone insurance policy effective immediately."
+    agent_response: "Your request has been blocked by our policy checks, so we can’t proceed with this action."
