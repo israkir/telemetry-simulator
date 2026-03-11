@@ -13,12 +13,7 @@ tags:
   - electronics
 
 workload_weight: 1.0
-
-mcp_server: electronics
-repeat_count: 3
 interval_ms: 80
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -35,21 +30,47 @@ data_plane:
     post_long_weekend:
       days_after: 1
 
-expected:
-  mcp_server: electronics
-  tools:
-    - new_claim
-
-conversation:
-  samples:
-    - user_input: "My TV won't turn on after a power surge. I need to start a claim."
-      llm_response: "I've started a claim for your TV (claim ID EL-8821). Describe what happened and we'll review it, confirm your cover, and explain the next steps."
-    - user_input: "My laptop screen is cracked. I want to file a claim."
-      llm_response: "I've opened a claim for your laptop (claim ID EL-7712). You can upload photos in the app and we'll confirm repair or replacement options after review."
-    - user_input: "Gaming console stopped working—I need to make a claim."
-      llm_response: "I've opened a claim for your gaming console (claim ID EL-6613). We'll review the details and then confirm how your claim will be handled."
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to start a home electronics claim and produce a tool plan that calls
+        the "new_claim" MCP tool on server "electronics" with the incident
+        description and date. This scenario represents peak hours or the day
+        after a long weekend, where latencies are higher.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "electronics" with arguments
+             from the external request (product_type=electronics,
+             incident_description, incident_date).
+          2) Return a confirmation including the new claim ID and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the new_claim tool call into a clear final
+        response for the end user, including the claim ID and what happens next.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "electronics"
+      description: "TV will not power on after a recent storm"
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "EL-8821"
+      product_type: "electronics"
+      status: "opened"
+      coverage:
+        type: "electronics_repair"
+        deductible: 100
+      notes: "Claim created for TV not powering on after storm during peak hours."
+
+conversation:
+  external:
+    user_input: "My TV won’t turn on after a power surge and I need to start a claim."
+    agent_response: "I’ve started a claim for your TV and noted that it stopped working after the power surge. Your claim ID is EL-8821. You can now upload photos or a short video of the issue, and we’ll confirm your cover and the next repair steps."

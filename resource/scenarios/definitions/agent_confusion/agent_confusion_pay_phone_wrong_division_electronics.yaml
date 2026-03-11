@@ -18,13 +18,8 @@ tags:
   - agent-confusion
   - pay
 
-workload_weight: 0.5
-
-mcp_server: phone
-repeat_count: 2
+workload_weight: 1.0
 interval_ms: 120
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 data_plane:
@@ -32,6 +27,27 @@ data_plane:
   goal: wrong_division
   latency_profile: happy_path
   control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to pay a claim balance and produce a tool plan. The user has a phone
+        claim, but in this failure scenario division routing is ambiguous and
+        the agent ends up using the electronics MCP instead of the correct
+        phone division.
+      output: >
+        PLAN:
+          1) Choose a division based on the ambiguous request and call MCP
+             tool "pay" on the selected server with arguments from the external
+             request (claim_id, amount, currency, method). In this scenario
+             the selected division is electronics instead of phone.
+          2) Attempt to return a confirmation including the payment status and
+             reference, but the wrong division leads to a division error from
+             the backend.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the pay tool call. When wrong division occurs
+        the user may receive a generic payment-link style response or an error.
 
 scenario_overrides:
   wrong_division_target: electronics
@@ -39,29 +55,27 @@ scenario_overrides:
   exception_type: "WrongDivisionError"
   exception_message: "Claim or order not found in this division; payment context is for another division."
 
-# Expected (correct) division and tool; emitted trace will show electronics due to modifier.
-expected:
-  mcp_server: phone
-  tools:
-    - pay
-
-# Ambiguous user inputs: could apply to phone or electronics; agent picks wrong division.
-conversation:
-  samples:
-    - user_input: "I want to pay my balance."
-      llm_response: "Here is your secure payment link for the balance. Complete payment to confirm."
-    - user_input: "Can I pay for my claim?"
-      llm_response: "I've looked up your balance. You can pay here: <SECURE_PAYMENT_LINK>."
-    - user_input: "How do I pay what I owe?"
-      llm_response: "Your outstanding amount is ready. Use this link to pay: <SECURE_PAYMENT_LINK>."
-    - user_input: "I'd like to pay the outstanding amount."
-      llm_response: "Payment link sent. Complete before the due date to avoid reminders."
-    - user_input: "Pay my dues."
-      llm_response: "Here is your payment link. Let me know once done."
-
+# Ambiguous user input: could apply to phone or electronics; agent picks wrong division.
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - pay
   tool_call_arguments:
-    pay: { claim_id: "clm_abc123", amount_cents: 19900, method: "card" }
+    pay:
+      claim_id: "PH-8842"
+      amount: 75.00
+      currency: "GBP"
+      method: "card"
+  tool_call_results:
+    pay:
+      claim_id: "PH-8842"
+      status: "failed"
+      error_type: "WrongDivisionError"
+      error_message: "Claim or order not found in this division; payment context is for another division."
+
+conversation:
+  external:
+    user_input: "I want to pay my balance."
+    agent_response: "I’ve tried to look up your balance, but I can’t find your claim in this part of our system right now. I’m not able to take the payment here, so please check you’re in the right account or contact support to complete the payment."
