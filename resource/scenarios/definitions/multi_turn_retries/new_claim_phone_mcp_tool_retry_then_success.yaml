@@ -39,9 +39,9 @@ expected:
 conversation:
   samples:
     - user_input: "I need to start a claim for my phone, it's broken."
-      llm_response: "I've started a claim for your phone (claim ID PH-8801). First attempt timed out; retry succeeded. Next slots: tomorrow 10am or 2pm."
+      llm_response: "I've started a claim for your phone (claim ID PH-8801). The first attempt to process your claim timed out, but the retry succeeded and your claim is now active. I'll confirm your cover and next steps."
       user_input_redacted: "I need to start a claim for my phone, it's broken."
-      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). First attempt timed out; retry succeeded. Next slots: tomorrow 10am or 2pm."
+      llm_response_redacted: "I've started a claim for your phone (<CLAIM_ID>). The first attempt to process your claim timed out, but the retry succeeded and your claim is now active. I'll confirm your cover and next steps."
 
 context:
   tenant: toro

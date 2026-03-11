@@ -43,11 +43,11 @@ expected:
 conversation:
   samples:
     - user_input: "My TV won't turn on after a power surge. I need to start a claim."
-      llm_response: "I've started a claim for your TV (claim ID EL-8821). Describe what happened and we'll schedule an assessment. Next slots: tomorrow 10am or 2pm."
+      llm_response: "I've started a claim for your TV (claim ID EL-8821). Describe what happened and we'll review it, confirm your cover, and explain the next steps."
     - user_input: "My laptop screen is cracked. I want to file a claim."
-      llm_response: "I've opened a claim for your laptop (claim ID EL-7712). You can upload photos in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+      llm_response: "I've opened a claim for your laptop (claim ID EL-7712). You can upload photos in the app and we'll confirm repair or replacement options after review."
     - user_input: "Gaming console stopped working—I need to make a claim."
-      llm_response: "I've opened a claim for your gaming console (claim ID EL-6613). Next technician slots: Wednesday 9am or Friday 2pm."
+      llm_response: "I've opened a claim for your gaming console (claim ID EL-6613). We'll review the details and then confirm how your claim will be handled."
 
 context:
   tenant: toro

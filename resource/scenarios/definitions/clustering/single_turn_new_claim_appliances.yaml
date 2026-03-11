@@ -1,0 +1,44 @@
+name: single_turn_new_claim_appliances
+description: >
+  Single-turn chained tool flow for Home appliances division: planner → LLM task →
+  tool recommendation → new_claim → get_available_slots → update_appointment →
+  response_compose, all in one trace.
+
+tags:
+  - data-plane
+  - happy-path
+  - appliances
+
+workload_weight: 2.5
+
+mcp_server: appliances
+repeat_count: 3
+interval_ms: 100
+interval_deviation_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: single_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: appliances
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+
+conversation:
+  samples:
+    - user_input: "My dishwasher is leaking — open a claim and book the Thursday 10–2 slot please."
+      llm_response: "I’ve started a claim for your leaking dishwasher. Your claim ID is HA-7733. The Thursday 10–2 window is available, so I’ve booked a technician visit in that slot. A confirmation will be sent to you shortly."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+

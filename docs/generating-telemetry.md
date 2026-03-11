@@ -477,7 +477,7 @@ To view traces in a browser, run Jaeger and point the simulator at it (no data-p
 ```bash
 make jaeger-up
 otelsim run --vendor=your_vendor --semconv /path/to/conventions/semconv.yaml
-# Open http://localhost:16686, select service "otelsim"
+# Open http://localhost:16686/search, select service "otelsim"
 make jaeger-down   # when done
 ```
 

@@ -45,11 +45,11 @@ expected:
 conversation:
   samples:
     - user_input: "I dropped my phone, how do I start a claim?"
-      llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll get you an appointment. Next slots: tomorrow 10am or 2pm."
+      llm_response: "I've started a claim for your phone (claim ID PH-8842). Describe what happened and I'll confirm the cover and next steps for you."
     - user_input: "My phone screen is cracked. I need to make a claim."
-      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app and we'll confirm repair options after review."
     - user_input: "I need to file a claim for a cracked screen."
-      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app. Next repair slots: Wednesday 9am or Friday 2pm."
+      llm_response: "I've opened a claim for your phone (claim ID PH-7721). You can upload photos of the damage in the app and we'll let you know the repair options after review."
 
 context:
   tenant: toro

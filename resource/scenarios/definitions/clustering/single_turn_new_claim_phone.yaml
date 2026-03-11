@@ -1,0 +1,43 @@
+name: single_turn_new_claim_phone
+description: >
+  Single-turn chained tool flow for Phone division: planner → LLM task →
+  tool recommendation → new_claim → get_available_slots → update_appointment →
+  response_compose, all in one trace.
+
+tags:
+  - data-plane
+  - happy-path
+
+workload_weight: 3.0
+
+mcp_server: phone
+repeat_count: 3
+interval_ms: 100
+interval_deviation_ms: 50
+emit_metrics: false
+emit_logs: false
+redaction_applied: none
+
+data_plane:
+  workflow: single_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+
+expected:
+  mcp_server: phone
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+
+conversation:
+  samples:
+    - user_input: "Start a claim for my phone — I dropped it and the screen cracked. I’d like the Wednesday 9am slot if possible."
+      llm_response: "I’ve created a claim for your phone and noted the cracked screen. Your claim ID is PH-8842. I’ve checked our repair schedule and Wednesday at 9am is available, so I’ve booked that for you. You’ll get a confirmation email shortly."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+
