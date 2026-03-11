@@ -12,7 +12,7 @@ tags:
   - wrong-division
   - agent-confusion
 
-workload_weight: 0.5
+workload_weight: 1.2
 redaction_applied: none
 
 context:

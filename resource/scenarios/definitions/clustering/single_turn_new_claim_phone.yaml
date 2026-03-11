@@ -9,7 +9,7 @@ tags:
   - happy-path
   - clustering
 
-workload_weight: 3.0
+workload_weight: 4.5
 redaction_applied: none
 
 context:

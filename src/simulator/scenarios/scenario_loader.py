@@ -1871,6 +1871,34 @@ class ScenarioLoader:
                 if parsed_li:
                     llm_interactions = parsed_li
 
+        # When we have multi-turn conversation_turn_pairs and llm_interactions with a system_prompt,
+        # prepend the system message to each turn's input so traces include system + user (same as single-turn).
+        if conversation_turn_pairs and llm_interactions:
+            first = next((i for i in llm_interactions if isinstance(i, dict)), None)
+            system_text = None
+            if first:
+                st = first.get("system_prompt")
+                if isinstance(st, str) and st.strip():
+                    system_text = st.strip()
+            if system_text:
+                system_message: dict[str, Any] = {
+                    "role": "system",
+                    "content": [{"type": "text", "text": system_text}],
+                }
+                for inp_msgs, _ in conversation_turn_pairs:
+                    if (
+                        isinstance(inp_msgs, list)
+                        and inp_msgs
+                        and (not isinstance(inp_msgs[0], dict) or inp_msgs[0].get("role") != "system")
+                    ):
+                        inp_msgs.insert(0, system_message)
+                if conversation_turn_pairs_redacted:
+                    for inp_red, _ in conversation_turn_pairs_redacted:
+                        if inp_red is not None and isinstance(inp_red, list) and inp_red and (
+                            not isinstance(inp_red[0], dict) or inp_red[0].get("role") != "system"
+                        ):
+                            inp_red.insert(0, system_message)
+
         cp_raw = data.get("control_plane")
         if isinstance(cp_raw, dict):
             outcome = cp_raw.get("request_outcome")

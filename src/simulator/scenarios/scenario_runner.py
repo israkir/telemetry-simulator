@@ -443,8 +443,9 @@ class ScenarioRunner:
         for i in range(scenario.repeat_count):
             tenant_id = random.choices(tenants, weights=weights)[0]
             ctx_kwargs = _context_kwargs_for_scenario(scenario, tenant_id, iteration_index=i)
-            # One session_id per logical session (iteration); all turns in this iteration share it.
+            # One session_id and one enduser.pseudo.id per logical session (iteration); all turns share them.
             session_id = ctx_kwargs["session_id"]
+            user_id = ctx_kwargs.get("user_id") or generate_enduser_pseudo_id(tenant_id=tenant_id)
             id_gen = getattr(scenario, "id_generator", None)
 
             # Control-plane and data-plane flow from config/template/scenario only (trace_flow).
@@ -490,6 +491,7 @@ class ScenarioRunner:
                         )
                         time.sleep(delay_ms / 1000.0)
                     ctx_kwargs["session_id"] = session_id
+                    ctx_kwargs["user_id"] = user_id
                     ctx_kwargs["turn_index"] = turn_index
                     ctx_kwargs["llm_input_messages"] = input_msgs
                     ctx_kwargs["llm_output_messages"] = output_msgs
