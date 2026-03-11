@@ -1,0 +1,105 @@
+name: multi_turn_new_claim_electronics_tv_no_power
+description: >
+  Multi-turn electronics claim variant: TV won't power on at all.
+  User wants earliest possible visit. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 1.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "electronics"
+      description: "TV will not power on at all"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "EV-5522"
+      from_date: "2025-03-11"
+      to_date: "2025-03-18"
+    update_appointment:
+      claim_id: "EV-5522"
+      slot: "2025-03-11T10:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "EV-5522"
+      product_type: "electronics"
+      status: "opened"
+      coverage:
+        type: "electronics_repair"
+        deductible: 100
+      notes: "Claim created for TV that will not power on."
+    get_available_slots:
+      claim_id: "EV-5522"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-11T10:00:00Z"
+          end: "2025-03-11T12:00:00Z"
+          status: "available"
+        - start: "2025-03-12T14:00:00Z"
+          end: "2025-03-12T16:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "EV-5522"
+      appointment:
+        start: "2025-03-11T10:00:00Z"
+        end: "2025-03-11T12:00:00Z"
+        status: "booked"
+      confirmation_id: "EV-5522-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "My TV won't power on at all. Please start a claim and book the earliest possible visit."
+      agent_response: "I've created a claim for your TV that won't power on. Your claim ID is EV-5522. The earliest available slot is tomorrow at 10:00. Shall I book that for you?"
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - new_claim
+        - get_available_slots
+        - response_compose
+    - user_input: "Yes, book that."
+      agent_response: "I've scheduled your TV repair for tomorrow at 10:00 under claim EV-5522. You'll get a confirmation with the appointment details."
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - update_appointment
+        - response_compose
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a TV that will not power on and produce a tool plan for starting
+        a home electronics claim, finding the earliest available repair slot,
+        and booking that slot.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "electronics" with product_type=electronics
+             and a description of the no-power issue.
+          2) Call "get_available_slots" to identify the earliest repair slot.
+          3) Call "update_appointment" with that earliest slot.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

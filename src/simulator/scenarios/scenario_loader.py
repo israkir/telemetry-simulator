@@ -642,6 +642,9 @@ class Scenario:
     # Per-turn (input_messages, output_messages) for one span per interaction; same session_id for all.
     # Built from conversation.turns in loader. When set, runner emits one trace per turn with same session_id.
     conversation_turn_pairs: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] | None = None
+    # Optional: per-turn actual workflow steps for data-plane (e.g. different tools per turn).
+    # When set, ScenarioRunner can override context.actual_steps on a per-turn basis.
+    per_turn_actual_steps: list[list[str]] | None = None
     # Optional redacted message pairs per turn (same length as conversation_turn_pairs). None at index i = no redacted variant for that turn.
     conversation_turn_pairs_redacted: (
         list[(tuple[list[dict[str, Any]], list[dict[str, Any]]]) | None] | None
@@ -1134,12 +1137,6 @@ def _hierarchy_from_context(
                 config_attr("retry.count"): retry_count,
                 config_attr("retry.policy"): retry_policy,
             }
-            tool_call_args = getattr(context, "tool_call_arguments", None)
-            if tool_call_args is not None and step in tool_call_args:
-                args = tool_call_args[step]
-                parent_overrides["gen_ai.tool.call.arguments"] = (
-                    json.dumps(args) if isinstance(args, dict) else str(args)
-                )
             if not any_success and attempts_spec:
                 last_att = attempts_spec[-1]
                 last_err = (
@@ -1400,11 +1397,8 @@ def _apply_context_to_hierarchy(
             if tool:
                 overrides["gen_ai.tool.name"] = tool.name
                 overrides[config_attr("mcp.tool.uuid")] = tool.uuid
-                if context.tool_call_arguments and tool.name in context.tool_call_arguments:
-                    args = context.tool_call_arguments[tool.name]
-                    overrides["gen_ai.tool.call.arguments"] = (
-                        json.dumps(args) if isinstance(args, dict) else str(args)
-                    )
+                # Do not set gen_ai.tool.call.arguments or tool_call_results on parent;
+                # they are emitted only on gentoro.mcp.tool.execute.attempt.
             mcp_index[0] += 1
             cfg.attribute_overrides = overrides
             for attempt_child in h.children:
@@ -1716,6 +1710,7 @@ class ScenarioLoader:
         ) = None
         conversation_samples: list[dict[str, str]] | None = None
         conv_raw = data.get("conversation")
+        per_turn_actual_steps: list[list[str]] | None = None
         if isinstance(conv_raw, dict):
             # New schema: external single-turn conversation (external user input and final agent response).
             external_raw = conv_raw.get("external")
@@ -1741,7 +1736,8 @@ class ScenarioLoader:
                     if not isinstance(t, dict):
                         continue
                     user_input = t.get("user_input")
-                    llm_response = t.get("llm_response")
+                    # Accept either llm_response or agent_response (same as single-turn external).
+                    llm_response = t.get("llm_response") or t.get("agent_response")
                     if isinstance(user_input, str) and isinstance(llm_response, str):
                         input_msgs = [
                             {"role": "user", "content": [{"type": "text", "text": user_input}]},
@@ -1754,7 +1750,7 @@ class ScenarioLoader:
                         ]
                         turn_pairs.append((input_msgs, output_msgs))
                         ui_red = t.get("user_input_redacted")
-                        lr_red = t.get("llm_response_redacted")
+                        lr_red = t.get("llm_response_redacted") or t.get("agent_response_redacted")
                         if isinstance(ui_red, str) and isinstance(lr_red, str):
                             inp_red = [
                                 {"role": "user", "content": [{"type": "text", "text": ui_red}]},
@@ -1768,6 +1764,25 @@ class ScenarioLoader:
                             turn_pairs_redacted.append((inp_red, out_red))
                         else:
                             turn_pairs_redacted.append(None)
+                # Optional: per-turn actual workflow steps (e.g. different tools per turn).
+                steps_by_turn: list[list[str]] = []
+                for t in turns_raw:
+                    if not isinstance(t, dict):
+                        steps_by_turn.append([])
+                        continue
+                    raw_steps = t.get("steps")
+                    if isinstance(raw_steps, list):
+                        step_list = [
+                            str(s).strip()
+                            for s in raw_steps
+                            if s is not None and str(s).strip()
+                        ]
+                        steps_by_turn.append(step_list)
+                    else:
+                        steps_by_turn.append([])
+                if any(steps_by_turn):
+                    per_turn_actual_steps = steps_by_turn
+
                 if turn_pairs:
                     conversation_turns = [
                         {"role": "user", "text": inp[0]["content"][0]["text"]}
@@ -1960,6 +1975,7 @@ class ScenarioLoader:
             conversation_turns=conversation_turns,
             conversation_turn_pairs=conversation_turn_pairs,
             conversation_turn_pairs_redacted=conversation_turn_pairs_redacted,
+            per_turn_actual_steps=per_turn_actual_steps,
             conversation_samples=conversation_samples,
             cycle_conversation_samples=cycle_conversation_samples,
             llm_interactions=llm_interactions,

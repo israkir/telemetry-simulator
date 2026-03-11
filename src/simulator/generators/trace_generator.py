@@ -589,16 +589,10 @@ class SpanBuilder:
             for key in list(attrs.keys()):
                 if "higher_latency" in key:
                     attrs.pop(key, None)
-        # When context has tool_call_arguments (e.g. 4xx invalid-params), use them so gen_ai.tool.call.arguments
-        # on MCP spans match the conversation (wrong claim_id format, wrong date, missing params).
-        if span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
-            tool_name = overrides.get("gen_ai.tool.name")
-            ctx_tool_args = getattr(context, "tool_call_arguments", None)
-            if isinstance(ctx_tool_args, dict) and tool_name and tool_name in ctx_tool_args:
-                args_val = ctx_tool_args[tool_name]
-                attrs["gen_ai.tool.call.arguments"] = (
-                    json.dumps(args_val) if isinstance(args_val, dict) else str(args_val)
-                )
+        # gen_ai.tool.call.arguments and gen_ai.tool.call.result only on attempt spans, not parent.
+        if span_type == SpanType.MCP_TOOL_EXECUTE:
+            attrs.pop("gen_ai.tool.call.arguments", None)
+            attrs.pop("gen_ai.tool.call.result", None)
         return attrs
 
 
@@ -753,31 +747,23 @@ class TraceGenerator:
         separate call, yielding a different trace_id; use the same context.session_id for
         all calls that belong to the same session.
 
-        Uses a single TracerProvider for the whole trace so all spans are exported in one batch,
-        avoiding Jaeger "parent span ID=... is not in the trace; skipping clock skew adjustment"
-        when the backend receives child spans before their parent (e.g. response_validation before
-        a2a.orchestrate) due to multiple providers flushing in different batches.
+        Builds a single combined hierarchy so parent spans (request.validation, a2a.orchestrate)
+        are ended only after all logical children have been generated. That keeps parent duration
+        >= sum of children and avoids clock-skew warnings (child not contained in parent).
+        Uses a single TracerProvider for the whole trace so all spans export in one batch.
         """
-        trace_id, span_id_req, end_incoming_ns, _ = self._generate_span_recursive(
-            incoming_hierarchy, context, None, None, use_single_tracer=True
+        # Unified tree: request.validation -> [payload, policy, augmentation, a2a.orchestrate -> [planner, tasks..., response_compose, response.validation -> [policy.validation...]]]
+        # So request.validation's end_time is computed from last_child_end_ns including a2a.orchestrate (and thus response.validation).
+        data_plane_with_outgoing = TraceHierarchy(
+            root_config=data_plane_hierarchy.root_config,
+            children=list(data_plane_hierarchy.children) + [outgoing_hierarchy],
         )
-        ctx_after_request = _context_from_trace_and_span(trace_id, span_id_req)
-        _, span_id_orchestrate, end_orchestrate_ns, _ = self._generate_span_recursive(
-            data_plane_hierarchy,
-            context,
-            None,
-            ctx_after_request,
-            use_single_tracer=True,
-            logical_start_ns=end_incoming_ns + _MIN_SPAN_GAP_NS,
+        unified_hierarchy = TraceHierarchy(
+            root_config=incoming_hierarchy.root_config,
+            children=list(incoming_hierarchy.children) + [data_plane_with_outgoing],
         )
-        ctx_after_orchestrate = _context_from_trace_and_span(trace_id, span_id_orchestrate)
-        self._generate_span_recursive(
-            outgoing_hierarchy,
-            context,
-            None,
-            ctx_after_orchestrate,
-            use_single_tracer=True,
-            logical_start_ns=end_orchestrate_ns + _MIN_SPAN_GAP_NS,
+        trace_id, _, _, _ = self._generate_span_recursive(
+            unified_hierarchy, context, None, None, use_single_tracer=True
         )
         return trace_id
 
@@ -873,8 +859,9 @@ class TraceGenerator:
             if config.span_type == SpanType.MCP_TOOL_EXECUTE_ATTEMPT:
                 span.set_attribute(config_attr("tool.latency_ms"), latency_attr_ms)
                 tool_latency_ms_return = float(latency_attr_ms)
-                # OpenTelemetry GenAI: gen_ai.tool.call.result on tool attempts when scenario-defined
-                # results are available. This applies to both successful and failed attempts.
+                # OpenTelemetry GenAI: gen_ai.tool.call.arguments and gen_ai.tool.call.result
+                # on tool attempts when scenario-defined arguments/results are available.
+                # This applies to both successful and failed attempts.
                 try:
                     tool_name_attr = None
                     if isinstance(span_attrs, dict):
@@ -884,15 +871,33 @@ class TraceGenerator:
                         if isinstance(tool_name_attr, str) and tool_name_attr.strip()
                         else "unknown.tool"
                     )
-                    # Prefer scenario-defined tool_call_results when available. Try exact match,
-                    # then last path segment (e.g. "new_claim" from "phone.new_claim"), then
-                    # fall back to the single entry when only one result is defined.
+                    simple_key = tool_name.split(".")[-1]
+
+                    # Arguments: prefer scenario-defined tool_call_arguments; fall back to single entry.
+                    ctx_tool_args = getattr(context, "tool_call_arguments", None)
+                    args_obj: dict[str, Any] | None = None
+                    if isinstance(ctx_tool_args, dict) and ctx_tool_args:
+                        val = ctx_tool_args.get(tool_name)
+                        if not isinstance(val, dict):
+                            val = ctx_tool_args.get(simple_key)
+                        if not isinstance(val, dict) and len(ctx_tool_args) == 1:
+                            only_val = next(iter(ctx_tool_args.values()))
+                            if isinstance(only_val, dict):
+                                val = only_val
+                        if isinstance(val, dict):
+                            args_obj = val
+                    if args_obj is not None:
+                        args_json = json.dumps(args_obj)
+                        if len(args_json) > 512:
+                            args_json = args_json[:509] + "..."
+                        span.set_attribute("gen_ai.tool.call.arguments", args_json)
+
+                    # Results: prefer scenario-defined tool_call_results; same resolution strategy as arguments.
                     ctx_tool_results = getattr(context, "tool_call_results", None)
                     result_obj: dict[str, Any] | None = None
                     if isinstance(ctx_tool_results, dict) and ctx_tool_results:
                         val = ctx_tool_results.get(tool_name)
                         if not isinstance(val, dict):
-                            simple_key = tool_name.split(".")[-1]
                             val = ctx_tool_results.get(simple_key)
                         if not isinstance(val, dict) and len(ctx_tool_results) == 1:
                             only_val = next(iter(ctx_tool_results.values()))

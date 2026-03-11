@@ -1,0 +1,105 @@
+name: multi_turn_new_claim_electronics_tv_black_screen
+description: >
+  Multi-turn electronics claim variant: TV screen went black but audio still works.
+  User gives preferred day only, picks from offered times. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 1.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "electronics"
+      description: "TV screen black but audio still works"
+      incident_date: "2025-03-09"
+    get_available_slots:
+      claim_id: "EV-3301"
+      from_date: "2025-03-17"
+      to_date: "2025-03-18"
+    update_appointment:
+      claim_id: "EV-3301"
+      slot: "2025-03-17T16:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "EV-3301"
+      product_type: "electronics"
+      status: "opened"
+      coverage:
+        type: "electronics_repair"
+        deductible: 100
+      notes: "Claim created for TV with black screen and working audio."
+    get_available_slots:
+      claim_id: "EV-3301"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-17T10:00:00Z"
+          end: "2025-03-17T12:00:00Z"
+          status: "available"
+        - start: "2025-03-17T16:00:00Z"
+          end: "2025-03-17T18:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "EV-3301"
+      appointment:
+        start: "2025-03-17T16:00:00Z"
+        end: "2025-03-17T18:00:00Z"
+        status: "booked"
+      confirmation_id: "EV-3301-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "My TV screen went black but I can still hear sound. Can you open a claim and get me something next Monday?"
+      agent_response: "I've opened a claim for your TV with audio-only and no picture. Your claim ID is EV-3301. Next Monday I have 10:00 and 16:00 available. Which of those times do you prefer?"
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - new_claim
+        - get_available_slots
+        - response_compose
+    - user_input: "16:00."
+      agent_response: "All set — I've scheduled your TV repair for Monday at 16:00 under claim EV-3301. A confirmation email is on the way."
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - update_appointment
+        - response_compose
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a TV with a black screen and working audio and produce a tool plan
+        for starting a home electronics claim, finding suitable Monday slots,
+        and booking the time the user prefers.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "electronics" with product_type=electronics
+             and a description of the black screen with audio.
+          2) Call "get_available_slots" for next Monday's visit times.
+          3) Call "update_appointment" with the time the user prefers.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

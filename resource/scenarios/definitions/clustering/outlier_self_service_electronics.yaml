@@ -1,0 +1,47 @@
+name: outlier_self_service_electronics
+description: >
+  Outlier: user asks for a TV repair under their cover, but the assistant
+  gives self-service troubleshooting tips only. No MCP tools are invoked —
+  conversation-only response with no claim, ID, or appointment.
+
+tags:
+  - data-plane
+  - outlier
+  - clustering
+  - agent-confusion
+
+workload_weight: 0.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tools: []
+  tool_call_arguments: {}
+  tool_call_results: {}
+
+conversation:
+  external:
+    user_input: "My TV keeps turning itself off after a few minutes. Can you arrange a repair under my cover?"
+    agent_response: "That can sometimes be caused by a sleep timer or power-saving settings. Please try turning off auto-standby and checking the timer settings in your TV menu. If the issue continues, you can look at our troubleshooting guide in the app."
+
+data_plane:
+  workflow: new_claim
+  goal: outlier_no_tools
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        about a TV that keeps turning itself off and decide whether to use
+        tools or to respond with troubleshooting guidance only.
+      output: >
+        PLAN:
+          1) Provide troubleshooting suggestions for the TV issue.
+          2) Do not call any MCP tools.
+    - role: summarizer
+      system_prompt: >
+        Give the user troubleshooting advice only, without creating a
+        claim or offering repair appointments.
