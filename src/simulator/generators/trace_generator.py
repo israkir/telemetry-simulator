@@ -822,6 +822,8 @@ class TraceGenerator:
         overrides = config.attribute_overrides or {}
         component = _get_component_for_span_type(config.span_type)
         scenario_name = getattr(context, "scenario_name", None) if context else None
+        scenario_key = _sanitize_scope_name(scenario_name) if scenario_name else ""
+        scope_name_for_span = f"otelsim.{scenario_key}" if scenario_key else __name__
 
         # When generating a unified request trace (control-plane + data-plane in one logical trace),
         # we still want data-plane spans to carry the correct resource.gentoro.module="data-plane"
@@ -857,6 +859,9 @@ class TraceGenerator:
         with tracer.start_as_current_span(span_name, **kwargs, end_on_exit=False) as span:
             current_trace_id = format(span.get_span_context().trace_id, "032x")
             current_span_id = format(span.get_span_context().span_id, "016x")
+            # Single source of truth for span source: mirror otel.scope.name (e.g. otelsim.<scenario_name>).
+            # This allows downstream pipelines to attribute spans to the logical scenario file.
+            span.set_attribute(config_attr("span.source"), scope_name_for_span)
             # When using a single tracer (unified trace), resource has no per-span component; set as span attribute for filtering.
             if use_single_tracer and component is not None:
                 span.set_attribute(config_attr("component"), component)
@@ -868,44 +873,40 @@ class TraceGenerator:
             if config.span_type == SpanType.MCP_TOOL_EXECUTE_ATTEMPT:
                 span.set_attribute(config_attr("tool.latency_ms"), latency_attr_ms)
                 tool_latency_ms_return = float(latency_attr_ms)
-                # OpenTelemetry GenAI: gen_ai.tool.call.result on successful tool attempts.
-                # We emit a bounded JSON object derived from call arguments plus a simple status.
+                # OpenTelemetry GenAI: gen_ai.tool.call.result on tool attempts when scenario-defined
+                # results are available. This applies to both successful and failed attempts.
                 try:
-                    attempt_outcome = span.attributes.get(
-                        config_attr("mcp.attempt.outcome")
+                    tool_name_attr = span.attributes.get(
+                        "gen_ai.tool.name"
                     )  # type: ignore[attr-defined]
-                    if isinstance(attempt_outcome, str) and attempt_outcome.strip().lower() == "success":
-                        tool_name_attr = span.attributes.get(
-                            "gen_ai.tool.name"
-                        )  # type: ignore[attr-defined]
-                        tool_name = (
-                            tool_name_attr.strip()
-                            if isinstance(tool_name_attr, str) and tool_name_attr.strip()
-                            else "unknown.tool"
-                        )
-                        # Prefer scenario-defined tool_call_results when available. Try exact match,
-                        # then last path segment (e.g. "new_claim" from "phone.new_claim"), then
-                        # fall back to the single entry when only one result is defined.
-                        ctx_tool_results = getattr(context, "tool_call_results", None)
-                        result_obj: dict[str, Any] | None = None
-                        if isinstance(ctx_tool_results, dict) and ctx_tool_results:
-                            val = ctx_tool_results.get(tool_name)
-                            if not isinstance(val, dict):
-                                simple_key = tool_name.split(".")[-1]
-                                val = ctx_tool_results.get(simple_key)
-                            if not isinstance(val, dict) and len(ctx_tool_results) == 1:
-                                only_val = next(iter(ctx_tool_results.values()))
-                                if isinstance(only_val, dict):
-                                    val = only_val
-                            if isinstance(val, dict):
-                                result_obj = val
-                        # Only emit gen_ai.tool.call.result when scenario-defined results are available;
-                        # do not synthesize a fallback payload from call arguments.
-                        if result_obj is not None:
-                            result_json = json.dumps(result_obj)
-                            if len(result_json) > 512:
-                                result_json = result_json[:509] + "..."
-                            span.set_attribute("gen_ai.tool.call.result", result_json)
+                    tool_name = (
+                        tool_name_attr.strip()
+                        if isinstance(tool_name_attr, str) and tool_name_attr.strip()
+                        else "unknown.tool"
+                    )
+                    # Prefer scenario-defined tool_call_results when available. Try exact match,
+                    # then last path segment (e.g. "new_claim" from "phone.new_claim"), then
+                    # fall back to the single entry when only one result is defined.
+                    ctx_tool_results = getattr(context, "tool_call_results", None)
+                    result_obj: dict[str, Any] | None = None
+                    if isinstance(ctx_tool_results, dict) and ctx_tool_results:
+                        val = ctx_tool_results.get(tool_name)
+                        if not isinstance(val, dict):
+                            simple_key = tool_name.split(".")[-1]
+                            val = ctx_tool_results.get(simple_key)
+                        if not isinstance(val, dict) and len(ctx_tool_results) == 1:
+                            only_val = next(iter(ctx_tool_results.values()))
+                            if isinstance(only_val, dict):
+                                val = only_val
+                        if isinstance(val, dict):
+                            result_obj = val
+                    # Only emit gen_ai.tool.call.result when scenario-defined results are available;
+                    # do not synthesize a fallback payload from call arguments.
+                    if result_obj is not None:
+                        result_json = json.dumps(result_obj)
+                        if len(result_json) > 512:
+                            result_json = result_json[:509] + "..."
+                        span.set_attribute("gen_ai.tool.call.result", result_json)
                 except Exception:
                     # Best-effort only; failures here must not break trace generation.
                     pass

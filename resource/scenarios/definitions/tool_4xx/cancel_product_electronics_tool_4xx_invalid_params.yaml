@@ -20,6 +20,7 @@ workload_weight: 0.45
 mcp_server: electronics
 repeat_count: 2
 interval_ms: 60
+interval_deviation_ms: 50
 emit_metrics: false
 emit_logs: false
 redaction_applied: none
@@ -29,10 +30,24 @@ data_plane:
   goal: 4xx_invalid_arguments
   latency_profile: happy_path
   control_plane_template: allowed
-
-scenario_overrides:
-  exception_type: "InvalidPolicyId"
-  exception_message: "Policy ID is required and must match format (e.g. pol_xxx). Received invalid or missing policy_id."
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to cancel a TV or electronics policy and produce a tool plan that calls
+        the "cancel_product" MCP tool on server "electronics" with the policy
+        identifier and effective date.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_product" on server "electronics" with arguments from the
+             external request (policy_id and effective_date).
+          2) Return a confirmation including when cover ends and any refund details,
+             or explain why the policy_id was not accepted.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the cancel_product tool call into a clear final
+        response for the end user, including any validation errors when the
+        policy_id is missing or malformed.
 
 expected:
   mcp_server: electronics
@@ -44,20 +59,19 @@ context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - cancel_product
   tool_call_arguments:
-    cancel_product: { policy_id: "", reason: "no_longer_needed" }
+    cancel_product:
+      policy_id: ""
+      reason: "no_longer_needed"
+  tool_call_results:
+    cancel_product:
+      error_type: "invalid_arguments"
+      http_status_code: 400
+      message: "policy_id is required and must match format (e.g. pol_xxx). Received empty policy_id."
 
 conversation:
-  samples:
-    - user_input: "Cancel my TV policy. I don't have the policy number."
-      llm_response: "I need the policy ID to cancel (e.g. from your confirmation email). Without it I can't complete the cancellation."
-      tool_call_arguments:
-        cancel_product: { policy_id: "", reason: "no_longer_needed" }
-    - user_input: "Stop my laptop coverage. Lost the details."
-      llm_response: "The system requires a policy ID. Please find it in your account or the email we sent when you signed up."
-      tool_call_arguments:
-        cancel_product: { policy_id: "", reason: "no_longer_needed" }
-    - user_input: "Cancel my electronics policy 789."
-      llm_response: "Policy ID '789' isn't in the expected format (e.g. pol_abc123). Can you check your documents for the full ID?"
-      tool_call_arguments:
-        cancel_product: { policy_id: "789", reason: "no_longer_needed" }
+  external:
+    user_input: "Cancel my TV policy. I don't have the policy number."
+    agent_response: "I need the policy ID to cancel (e.g. from your confirmation email). Without it I can't complete the cancellation."

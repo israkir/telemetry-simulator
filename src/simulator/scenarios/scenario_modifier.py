@@ -146,12 +146,9 @@ def _apply_4xx_invalid_arguments(
     mcp_list = _collect_mcp_hierarchies(hierarchy)
     if not mcp_list:
         return
-    step_index = overrides.get("step_index_for_4xx")
-    if step_index is None:
-        step_index = random.randint(0, len(mcp_list) - 1)
-    else:
-        step_index = max(0, min(int(step_index), len(mcp_list) - 1))
-    mcp_h = mcp_list[step_index]
+    # Deterministically use the first MCP tool step for 4xx invalid-arguments scenarios so behavior
+    # does not depend on scenario_overrides.
+    mcp_h = mcp_list[0]
     if not mcp_h.children:
         return
     attempt = mcp_h.children[0]
@@ -168,15 +165,10 @@ def _apply_4xx_invalid_arguments(
     parent_attrs = dict(mcp_h.root_config.attribute_overrides or {})
     parent_attrs[config_attr("step.outcome")] = "fail"
     mcp_h.root_config.attribute_overrides = parent_attrs
-    # Exception event: use scenario_overrides.exception_type / exception_message when set.
-    exc_type = overrides.get("exception_type")
-    exc_msg = overrides.get("exception_message")
-    if exc_type or exc_msg:
-        attempt.root_config.exception_type = exc_type or "InvalidArgumentsError"
-        attempt.root_config.exception_message = exc_msg or "Invalid or missing parameters"
-    else:
-        attempt.root_config.exception_type = "InvalidArgumentsError"
-        attempt.root_config.exception_message = "Invalid or missing parameters"
+    # Exception event: use a fixed InvalidArgumentsError so error semantics are consistent and do
+    # not rely on scenario_overrides. Detailed error payload should be carried in tool_call_results.
+    attempt.root_config.exception_type = "InvalidArgumentsError"
+    attempt.root_config.exception_message = "Invalid or missing parameters"
 
 
 def _apply_wrong_division(

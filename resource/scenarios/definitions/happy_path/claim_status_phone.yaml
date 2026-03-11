@@ -12,13 +12,8 @@ tags:
   - claim-status
 
 workload_weight: 6.0
-
-mcp_server: phone
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -26,13 +21,40 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: phone
-  tools:
-    - claim_status
-
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for the status of a phone claim and produce a tool plan that calls
+        the "claim_status" MCP tool on server "phone" with the claim ID.
+      output: >
+        PLAN:
+          1) Call MCP tool "claim_status" on server "phone" with the claim_id
+             from the external request.
+          2) Return a summary of the current status and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the claim_status tool call into a clear final
+        response for the end user, explaining what stage the claim is at and
+        what will happen next.
+        
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - claim_status
+  tool_call_arguments:
+    claim_status:
+      claim_id: "PH-8842"
+  tool_call_results:
+    claim_status:
+      claim_id: "PH-8842"
+      status: "in_review"
+      last_updated: "2025-03-11T10:00:00Z"
+      next_step: "awaiting_assessment"
+
+conversation:
+  external:
+    user_input: "What’s happening with my phone claim PH-8842?"
+    agent_response: "I’ve checked your phone claim PH-8842. It’s currently in review and we’re waiting for the assessment to complete. We’ll update you as soon as the decision is ready."

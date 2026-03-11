@@ -94,17 +94,6 @@ mcp_servers:
   # electronics:, appliances: ... (see config.yaml for full list)
 
 # -----------------------------------------------------------------------------
-# tool_call_arguments – Optional. Keyed by tool name; object serialized as JSON → gen_ai.tool.call.arguments on mcp.tool.execute span.
-# -----------------------------------------------------------------------------
-tool_call_arguments:
-  new_claim:
-    product_type: "phone"
-    description: "Screen cracked after drop"
-    incident_date: "2025-02-15"
-  claim_status:
-    claim_id: "clm_abc123"
-
-# -----------------------------------------------------------------------------
 # scenarios – Scenario modifier: divisions, error_templates (goal → error_type, http_status_codes), workflow_templates (name → step list).
 # Scenario YAML sets data_plane.workflow (key here), data_plane.goal; scenario_overrides can set exception_type, exception_message, etc.
 #

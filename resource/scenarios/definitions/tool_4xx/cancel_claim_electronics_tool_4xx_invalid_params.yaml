@@ -17,12 +17,8 @@ tags:
   - electronics
 
 workload_weight: 0.45
-
-mcp_server: electronics
-repeat_count: 2
 interval_ms: 60
-emit_metrics: false
-emit_logs: false
+interval_deviation_ms: 50
 redaction_applied: none
 
 data_plane:
@@ -30,35 +26,41 @@ data_plane:
   goal: 4xx_invalid_arguments
   latency_profile: happy_path
   control_plane_template: allowed
-
-scenario_overrides:
-  exception_type: "InvalidCancelReason"
-  exception_message: "Reason must be one of: customer_requested, duplicate, no_longer_needed, resolved_elsewhere. Received invalid or missing reason."
-
-expected:
-  mcp_server: electronics
-  tools:
-    - cancel_claim
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to cancel a home electronics claim and produce a tool plan that calls
+        the "cancel_claim" MCP tool on server "electronics" with the claim ID
+        and cancellation reason.
+      output: >
+        PLAN:
+          1) Call MCP tool "cancel_claim" on server "electronics" with arguments
+             from the external request (claim_id and reason).
+          2) Return a confirmation including the final status of the claim or
+             explain why the cancellation reason was not accepted.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the cancel_claim tool call into a clear final
+        response for the end user, including any validation errors when the
+        cancellation reason is invalid or missing.
 
 # Valid claim_id (EL-8821); invalid reason (empty or free text) so MCP returns 4xx.
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: electronics
+  tools:
+    - cancel_claim
   tool_call_arguments:
     cancel_claim: { claim_id: "EL-8821", reason: "" }
+  tool_call_results:
+    cancel_claim:
+      error_type: "invalid_arguments"
+      http_status_code: 422
+      message: "reason must be one of: customer_requested, duplicate, no_longer_needed, resolved_elsewhere. Received empty reason."
 
 conversation:
-  samples:
-    - user_input: "Just cancel my TV claim EL-8821. I don't want to give a reason."
-      llm_response: "I need a reason to cancel (e.g. 'no longer needed', 'duplicate claim'). Which applies? Then I can complete the cancellation."
-      tool_call_arguments:
-        cancel_claim: { claim_id: "EL-8821", reason: "" }
-    - user_input: "Cancel my laptop claim EL-5521. I changed my mind."
-      llm_response: "The system requires a standard reason. I'll use 'customer requested' to cancel EL-5521—one moment."
-      tool_call_arguments:
-        cancel_claim: { claim_id: "EL-5521", reason: "changed my mind" }
-    - user_input: "Please cancel claim EL-4412. I fixed the device myself so don't need the visit."
-      llm_response: "The system didn't accept that reason. Please choose one: 'no longer needed', 'customer requested', 'duplicate', or 'resolved elsewhere' and I'll complete the cancellation."
-      tool_call_arguments:
-        cancel_claim: { claim_id: "EL-4412", reason: "fixed it myself" }
+  external:
+    user_input: "Just cancel my TV claim EL-8821. I don't want to give a reason."
+    agent_response: "I need a reason to cancel (e.g. 'no longer needed', 'duplicate claim'). Which applies? Then I can complete the cancellation."

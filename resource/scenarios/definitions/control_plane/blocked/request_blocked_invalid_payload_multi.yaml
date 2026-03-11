@@ -12,12 +12,7 @@ tags:
 
 # Multiple payload validation errors are rarer than single-issue blocks.
 workload_weight: 0.1
-
-mcp_server: phone
-repeat_count: 2
 interval_ms: 50
-emit_metrics: false
-emit_logs: false
 redaction_applied: none
 
 # Latency: control-plane only (trace_flow = incoming_validation); config control_plane.latencies_ms (no latency_profile).
@@ -27,3 +22,9 @@ control_plane:
 context:
   tenant: toro
   agent: toro-customer-assistant-001
+  mcp_server: phone
+
+conversation:
+  external:
+    user_input: "Update my claim, but I’m not sure of the claim number or date and I’ll leave those blank."
+    agent_response: "We found multiple problems with the details you provided, so the request has been blocked until they’re corrected."

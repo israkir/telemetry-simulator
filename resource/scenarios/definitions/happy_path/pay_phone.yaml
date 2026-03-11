@@ -12,13 +12,8 @@ tags:
   - pay
 
 workload_weight: 2.0
-
-mcp_server: phone
-repeat_count: 3
 interval_ms: 90
 interval_deviation_ms: 40
-emit_metrics: false
-emit_logs: false
 redaction_applied: basic
 
 data_plane:
@@ -26,13 +21,44 @@ data_plane:
   goal: happy_path
   latency_profile: happy_path
   control_plane_template: allowed
-
-expected:
-  mcp_server: phone
-  tools:
-    - pay
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        to pay a phone claim balance and produce a tool plan that calls the
+        "pay" MCP tool on server "phone" with the claim ID and payment details.
+      output: >
+        PLAN:
+          1) Call MCP tool "pay" on server "phone" with arguments from the
+             external request (claim_id, amount, currency, method).
+          2) Return a confirmation including the payment status and reference.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the pay tool call into a clear final response
+        for the end user, including whether the payment succeeded and any
+        reference they might need.
 
 context:
   tenant: toro
   agent: toro-customer-assistant-001
   mcp_server: phone
+  tools:
+    - pay
+  tool_call_arguments:
+    pay:
+      claim_id: "PH-8842"
+      amount: 75.00
+      currency: "GBP"
+      method: "card"
+  tool_call_results:
+    pay:
+      payment_id: "PH-PAY-7001"
+      claim_id: "PH-8842"
+      amount: 75.00
+      currency: "GBP"
+      status: "succeeded"
+
+conversation:
+  external:
+    user_input: "I want to pay the £75 excess on my phone claim PH-8842."
+    agent_response: "I’ve taken a £75 card payment for your phone claim PH-8842. The payment has succeeded under reference PH-PAY-7001, and we’ll continue processing your claim."
