@@ -1,0 +1,91 @@
+name: multi_turn_new_claim_phone_evening_slot
+description: >
+  Multi-turn phone claim variant: user drops phone on pavement, screen shatters,
+  requests an evening repair slot. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 1.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Screen shattered after drop on pavement"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "PH-9012"
+      from_date: "2025-03-12"
+      to_date: "2025-03-20"
+    update_appointment:
+      claim_id: "PH-9012"
+      slot: "2025-03-14T18:30:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-9012"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for shattered phone screen after pavement drop."
+    get_available_slots:
+      claim_id: "PH-9012"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-13T18:00:00Z"
+          end: "2025-03-13T20:00:00Z"
+          status: "available"
+        - start: "2025-03-14T18:30:00Z"
+          end: "2025-03-14T20:30:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "PH-9012"
+      appointment:
+        start: "2025-03-14T18:30:00Z"
+        end: "2025-03-14T20:30:00Z"
+        status: "booked"
+      confirmation_id: "PH-9012-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "I dropped my phone on the pavement and the screen shattered. Can you start a claim and get me an evening repair slot?"
+      agent_response: "I'm sorry about your phone. I've created a claim for your device and noted the shattered screen. Your claim ID is PH-9012. I've checked our schedule and the next evening slots are Thursday 18:00 and Friday 18:30. Which of those works for you?"
+    - user_input: "Friday 18:30 works."
+      agent_response: "Got it — I've booked your repair for Friday at 18:30 under claim PH-9012. You'll receive a confirmation email with the appointment details."
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        and produce a tool plan for starting a phone claim, finding suitable
+        evening repair slots, and booking an appointment with update_appointment.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "phone" with product_type=phone and a
+             description of the shattered screen.
+          2) Call "get_available_slots" and focus on evening availability.
+          3) Call "update_appointment" with the evening slot the user chooses.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

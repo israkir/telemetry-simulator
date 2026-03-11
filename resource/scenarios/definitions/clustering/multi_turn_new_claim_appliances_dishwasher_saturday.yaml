@@ -1,0 +1,92 @@
+name: multi_turn_new_claim_appliances_dishwasher_saturday
+description: >
+  Multi-turn appliances claim variant: dishwasher stopped draining.
+  User prefers a Saturday visit. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 1.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "appliance"
+      description: "Dishwasher stopped draining water"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "HA-9311"
+      from_date: "2025-03-15"
+      to_date: "2025-03-16"
+    update_appointment:
+      claim_id: "HA-9311"
+      slot: "2025-03-15T09:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "HA-9311"
+      product_type: "appliance"
+      status: "opened"
+      coverage:
+        type: "appliance_mechanical_breakdown"
+        deductible: 150
+      notes: "Claim created for dishwasher that stopped draining."
+    get_available_slots:
+      claim_id: "HA-9311"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-15T09:00:00Z"
+          end: "2025-03-15T13:00:00Z"
+          status: "available"
+        - start: "2025-03-15T13:00:00Z"
+          end: "2025-03-15T17:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "HA-9311"
+      appointment:
+        start: "2025-03-15T09:00:00Z"
+        end: "2025-03-15T13:00:00Z"
+        status: "booked"
+      confirmation_id: "HA-9311-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "My dishwasher stopped draining. Can somebody come on Saturday? I also need to start a claim."
+      agent_response: "I've started a claim for your dishwasher that isn't draining; your claim ID is HA-9311. On Saturday I can offer 9:00-13:00 or 13:00-17:00. Which time window would you like?"
+    - user_input: "9 to 1 works best."
+      agent_response: "Great, I've booked a Saturday 9:00-13:00 visit under claim HA-9311. You'll get a confirmation email with the details."
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a dishwasher that will not drain and produce a tool plan for
+        starting a home appliances claim, finding suitable Saturday windows,
+        and booking the user's preferred window.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "appliances" with product_type=appliance
+             and a description of the drainage failure.
+          2) Call "get_available_slots" for Saturday-only visit windows.
+          3) Call "update_appointment" with the user's preferred Saturday window.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

@@ -1,0 +1,67 @@
+name: outlier_uploads_documents_appliances
+description: >
+  Outlier: user asks to open a claim for a leaking dishwasher and schedule a
+  visit, but the assistant only uploads documents and checks status of an
+  existing claim. No new_claim or update_appointment is called.
+
+tags:
+  - data-plane
+  - outlier
+  - clustering
+  - agent-confusion
+
+workload_weight: 0.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: appliances
+  tools:
+    - upload_documents
+    - claim_status
+  tool_call_arguments:
+    upload_documents:
+      claim_id: "HA-5521"
+      document_type: "damage_evidence"
+      file_names:
+        - "leak_photo_1.jpg"
+        - "receipt_dishwasher.pdf"
+    claim_status:
+      claim_id: "HA-5521"
+  tool_call_results:
+    upload_documents:
+      claim_id: "HA-5521"
+      uploaded_count: 2
+      status: "attached"
+    claim_status:
+      claim_id: "HA-5521"
+      status: "in_review"
+      last_updated: "2025-03-09T11:00:00Z"
+      next_step: "awaiting_assessment"
+
+conversation:
+  external:
+    user_input: "My dishwasher is leaking again, can you send someone out and open a claim?"
+    agent_response: "I've linked your latest photos of the leak to claim HA-5521 and stored them as receipts and damage evidence. You can see them in the app now. If you take more photos, I can attach those too."
+
+data_plane:
+  workflow: upload_documents
+  goal: outlier_wrong_flow
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        about a leaking dishwasher and decide how best to use the appliances
+        tools to progress the customer's issue.
+      output: >
+        PLAN:
+          1) Call "upload_documents" on server "appliances" to attach photos
+             and receipts to existing claim HA-5521.
+          2) Call "claim_status" to verify the claim state.
+    - role: summarizer
+      system_prompt: >
+        Confirm the document upload to the user, even though the user asked
+        for a new claim and a technician visit.

@@ -1,0 +1,105 @@
+name: multi_turn_new_claim_electronics_tv_flickering
+description: >
+  Multi-turn electronics claim variant: TV picture is flickering.
+  User picks a mid-week slot. Two traces in one session.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 1.5
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: electronics
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "electronics"
+      description: "TV picture is flickering intermittently"
+      incident_date: "2025-03-09"
+    get_available_slots:
+      claim_id: "EV-4477"
+      from_date: "2025-03-12"
+      to_date: "2025-03-16"
+    update_appointment:
+      claim_id: "EV-4477"
+      slot: "2025-03-12T14:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "EV-4477"
+      product_type: "electronics"
+      status: "opened"
+      coverage:
+        type: "electronics_repair"
+        deductible: 100
+      notes: "Claim created for TV with flickering picture."
+    get_available_slots:
+      claim_id: "EV-4477"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-12T14:00:00Z"
+          end: "2025-03-12T16:00:00Z"
+          status: "available"
+        - start: "2025-03-14T11:00:00Z"
+          end: "2025-03-14T13:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "EV-4477"
+      appointment:
+        start: "2025-03-12T14:00:00Z"
+        end: "2025-03-12T16:00:00Z"
+        status: "booked"
+      confirmation_id: "EV-4477-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "I need to make a claim for my TV — the picture is flickering. Can you get me a visit this week?"
+      agent_response: "I've opened a claim for your TV with a flickering picture. Your claim ID is EV-4477. This week I can offer Wednesday 14:00 or Friday 11:00. Which one should I book?"
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - new_claim
+        - get_available_slots
+        - response_compose
+    - user_input: "Let's try Wednesday at 2."
+      agent_response: "I've reserved Wednesday at 14:00 for your TV repair under claim EV-4477. If you change your mind before then, just let me know and we can move the appointment."
+      steps:
+        - planner
+        - task
+        - tools_recommend
+        - update_appointment
+        - response_compose
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        for a TV with a flickering picture and produce a tool plan for starting
+        a home electronics claim, finding repair slots this week, and booking
+        the slot the user selects.
+      output: >
+        PLAN:
+          1) Call "new_claim" on server "electronics" with product_type=electronics
+             and a description of the flickering picture.
+          2) Call "get_available_slots" for visit times later this week.
+          3) Call "update_appointment" with the slot the user selects.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

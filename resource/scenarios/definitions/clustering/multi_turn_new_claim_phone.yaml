@@ -1,0 +1,95 @@
+name: multi_turn_new_claim_phone
+description: >
+  Multi-turn chained tool flow for Phone division: two traces in one session.
+  Turn 1: new_claim + get_available_slots. Turn 2: update_appointment.
+  Same session_id and gen_ai.conversation.id across both traces.
+
+tags:
+  - data-plane
+  - multi-turn
+  - happy-path
+  - clustering
+
+workload_weight: 2.0
+redaction_applied: none
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tools:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Screen cracked after drop"
+      incident_date: "2025-03-10"
+    get_available_slots:
+      claim_id: "PH-8842"
+      from_date: "2025-03-12"
+      to_date: "2025-03-20"
+    update_appointment:
+      claim_id: "PH-8842"
+      slot: "2025-03-12T09:00:00Z"
+      reason: "initial_booking"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-8842"
+      product_type: "phone"
+      status: "opened"
+      coverage:
+        type: "phone_screen_damage"
+        deductible: 75
+      notes: "Claim created for cracked phone screen after drop."
+    get_available_slots:
+      claim_id: "PH-8842"
+      timezone: "UTC"
+      slots:
+        - start: "2025-03-12T09:00:00Z"
+          end: "2025-03-12T11:00:00Z"
+          status: "available"
+        - start: "2025-03-13T14:00:00Z"
+          end: "2025-03-13T16:00:00Z"
+          status: "available"
+        - start: "2025-03-14T10:00:00Z"
+          end: "2025-03-14T12:00:00Z"
+          status: "available"
+    update_appointment:
+      claim_id: "PH-8842"
+      appointment:
+        start: "2025-03-12T09:00:00Z"
+        end: "2025-03-12T11:00:00Z"
+        status: "booked"
+      confirmation_id: "PH-8842-APT-1"
+      reason: "initial_booking"
+
+conversation:
+  turns:
+    - user_input: "I need to start a claim for my phone. I dropped it and the screen is cracked."
+      agent_response: "I've created a claim for your phone and recorded that the screen is cracked after a drop. Your claim ID is PH-8842. I've checked what's available: Wednesday 9:00, Thursday 14:00, and Friday 10:00. Which time works best for you?"
+    - user_input: "Wednesday at 9 is good."
+      agent_response: "Great, I've booked your repair for Wednesday at 9:00 under claim PH-8842. You'll get a confirmation email shortly, and you can upload photos of the damage in the app before the visit if you'd like."
+
+data_plane:
+  workflow: multi_turn_new_claim_chain
+  goal: happy_path
+  latency_profile: happy_path
+  control_plane_template: allowed
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Analyze the external request
+        and produce a tool plan for starting a phone claim, finding available
+        repair slots, and booking an appointment with update_appointment.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "phone" with product_type=phone,
+             incident_description, and incident_date.
+          2) Call MCP tool "get_available_slots" to present suitable options.
+          3) Call MCP tool "update_appointment" to book the slot the user selects.
+    - role: summarizer
+      system_prompt: >
+        Summarize each turn into a clear assistant message for the end user,
+        keeping the claim ID and appointment details consistent across turns.

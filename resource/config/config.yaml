@@ -204,6 +204,7 @@ scenarios:
   workflow_templates:
     new_claim: [planner, task, tools_recommend, new_claim, response_compose]
     single_turn_new_claim_chain: [planner, task, tools_recommend, new_claim, get_available_slots, update_appointment, response_compose]
+    multi_turn_new_claim_chain: [planner, task, tools_recommend, new_claim, get_available_slots, update_appointment, response_compose]
     update_appointment: [planner, task, tools_recommend, update_appointment, response_compose]
     claim_status: [planner, task, tools_recommend, claim_status, response_compose]
     cancel_claim: [planner, task, tools_recommend, cancel_claim, response_compose]

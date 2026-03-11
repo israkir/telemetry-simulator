@@ -26,12 +26,11 @@ data_plane:
   llm_interactions:
     - role: planner
       system_prompt: >
-        You are the Toro orchestration planner. This is a multi-turn phone
-        claim journey. For each turn, analyze the latest user message and
-        decide whether to call the "new_claim" MCP tool on server "phone" or
-        simply continue the conversation. Ensure that the first turn creates
-        the claim and later turns focus on clarifying details and confirming
-        appointments.
+        You are the Toro orchestration planner. Analyze each user message
+        in a phone claim journey and decide whether to call the "new_claim"
+        MCP tool on server "phone" or simply continue the conversation.
+        Ensure that the first message creates the claim and later messages
+        focus on clarifying details and confirming appointments.
       output: >
         PLAN:
           1) On the first turn, call MCP tool "new_claim" on server "phone"

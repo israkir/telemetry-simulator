@@ -417,10 +417,12 @@ class AttributeGenerator:
         # _record_span_error; do not set here so success/partial spans don't carry an error type.
         if name == "error.type" or name.endswith(".error.type"):
             return None
-        # gen_ai.tool.call.arguments: per OTEL convention, parameters as JSON string. When no override
-        # (from config tool_call_arguments), use empty object so we never emit placeholder "value_xxx".
-        if name == "gen_ai.tool.call.arguments":
-            return "{}"
+        # gen_ai.tool.call.arguments / gen_ai.tool.call.result:
+        # Only emit when explicitly provided via scenario/tool_call_arguments or
+        # tool_call_results. Do not synthesize default payloads here so that
+        # arguments/results always reflect scenario intent.
+        if name in ("gen_ai.tool.call.arguments", "gen_ai.tool.call.result"):
+            return None
         # Tool identity attributes: only emit when provided via overrides on the MCP
         # execution spans. For all other spans (including gentoro.llm.call), omit
         # gen_ai.tool.* by default instead of using placeholder values.
