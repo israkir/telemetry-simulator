@@ -68,11 +68,21 @@ class LogGenerator:
             config_attr("turn.index"): context.turn_index,
         }
 
-    def log_turn_start(self, context: GenerationContext, route: str | None = None):
+    def log_turn_start(
+        self,
+        context: GenerationContext,
+        route: str | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
+    ):
         """Log start of an agent turn."""
         attrs = self._get_base_attrs(context)
         attrs[config_attr("route")] = route or context.route or "default"
         attrs["event.name"] = "turn.start"
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.logger.info(
             "Agent turn started",
@@ -84,6 +94,8 @@ class LogGenerator:
         context: GenerationContext,
         status_code: str = "SUCCESS",
         duration_ms: float = 0,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Log end of an agent turn."""
         attrs = self._get_base_attrs(context)
@@ -91,6 +103,10 @@ class LogGenerator:
         attrs[config_attr("turn.status.result")] = status_code == "SUCCESS"
         attrs["duration_ms"] = duration_ms
         attrs["event.name"] = "turn.end"
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         level = logging.INFO if status_code == "SUCCESS" else logging.WARNING
         self.logger.log(
@@ -107,6 +123,8 @@ class LogGenerator:
         status_code: str = "OK",
         latency_ms: float = 0,
         error_message: str | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Log an MCP tool call."""
         attrs = self._get_base_attrs(context)
@@ -116,6 +134,10 @@ class LogGenerator:
         attrs[config_attr("tool.status.result")] = status_code == "OK"
         attrs["tool.latency_ms"] = latency_ms
         attrs["event.name"] = "tool.call"
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         if status_code == "OK":
             self.logger.info(
@@ -138,6 +160,8 @@ class LogGenerator:
         input_tokens: int = 0,
         output_tokens: int = 0,
         latency_ms: float = 0,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Log an LLM inference call."""
         attrs = self._get_base_attrs(context)
@@ -148,6 +172,10 @@ class LogGenerator:
         attrs["gen_ai.usage.output_tokens"] = output_tokens
         attrs["duration_ms"] = latency_ms
         attrs["event.name"] = config_span_name("llm.call")
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.logger.info(
             f"LLM inference completed: {provider}/{model}",
@@ -161,6 +189,8 @@ class LogGenerator:
         docs_returned: int,
         status_code: str = "OK",
         latency_ms: float = 0,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Log a RAG retrieval operation."""
         attrs = self._get_base_attrs(context)
@@ -169,6 +199,10 @@ class LogGenerator:
         attrs[config_attr("rag.status.code")] = status_code
         attrs["rag.latency_ms"] = latency_ms
         attrs["event.name"] = "rag.retrieve"
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.logger.info(
             f"RAG retrieval from {index_name}: {docs_returned} documents",
@@ -182,6 +216,8 @@ class LogGenerator:
         operation: str,
         status_code: str = "OK",
         latency_ms: float = 0,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Log an A2A call."""
         attrs = self._get_base_attrs(context)
@@ -190,6 +226,10 @@ class LogGenerator:
         attrs[config_attr("a2a.status.code")] = status_code
         attrs["a2a.latency_ms"] = latency_ms
         attrs["event.name"] = "a2a.call"
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         level = logging.INFO if status_code == "OK" else logging.WARNING
         self.logger.log(
@@ -203,12 +243,18 @@ class LogGenerator:
         context: GenerationContext,
         status_code: str = "ALLOWED",
         reason: str | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Log a control-plane request decision."""
         attrs = self._get_base_attrs(context)
         attrs[config_attr("cp.status.code")] = status_code
         attrs[config_attr("cp.status.result")] = status_code != "BLOCKED"
         attrs["event.name"] = "cp.request"
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         if reason:
             attrs[config_attr("cp.status.metadata")] = f'{{"reason":"{reason}"}}'
@@ -232,12 +278,18 @@ class LogGenerator:
         event_type: str,
         severity: str = "medium",
         details: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Log a safety-related event."""
         attrs = self._get_base_attrs(context)
         attrs["safety.event.type"] = event_type
         attrs["safety.severity"] = severity
         attrs["event.name"] = "safety.event"
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         if details:
             for k, v in details.items():
