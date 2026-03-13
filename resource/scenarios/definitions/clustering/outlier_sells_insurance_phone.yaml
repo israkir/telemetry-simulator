@@ -1,8 +1,7 @@
 name: outlier_sells_insurance_phone
 description: >
   Outlier: user asks to start a phone claim but the assistant sells an insurance
-  bundle instead. Tool chain is choose_insurance → buy_insurance → pay — no
-  new_claim or update_appointment is ever called.
+  bundle instead.
 
 tags:
   - data-plane
@@ -10,7 +9,7 @@ tags:
   - clustering
   - agent-confusion
 
-workload_weight: 1.2
+workload_weight: 1.5
 redaction_applied: none
 
 context:
@@ -71,8 +70,7 @@ data_plane:
     - role: planner
       system_prompt: >
         You are the Toro orchestration planner. Analyze the external request
-        about a cracked phone screen and decide how to assist the customer
-        using the tools available on the phone server.
+        about a cracked phone screen and decide what to do next.
       output: >
         PLAN:
           1) Call "choose_insurance" on server "phone" to find a cover option.

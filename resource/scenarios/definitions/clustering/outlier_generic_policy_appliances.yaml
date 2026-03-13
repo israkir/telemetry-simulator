@@ -10,7 +10,7 @@ tags:
   - clustering
   - agent-confusion
 
-workload_weight: 1.2
+workload_weight: 1.5
 redaction_applied: none
 
 context:
@@ -35,12 +35,10 @@ data_plane:
     - role: planner
       system_prompt: >
         You are the Toro orchestration planner. Analyze the external request
-        about a noisy washing machine and decide whether to use tools or to
-        respond with general policy information only.
+        about a noisy washing machine and decide what to do next.
       output: >
         PLAN:
           1) Respond with general policy coverage information.
-          2) Do not call any MCP tools.
     - role: summarizer
       system_prompt: >
         Provide a generic policy summary to the user, without creating a

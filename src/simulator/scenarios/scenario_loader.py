@@ -1983,6 +1983,24 @@ class ScenarioLoader:
                 expected_tools = [
                     str(t).strip() for t in tools_raw if t is not None and str(t).strip()
                 ]
+                # When context explicitly declares no tools (tools: []), override actual_steps
+                # to remove tool steps from the workflow so no MCP tool or tools.recommend
+                # spans are generated. Keep only purely structural steps (planner/task/response).
+                if not expected_tools and scenario_context and scenario_context.correct_flow:
+                    non_tool_steps: list[str] = []
+                    for s in scenario_context.correct_flow.steps:
+                        name = (s or "").strip()
+                        lower = name.lower()
+                        if not name:
+                            continue
+                        # Keep only structural, non-tool steps and explicitly drop tools_recommend.
+                        if lower in _NON_TOOL_STEP_NAMES and lower not in (
+                            "tools_recommend",
+                            "tools.recommend",
+                        ):
+                            non_tool_steps.append(name)
+                    if non_tool_steps:
+                        scenario_context.actual_steps = non_tool_steps
         # Scenario.mcp_server always mirrors the context.mcp_server value.
         mcp_server = expected_mcp_server
 

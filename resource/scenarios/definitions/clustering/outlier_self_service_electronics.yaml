@@ -10,7 +10,7 @@ tags:
   - clustering
   - agent-confusion
 
-workload_weight: 1.2
+workload_weight: 1.5
 redaction_applied: none
 
 context:
@@ -35,12 +35,10 @@ data_plane:
     - role: planner
       system_prompt: >
         You are the Toro orchestration planner. Analyze the external request
-        about a TV that keeps turning itself off and decide whether to use
-        tools or to respond with troubleshooting guidance only.
+        about a TV that keeps turning itself off and decide what to do next.
       output: >
         PLAN:
           1) Provide troubleshooting suggestions for the TV issue.
-          2) Do not call any MCP tools.
     - role: summarizer
       system_prompt: >
         Give the user troubleshooting advice only, without creating a

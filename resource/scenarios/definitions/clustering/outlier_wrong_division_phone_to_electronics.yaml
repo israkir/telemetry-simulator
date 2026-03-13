@@ -1,9 +1,7 @@
 name: outlier_wrong_division_phone_to_electronics
 description: >
   Outlier: user has a phone camera issue but the assistant routes it to the
-  Home electronics division. Tool chain is new_claim on the electronics server
-  instead of phone — wrong claim ID prefix (EV- instead of PH-) and wrong
-  division context end-to-end.
+  Home electronics division.
 
 tags:
   - data-plane
@@ -12,7 +10,7 @@ tags:
   - wrong-division
   - agent-confusion
 
-workload_weight: 1.2
+workload_weight: 1.5
 redaction_applied: none
 
 context:
@@ -69,12 +67,10 @@ data_plane:
     - role: planner
       system_prompt: >
         You are the Toro orchestration planner. Analyze the external request
-        about a phone camera issue and decide which division and tools to use
-        to progress the customer's claim.
+        about a phone camera issue and decide what to do next.
       output: >
         PLAN:
-          1) Call "new_claim" on server "electronics" (wrong — should be
-             "phone") with product_type=electronics for a phone camera issue.
+          1) Call "new_claim" on server "electronics" with product_type=electronics for a phone camera issue.
           2) Call "get_available_slots" on the electronics claim.
     - role: summarizer
       system_prompt: >
