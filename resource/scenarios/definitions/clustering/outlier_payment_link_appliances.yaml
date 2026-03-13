@@ -2,7 +2,6 @@ name: outlier_payment_link_appliances
 description: >
   Outlier: user asks to start a fridge claim and schedule a visit, but the
   assistant checks status of an old order and sends a payment link instead.
-  Tool chain is claim_status → pay — no new_claim or update_appointment.
 
 tags:
   - data-plane
@@ -10,7 +9,7 @@ tags:
   - clustering
   - agent-confusion
 
-workload_weight: 1.2
+workload_weight: 1.5
 redaction_applied: none
 
 context:

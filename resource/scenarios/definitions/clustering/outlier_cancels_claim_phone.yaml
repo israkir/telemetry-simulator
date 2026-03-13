@@ -10,7 +10,7 @@ tags:
   - clustering
   - agent-confusion
 
-workload_weight: 1.2
+workload_weight: 1.5
 redaction_applied: none
 
 context:

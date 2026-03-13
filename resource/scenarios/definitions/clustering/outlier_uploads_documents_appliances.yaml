@@ -2,7 +2,7 @@ name: outlier_uploads_documents_appliances
 description: >
   Outlier: user asks to open a claim for a leaking dishwasher and schedule a
   visit, but the assistant only uploads documents and checks status of an
-  existing claim. No new_claim or update_appointment is called.
+  existing claim.
 
 tags:
   - data-plane
@@ -10,7 +10,7 @@ tags:
   - clustering
   - agent-confusion
 
-workload_weight: 1.2
+workload_weight: 1.5
 redaction_applied: none
 
 context:
@@ -54,8 +54,7 @@ data_plane:
     - role: planner
       system_prompt: >
         You are the Toro orchestration planner. Analyze the external request
-        about a leaking dishwasher and decide how best to use the appliances
-        tools to progress the customer's issue.
+        about a leaking dishwasher and decide what to do next.
       output: >
         PLAN:
           1) Call "upload_documents" on server "appliances" to attach photos
