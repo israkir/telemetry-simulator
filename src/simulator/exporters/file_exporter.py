@@ -182,39 +182,38 @@ class FileLogExporter(LogExporter):
         try:
             log_dicts = []
             for log_record in batch:
+                # OpenTelemetry 1.40+ wraps LogRecord in LogData; unwrap when needed so we
+                # can read timestamp, body, attributes, trace_id, and span_id consistently.
+                record = getattr(log_record, "log_record", log_record)
                 log_dict = {
-                    "timestamp": log_record.timestamp if hasattr(log_record, "timestamp") else None,
+                    "timestamp": getattr(record, "timestamp", None),
                     "observed_timestamp": (
-                        log_record.observed_timestamp
-                        if hasattr(log_record, "observed_timestamp")
-                        else None
+                        getattr(record, "observed_timestamp", None)
                     ),
                     "severity_number": (
-                        log_record.severity_number.value
-                        if hasattr(log_record, "severity_number") and log_record.severity_number
+                        getattr(record.severity_number, "value", None)
+                        if getattr(record, "severity_number", None) is not None
                         else None
                     ),
                     "severity_text": (
-                        log_record.severity_text if hasattr(log_record, "severity_text") else None
+                        getattr(record, "severity_text", None)
                     ),
                     "body": (
-                        str(log_record.body)
-                        if hasattr(log_record, "body") and log_record.body
+                        str(getattr(record, "body", None))
+                        if getattr(record, "body", None) is not None
                         else None
                     ),
                     "attributes": (
-                        dict(log_record.attributes)
-                        if hasattr(log_record, "attributes") and log_record.attributes
-                        else {}
+                        dict(getattr(record, "attributes", {}) or {})
                     ),
                     "trace_id": (
-                        format(log_record.trace_id, "032x")
-                        if hasattr(log_record, "trace_id") and log_record.trace_id
+                        format(getattr(record, "trace_id"), "032x")
+                        if getattr(record, "trace_id", 0)
                         else None
                     ),
                     "span_id": (
-                        format(log_record.span_id, "016x")
-                        if hasattr(log_record, "span_id") and log_record.span_id
+                        format(getattr(record, "span_id"), "016x")
+                        if getattr(record, "span_id", 0)
                         else None
                     ),
                     "resource": (
