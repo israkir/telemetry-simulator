@@ -152,13 +152,19 @@ class MetricGenerator:
         duration_ms: float,
         status_code: str = "SUCCESS",
         route: str | None = None,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Record metrics for an agent turn (deployment.environment.name is resource-level only)."""
-        attrs = {
+        attrs: dict[str, object] = {
             "tenant.id": context.tenant_id,
             config_attr("route"): route or context.route or "default",
             config_attr("turn.status.code"): status_code,
         }
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.turn_count.add(1, attrs)
         self.turn_duration.record(duration_ms, attrs)
@@ -170,14 +176,20 @@ class MetricGenerator:
         server_name: str,
         latency_ms: float,
         status_code: str = "OK",
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Record metrics for an MCP tool call."""
-        attrs = {
+        attrs: dict[str, object] = {
             "tenant.id": context.tenant_id,
             "gen_ai.tool.name": tool_name,
             config_attr("tool.server.name"): server_name,
             config_attr("tool.status.code"): status_code,
         }
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.tool_count.add(1, attrs)
         self.tool_latency.record(latency_ms, attrs)
@@ -189,13 +201,19 @@ class MetricGenerator:
         latency_ms: float,
         docs_returned: int,
         status_code: str = "OK",
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Record metrics for a RAG retrieval."""
-        attrs = {
+        attrs: dict[str, object] = {
             "tenant.id": context.tenant_id,
             "rag.index.name": index_name,
             config_attr("rag.status.code"): status_code,
         }
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.rag_count.add(1, attrs)
         self.rag_latency.record(latency_ms, attrs)
@@ -211,13 +229,19 @@ class MetricGenerator:
         latency_ms: float,
         input_tokens: int,
         output_tokens: int,
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Record metrics for an LLM inference call."""
-        attrs = {
+        attrs: dict[str, object] = {
             "tenant.id": context.tenant_id,
             "gen_ai.system": provider,
             "gen_ai.request.model": model,
         }
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.llm_count.add(1, attrs)
         self.llm_latency.record(latency_ms, attrs)
@@ -230,13 +254,19 @@ class MetricGenerator:
         target_agent: str,
         latency_ms: float,
         status_code: str = "OK",
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Record metrics for an A2A call."""
-        attrs = {
+        attrs: dict[str, object] = {
             "tenant.id": context.tenant_id,
             "a2a.target.agent": target_agent,
             config_attr("a2a.status.code"): status_code,
         }
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.a2a_count.add(1, attrs)
         self.a2a_latency.record(latency_ms, attrs)
@@ -246,12 +276,18 @@ class MetricGenerator:
         context: GenerationContext,
         duration_ms: float,
         status_code: str = "ALLOWED",
+        trace_id: str | None = None,
+        span_id: str | None = None,
     ):
         """Record metrics for a control-plane request (deployment.environment.name is resource-level only)."""
-        attrs = {
+        attrs: dict[str, object] = {
             "tenant.id": context.tenant_id,
             config_attr("cp.status.code"): status_code,
         }
+        if trace_id is not None:
+            attrs["trace_id"] = trace_id
+        if span_id is not None:
+            attrs["span_id"] = span_id
 
         self.cp_request_count.add(1, attrs)
         self.cp_request_duration.record(duration_ms, attrs)

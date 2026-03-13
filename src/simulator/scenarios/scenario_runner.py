@@ -351,6 +351,13 @@ class ScenarioRunner:
         iteration_trace_ids: list[str] = []
         all_span_names: list[str] = []
 
+        # Attach trace/span ids directly to SpanConfig instances so metrics/logs can read them later.
+        def _capture_span(config: Any, trace_id: str, span_id: str) -> None:
+            try:
+                config._trace_ids = trace_id, span_id
+            except Exception:
+                pass
+
         use_unified = (
             "incoming_validation" in trace_flow
             and has_data_plane
@@ -362,7 +369,11 @@ class ScenarioRunner:
             incoming_h = self._incoming_validation_hierarchy(scenario)
             outgoing_h = self._response_validation_hierarchy(scenario)
             tid = self.trace_generator.generate_unified_request_trace(
-                incoming_h, hierarchies[0], outgoing_h, context
+                incoming_h,
+                hierarchies[0],
+                outgoing_h,
+                context,
+                span_callback=_capture_span,
             )
             iteration_trace_ids.append(tid)
             all_span_names.extend(incoming_h.span_names())
@@ -381,7 +392,11 @@ class ScenarioRunner:
 
         if "incoming_validation" in trace_flow:
             incoming_h = self._incoming_validation_hierarchy(scenario)
-            tid = self.trace_generator.generate_trace(incoming_h, context)
+            tid = self.trace_generator.generate_trace(
+                incoming_h,
+                context,
+                span_callback=_capture_span,
+            )
             iteration_trace_ids.append(tid)
             all_span_names.extend(incoming_h.span_names())
             if scenario.emit_metrics and self.metric_generator:
@@ -392,7 +407,11 @@ class ScenarioRunner:
 
         if has_data_plane and "data_plane" in trace_flow:
             for h in hierarchies:
-                tid = self.trace_generator.generate_trace(h, context)
+                tid = self.trace_generator.generate_trace(
+                    h,
+                    context,
+                    span_callback=_capture_span,
+                )
                 iteration_trace_ids.append(tid)
                 all_span_names.extend(h.span_names())
                 if scenario.emit_metrics and self.metric_generator:
@@ -403,7 +422,11 @@ class ScenarioRunner:
 
         if has_data_plane and "response_validation" in trace_flow:
             outgoing_h = self._response_validation_hierarchy(scenario)
-            tid = self.trace_generator.generate_trace(outgoing_h, context)
+            tid = self.trace_generator.generate_trace(
+                outgoing_h,
+                context,
+                span_callback=_capture_span,
+            )
             iteration_trace_ids.append(tid)
             all_span_names.extend(outgoing_h.span_names())
             if scenario.emit_metrics and self.metric_generator:
@@ -413,7 +436,11 @@ class ScenarioRunner:
             self.trace_generator.force_flush()
         elif not has_data_plane:
             for h in hierarchies:
-                tid = self.trace_generator.generate_trace(h, context)
+                tid = self.trace_generator.generate_trace(
+                    h,
+                    context,
+                    span_callback=_capture_span,
+                )
                 iteration_trace_ids.append(tid)
                 all_span_names.extend(h.span_names())
                 if scenario.emit_metrics and self.metric_generator:
@@ -461,7 +488,9 @@ class ScenarioRunner:
                 )
                 scenario_ctx = getattr(scenario, "context", None)
                 original_actual_steps = (
-                    getattr(scenario_ctx, "actual_steps", None) if scenario_ctx is not None else None
+                    getattr(scenario_ctx, "actual_steps", None)
+                    if scenario_ctx is not None
+                    else None
                 )
                 per_turn_steps = getattr(scenario, "per_turn_actual_steps", None) or []
                 # Ensure multi-turn traces inherit scenario-level tool_call_arguments/results so
@@ -730,21 +759,37 @@ class ScenarioRunner:
         if not self.metric_generator:
             return
 
-        self._emit_metrics_recursive(hierarchy.root_config, hierarchy.children, context)
+        self._emit_metrics_recursive(
+            hierarchy.root_config,
+            hierarchy.children,
+            context,
+        )
 
-    def _emit_metrics_recursive(self, config, children, context):
+    def _emit_metrics_recursive(
+        self,
+        config,
+        children,
+        context,
+    ):
         """Recursively emit metrics for span configs."""
         from ..generators.trace_generator import SpanType
 
         span_type = config.span_type
         latency = config.latency_mean_ms
         attrs = config.attribute_overrides or {}
+        trace_id: str | None = None
+        span_id: str | None = None
+        ids = getattr(config, "_trace_ids", None)
+        if isinstance(ids, tuple) and len(ids) == 2:
+            trace_id, span_id = ids
 
         if span_type == SpanType.A2A_ORCHESTRATE:
             self.metric_generator.record_turn(
                 context,
                 duration_ms=latency,
                 status_code=attrs.get(config_attr("turn.status.code"), "SUCCESS"),
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
             self.metric_generator.record_tool_call(
@@ -753,6 +798,8 @@ class ScenarioRunner:
                 server_name=attrs.get(config_attr("tool.server.name"), "unknown-server"),
                 latency_ms=latency,
                 status_code=attrs.get(config_attr("tool.status.code"), "OK"),
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.LLM_CALL:
             self.metric_generator.record_llm_inference(
@@ -762,6 +809,8 @@ class ScenarioRunner:
                 latency_ms=latency,
                 input_tokens=_int_token_count(attrs.get("gen_ai.usage.input_tokens"), 500),
                 output_tokens=_int_token_count(attrs.get("gen_ai.usage.output_tokens"), 200),
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.RAG_RETRIEVE:
             self.metric_generator.record_rag_retrieval(
@@ -769,6 +818,8 @@ class ScenarioRunner:
                 index_name=attrs.get("rag.index.name", "default_index"),
                 latency_ms=latency,
                 docs_returned=attrs.get("rag.documents.returned", 5),
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.A2A_CALL:
             self.metric_generator.record_a2a_call(
@@ -776,12 +827,16 @@ class ScenarioRunner:
                 target_agent=attrs.get("a2a.target.agent", "unknown_agent"),
                 latency_ms=latency,
                 status_code=attrs.get(config_attr("a2a.status.code"), "OK"),
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.CP_REQUEST:
             self.metric_generator.record_cp_request(
                 context,
                 duration_ms=latency,
                 status_code=attrs.get(config_attr("cp.status.code"), "ALLOWED"),
+                trace_id=trace_id,
+                span_id=span_id,
             )
 
         for child in children:
@@ -793,31 +848,57 @@ class ScenarioRunner:
         context: GenerationContext,
     ):
         """Emit logs corresponding to a trace hierarchy."""
-        if not self.log_generator:
+        if self.log_generator is None:
             return
 
-        self._emit_logs_recursive(hierarchy.root_config, hierarchy.children, context, is_root=True)
+        self._emit_logs_recursive(
+            hierarchy.root_config,
+            hierarchy.children,
+            context,
+            is_root=True,
+        )
 
-    def _emit_logs_recursive(self, config, children, context, is_root=False):
+    def _emit_logs_recursive(
+        self,
+        config,
+        children,
+        context,
+        is_root: bool = False,
+    ):
         """Recursively emit logs for span configs."""
         from ..generators.trace_generator import SpanType
 
+        if self.log_generator is None:
+            return
+        log_generator = self.log_generator
+
         span_type = config.span_type
         attrs = config.attribute_overrides or {}
+        trace_id: str | None = None
+        span_id: str | None = None
+        ids = getattr(config, "_trace_ids", None)
+        if isinstance(ids, tuple) and len(ids) == 2:
+            trace_id, span_id = ids
 
         if span_type == SpanType.A2A_ORCHESTRATE:
-            self.log_generator.log_turn_start(context)
+            log_generator.log_turn_start(
+                context,
+                trace_id=trace_id,
+                span_id=span_id,
+            )
 
         if span_type in (SpanType.MCP_TOOL_EXECUTE, SpanType.MCP_TOOL_EXECUTE_ATTEMPT):
-            self.log_generator.log_tool_call(
+            log_generator.log_tool_call(
                 context,
                 tool_name=attrs.get("gen_ai.tool.name", "unknown.tool"),
                 server_name=attrs.get(config_attr("tool.server.name"), "unknown-server"),
                 status_code=attrs.get(config_attr("tool.status.code"), "OK"),
                 latency_ms=config.latency_mean_ms,
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.LLM_CALL:
-            self.log_generator.log_llm_inference(
+            log_generator.log_llm_inference(
                 context,
                 provider=attrs.get("gen_ai.system", "openai"),
                 model=attrs.get("gen_ai.request.model", "gpt-4.1-mini"),
@@ -825,36 +906,51 @@ class ScenarioRunner:
                 input_tokens=_int_token_count(attrs.get("gen_ai.usage.input_tokens"), 500),
                 output_tokens=_int_token_count(attrs.get("gen_ai.usage.output_tokens"), 200),
                 latency_ms=config.latency_mean_ms,
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.RAG_RETRIEVE:
-            self.log_generator.log_rag_retrieval(
+            log_generator.log_rag_retrieval(
                 context,
                 index_name=attrs.get("rag.index.name", "default_index"),
                 docs_returned=attrs.get("rag.documents.returned", 5),
                 latency_ms=config.latency_mean_ms,
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.A2A_CALL:
-            self.log_generator.log_a2a_call(
+            log_generator.log_a2a_call(
                 context,
                 target_agent=attrs.get("a2a.target.agent", "unknown_agent"),
                 operation=attrs.get("a2a.operation", "delegate"),
                 status_code=attrs.get(config_attr("a2a.status.code"), "OK"),
                 latency_ms=config.latency_mean_ms,
+                trace_id=trace_id,
+                span_id=span_id,
             )
         elif span_type == SpanType.CP_REQUEST:
-            self.log_generator.log_cp_request(
+            log_generator.log_cp_request(
                 context,
                 status_code=attrs.get(config_attr("cp.status.code"), "ALLOWED"),
+                trace_id=trace_id,
+                span_id=span_id,
             )
 
         for child in children:
-            self._emit_logs_recursive(child.root_config, child.children, context, is_root=False)
+            self._emit_logs_recursive(
+                child.root_config,
+                child.children,
+                context,
+                is_root=False,
+            )
 
         if span_type == SpanType.A2A_ORCHESTRATE:
-            self.log_generator.log_turn_end(
+            log_generator.log_turn_end(
                 context,
                 status_code=attrs.get(config_attr("turn.status.code"), "SUCCESS"),
                 duration_ms=config.latency_mean_ms,
+                trace_id=trace_id,
+                span_id=span_id,
             )
 
     def shutdown(self):

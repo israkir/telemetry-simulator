@@ -45,6 +45,7 @@ from opentelemetry.trace import (
     Tracer,
 )
 
+from .. import __version__ as _OTELSIM_VERSION
 from ..config import (
     DATA_PLANE_COMPONENT_VALUES,
     SEMCONV_ERROR_TYPE_VALUES,
@@ -688,7 +689,8 @@ class TraceGenerator:
         )
         self._providers.append(default_provider)
         self._provider_by_component[None] = default_provider
-        self._tracers[(None, "")] = default_provider.get_tracer(__name__)
+        # Instrumentation scope: name = module, version = otelsim package version so otel.scope.version is populated.
+        self._tracers[(None, "")] = default_provider.get_tracer(__name__, _OTELSIM_VERSION)
         trace.set_tracer_provider(default_provider)
 
         # One provider per data-plane component so resource attr prefix.component is correct
@@ -699,7 +701,7 @@ class TraceGenerator:
             )
             self._providers.append(prov)
             self._provider_by_component[comp] = prov
-            self._tracers[(comp, "")] = prov.get_tracer(__name__)
+            self._tracers[(comp, "")] = prov.get_tracer(__name__, _OTELSIM_VERSION)
 
         self.tracer = self._tracers[(None, "")]
         self.span_builder = SpanBuilder(self.schema, self.attr_generator, self.tracer)
@@ -711,13 +713,15 @@ class TraceGenerator:
         if key not in self._tracers:
             provider = self._provider_by_component.get(component, self._provider_by_component[None])
             scope_name = f"otelsim.{scenario_key}" if scenario_key else __name__
-            self._tracers[key] = provider.get_tracer(scope_name)
+            # Use otelsim package version for instrumentation scope version so otel.scope.version is non-empty.
+            self._tracers[key] = provider.get_tracer(scope_name, _OTELSIM_VERSION)
         return self._tracers[key]
 
     def generate_trace(
         self,
         hierarchy: TraceHierarchy,
         context: GenerationContext | None = None,
+        span_callback: Any | None = None,
     ) -> str:
         """Generate a complete trace from hierarchy definition.
 
@@ -729,7 +733,13 @@ class TraceGenerator:
         if context is None:
             context = GenerationContext.create()
 
-        trace_id, _, _, _ = self._generate_span_recursive(hierarchy, context, None, None)
+        trace_id, _, _, _ = self._generate_span_recursive(
+            hierarchy,
+            context,
+            None,
+            None,
+            span_callback=span_callback,
+        )
         return trace_id
 
     def generate_unified_request_trace(
@@ -738,6 +748,7 @@ class TraceGenerator:
         data_plane_hierarchy: TraceHierarchy,
         outgoing_hierarchy: TraceHierarchy,
         context: GenerationContext,
+        span_callback: Any | None = None,
     ) -> str:
         """Generate one trace for one request: incoming at control-plane -> data-plane -> response validation.
 
@@ -763,7 +774,12 @@ class TraceGenerator:
             children=list(incoming_hierarchy.children) + [data_plane_with_outgoing],
         )
         trace_id, _, _, _ = self._generate_span_recursive(
-            unified_hierarchy, context, None, None, use_single_tracer=True
+            unified_hierarchy,
+            context,
+            None,
+            None,
+            span_callback=span_callback,
+            use_single_tracer=True,
         )
         return trace_id
 
@@ -776,6 +792,7 @@ class TraceGenerator:
         compose_accumulated_failure: str | None = None,
         use_single_tracer: bool = False,
         logical_start_ns: int | None = None,
+        span_callback: Any | None = None,
     ) -> tuple[str, str, int, float]:
         """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns, tool_latency_ms).
         end_time_ns is the span's logical end timestamp so parents can ensure end >= last child end.
@@ -848,6 +865,11 @@ class TraceGenerator:
             # Single source of truth for span source: mirror otel.scope.name (e.g. otelsim.<scenario_name>).
             # This allows downstream pipelines to attribute spans to the logical scenario file.
             span.set_attribute(config_attr("span.source"), scope_name_for_span)
+            if span_callback is not None:
+                try:
+                    span_callback(config, current_trace_id, current_span_id)
+                except Exception:
+                    pass
             # When using a single tracer (unified trace), resource has no per-span component; set as span attribute for filtering.
             if use_single_tracer and component is not None:
                 span.set_attribute(config_attr("component"), component)
@@ -1292,6 +1314,7 @@ class TraceGenerator:
                     compose_accumulated_failure=child_compose_failure,
                     use_single_tracer=use_single_tracer,
                     logical_start_ns=next_child_start_ns,
+                    span_callback=span_callback,
                 )
                 last_child_end_ns = max(last_child_end_ns, child_end_ns)
                 child_tool_latencies.append(child_tool_latency_ms)

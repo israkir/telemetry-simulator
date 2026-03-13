@@ -11,7 +11,6 @@ Supports both deterministic scenarios (fixed structure) and statistical
 scenarios (probabilistic branching, distributions, retries).
 """
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -1773,9 +1772,7 @@ class ScenarioLoader:
                     raw_steps = t.get("steps")
                     if isinstance(raw_steps, list):
                         step_list = [
-                            str(s).strip()
-                            for s in raw_steps
-                            if s is not None and str(s).strip()
+                            str(s).strip() for s in raw_steps if s is not None and str(s).strip()
                         ]
                         steps_by_turn.append(step_list)
                     else:
@@ -1889,13 +1886,24 @@ class ScenarioLoader:
                     if (
                         isinstance(inp_msgs, list)
                         and inp_msgs
-                        and (not isinstance(inp_msgs[0], dict) or inp_msgs[0].get("role") != "system")
+                        and (
+                            not isinstance(inp_msgs[0], dict) or inp_msgs[0].get("role") != "system"
+                        )
                     ):
                         inp_msgs.insert(0, system_message)
-                if conversation_turn_pairs_redacted:
-                    for inp_red, _ in conversation_turn_pairs_redacted:
-                        if inp_red is not None and isinstance(inp_red, list) and inp_red and (
-                            not isinstance(inp_red[0], dict) or inp_red[0].get("role") != "system"
+                if conversation_turn_pairs_redacted is not None:
+                    for pair in conversation_turn_pairs_redacted:
+                        if not pair or not isinstance(pair, (list, tuple)) or len(pair) < 1:
+                            continue
+                        inp_red = pair[0]
+                        if (
+                            inp_red is not None
+                            and isinstance(inp_red, list)
+                            and inp_red
+                            and (
+                                not isinstance(inp_red[0], dict)
+                                or inp_red[0].get("role") != "system"
+                            )
                         ):
                             inp_red.insert(0, system_message)
 
