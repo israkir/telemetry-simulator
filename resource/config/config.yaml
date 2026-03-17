@@ -87,6 +87,34 @@ mcp_retry_templates:
         error_type: tool_error
 
 # -----------------------------------------------------------------------------
+# Workload schedules: time-of-day scenario mix for statistical runs.
+# ScenarioRunner can optionally use these schedules instead of static workload_weight
+# so bucket composition (happy_path vs higher_latency vs retry-heavy) varies by hour.
+# -----------------------------------------------------------------------------
+workload_schedules:
+  default:
+    timezone: "America/Los_Angeles"
+    buckets:
+      night:
+        hours: [0-6, 22-24]
+        scenario_weights:
+          new_claim_phone: 0.9
+          generic_higher_latency_peak_hours: 0.05
+          new_claim_phone_mcp_tool_retry_then_success: 0.05
+      day:
+        hours: [6-9, 14-18]
+        scenario_weights:
+          new_claim_phone: 0.6
+          generic_higher_latency_peak_hours: 0.3
+          new_claim_phone_mcp_tool_retry_then_success: 0.1
+      true_peak:
+        hours: [9-14]
+        scenario_weights:
+          new_claim_phone: 0.3
+          generic_higher_latency_peak_hours: 0.4
+          new_claim_phone_mcp_tool_retry_then_success: 0.3
+
+# -----------------------------------------------------------------------------
 # Tenants (by key). Scenarios reference context.tenant by key.
 # -----------------------------------------------------------------------------
 tenants:
