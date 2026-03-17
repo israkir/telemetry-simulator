@@ -289,6 +289,105 @@ class ScenarioRunner:
 
         self.scenario_loader = ScenarioLoader(scenarios_dir=scenarios_dir)
 
+        # Optional: workload schedule for time-of-day scenario mix. When enabled via
+        # use_workload_schedule, run_mixed_workload() can pick a scenario name from
+        # config.workload_schedules.default instead of static workload_weight.
+        self._workload_schedule: dict[str, Any] | None = None
+
+    def _load_default_workload_schedule(self) -> dict[str, Any] | None:
+        """Load workload_schedules.default from config for time-of-day scenario mix."""
+        try:
+            from .scenario_loader import CONFIG_PATH, load_yaml  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        try:
+            data = load_yaml(CONFIG_PATH)
+        except Exception:
+            return None
+        if not isinstance(data, dict):
+            return None
+        schedules = data.get("workload_schedules")
+        if not isinstance(schedules, dict):
+            return None
+        default = schedules.get("default")
+        if not isinstance(default, dict):
+            return None
+        buckets = default.get("buckets")
+        if not isinstance(buckets, dict) or not buckets:
+            return None
+        return default
+
+    def _pick_scenario_by_schedule(
+        self,
+        scenarios: list[Scenario],
+        schedule: dict[str, Any],
+    ) -> Scenario | None:
+        """Pick a Scenario based on workload_schedules.default and current local hour."""
+        import random
+        from datetime import datetime
+
+        # Resolve timezone; fall back to naive local time if pytz/zoneinfo not available.
+        tz_name = schedule.get("timezone") or "UTC"
+        now = None
+        try:
+            from zoneinfo import ZoneInfo  # type: ignore[import]
+
+            now = datetime.now(ZoneInfo(str(tz_name)))
+        except Exception:
+            now = datetime.now()
+        hour = now.hour
+
+        buckets = schedule.get("buckets") or {}
+        selected_weights: dict[str, float] | None = None
+        for bucket_cfg in buckets.values():
+            if not isinstance(bucket_cfg, dict):
+                continue
+            hours_spec = bucket_cfg.get("hours")
+            if not isinstance(hours_spec, list) or not hours_spec:
+                continue
+            # Each hours entry can be a single "start-end" string or a two-element list [start, end].
+            for entry in hours_spec:
+                start = end = None
+                if isinstance(entry, str) and "-" in entry:
+                    try:
+                        start_s, end_s = entry.split("-", 1)
+                        start = int(start_s)
+                        end = int(end_s)
+                    except Exception:
+                        continue
+                elif (
+                    isinstance(entry, (list, tuple))
+                    and len(entry) == 2
+                    and isinstance(entry[0], (int, float))
+                    and isinstance(entry[1], (int, float))
+                ):
+                    start = int(entry[0])
+                    end = int(entry[1])
+                if start is None or end is None:
+                    continue
+                if start <= hour < end:
+                    sw = bucket_cfg.get("scenario_weights")
+                    if isinstance(sw, dict) and sw:
+                        selected_weights = {
+                            str(k): float(v)
+                            for k, v in sw.items()
+                            if isinstance(v, (int, float)) and v > 0
+                        }
+                    break
+            if selected_weights:
+                break
+        if not selected_weights:
+            return None
+
+        # Restrict to scenarios that are present in schedule.
+        eligible = [s for s in scenarios if getattr(s, "name", None) in selected_weights]
+        if not eligible:
+            return None
+        weights = [selected_weights.get(s.name, 0.0) for s in eligible]
+        if not any(w > 0 for w in weights):
+            return None
+        return random.choices(eligible, weights=weights, k=1)[0]
+
     def _incoming_validation_hierarchy(self, scenario: Scenario) -> TraceHierarchy:
         """Build incoming request validation hierarchy from config template (no hardcoded outcomes)."""
         from .control_plane_loader import (
@@ -655,6 +754,7 @@ class ScenarioRunner:
         progress_callback: Callable[[int, int, str, str, list[str]], None] | None = None,
         tags: list[str] | None = None,
         each_once: bool = False,
+        use_workload_schedule: bool = False,
     ) -> tuple[list[str], dict[str, int]]:
         """Run a mixed workload by picking at random from YAML-defined scenarios.
         If tags is non-empty, only scenarios that have at least one of these tags are included.
@@ -696,6 +796,12 @@ class ScenarioRunner:
         weights = [max(getattr(s, "workload_weight", 1.0), 0.0) for s in scenarios]
         use_weighted_sampling = not each_once and any(w > 0 for w in weights)
 
+        schedule = None
+        if not each_once and use_workload_schedule:
+            if self._workload_schedule is None:
+                self._workload_schedule = self._load_default_workload_schedule()
+            schedule = self._workload_schedule
+
         def run_one_request(scenario: Scenario, index: int) -> None:
             tenants = list(scenario.tenant_distribution.keys())
             weights = list(scenario.tenant_distribution.values())
@@ -729,20 +835,36 @@ class ScenarioRunner:
                     time.sleep(interval_ms / 1000.0)
         elif count is not None:
             for i in range(count):
-                if use_weighted_sampling:
-                    scenario = random.choices(scenarios, weights=weights, k=1)[0]
+                if schedule:
+                    picked = self._pick_scenario_by_schedule(scenarios, schedule)
+                    scenario = picked or (
+                        random.choices(scenarios, weights=weights, k=1)[0]
+                        if use_weighted_sampling
+                        else random.choice(scenarios)
+                    )
                 else:
-                    scenario = random.choice(scenarios)
+                    if use_weighted_sampling:
+                        scenario = random.choices(scenarios, weights=weights, k=1)[0]
+                    else:
+                        scenario = random.choice(scenarios)
                 run_one_request(scenario, i)
                 if interval_ms > 0 and i < count - 1:
                     time.sleep(interval_ms / 1000.0)
         else:
             i = 0
             while True:
-                if use_weighted_sampling:
-                    scenario = random.choices(scenarios, weights=weights, k=1)[0]
+                if schedule:
+                    picked = self._pick_scenario_by_schedule(scenarios, schedule)
+                    scenario = picked or (
+                        random.choices(scenarios, weights=weights, k=1)[0]
+                        if use_weighted_sampling
+                        else random.choice(scenarios)
+                    )
                 else:
-                    scenario = random.choice(scenarios)
+                    if use_weighted_sampling:
+                        scenario = random.choices(scenarios, weights=weights, k=1)[0]
+                    else:
+                        scenario = random.choice(scenarios)
                 run_one_request(scenario, i)
                 if interval_ms > 0:
                     time.sleep(interval_ms / 1000.0)
