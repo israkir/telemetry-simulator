@@ -818,6 +818,10 @@ def _parse_latency_block(block: dict) -> tuple[dict[SpanType, float], dict[SpanT
 
 _LATENCY_PROFILE_CACHE: dict[str, tuple[dict[SpanType, float], dict[SpanType, float]]] = {}
 
+# Cache for explicit spike/tail configuration per latency profile and span type.
+# Key: (profile_name, SpanType) → (probability, min_multiplier, max_multiplier)
+_LATENCY_SPIKE_CACHE: dict[tuple[str, SpanType], tuple[float, float, float] | None] = {}
+
 
 def _get_latency_for_profile(
     profile_name: str,
@@ -842,6 +846,85 @@ def _get_latency_for_profile(
         return result
     result = _parse_latency_block(block)
     _LATENCY_PROFILE_CACHE[key] = result
+    return result
+
+
+def _get_latency_spike_for_profile_span(
+    profile_name: str,
+    span_type: SpanType,
+) -> tuple[float, float, float] | None:
+    """
+    Return explicit spike configuration (probability, min_multiplier, max_multiplier)
+    for the given latency profile + span type, if defined in config latency_profiles:
+
+      latency_profiles.<profile>.spans.<span_key>.spike:
+        probability: 0.05
+        multiplier_range: [2.5, 5.0]
+
+    If not configured or invalid, returns None.
+    """
+    key = ((profile_name or "happy_path").strip().lower(), span_type)
+    if key in _LATENCY_SPIKE_CACHE:
+        return _LATENCY_SPIKE_CACHE[key]
+
+    data = load_yaml(CONFIG_PATH)
+    profiles = data.get("latency_profiles") if isinstance(data, dict) else None
+    prof_key = key[0]
+    if not isinstance(profiles, dict) or prof_key not in profiles:
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+
+    block = profiles.get(prof_key)
+    if not isinstance(block, dict):
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+
+    spans = block.get("spans")
+    if not isinstance(spans, dict):
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+
+    # Find the YAML span key corresponding to this SpanType.
+    yaml_key: str | None = None
+    for k, st in _KEY_TO_SPAN_TYPE.items():
+        if st is span_type:
+            yaml_key = k
+            break
+    if not yaml_key or yaml_key not in spans:
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+
+    entry = spans.get(yaml_key)
+    if not isinstance(entry, dict):
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+
+    spike_cfg = entry.get("spike")
+    if not isinstance(spike_cfg, dict):
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+
+    prob = spike_cfg.get("probability")
+    mr = spike_cfg.get("multiplier_range")
+    if not isinstance(prob, (int, float)) or prob <= 0:
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+    if (
+        not isinstance(mr, (list, tuple))
+        or len(mr) != 2
+        or not isinstance(mr[0], (int, float))
+        or not isinstance(mr[1], (int, float))
+    ):
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+    lo = float(mr[0])
+    hi = float(mr[1])
+    if hi <= 1.0 or hi < lo:
+        _LATENCY_SPIKE_CACHE[key] = None
+        return None
+
+    result = (float(prob), lo, hi)
+    _LATENCY_SPIKE_CACHE[key] = result
     return result
 
 
@@ -990,6 +1073,10 @@ def _hierarchy_from_context(
     profile_val = (latency_profile or "happy_path").strip().lower()
     mean_ms, variance = _get_latency_for_profile(latency_profile or "happy_path")
 
+    def _spike(span_type: SpanType) -> tuple[float, float, float] | None:
+        return _get_latency_spike_for_profile_span(profile_val, span_type)
+
+    root_spike = _spike(SpanType.A2A_ORCHESTRATE)
     root_config = SpanConfig(
         span_type=SpanType.A2A_ORCHESTRATE,
         latency_mean_ms=mean_ms[SpanType.A2A_ORCHESTRATE],
@@ -997,6 +1084,9 @@ def _hierarchy_from_context(
         error_rate=0.0,
         attribute_overrides={config_attr("a2a.outcome"): "success"},
         latency_profile=profile_val,
+        spike_probability=root_spike[0] if root_spike else None,
+        spike_min_multiplier=root_spike[1] if root_spike else None,
+        spike_max_multiplier=root_spike[2] if root_spike else None,
     )
     children: list[TraceHierarchy] = []
     steps = list(steps)
@@ -1012,6 +1102,7 @@ def _hierarchy_from_context(
         step_lower = (step or "").strip().lower()
 
         if step_lower in ("planner", "planning"):
+            sp = _spike(SpanType.PLANNER)
             children.append(
                 TraceHierarchy(
                     root_config=SpanConfig(
@@ -1021,12 +1112,16 @@ def _hierarchy_from_context(
                         error_rate=0.0,
                         attribute_overrides={config_attr("step.outcome"): "success"},
                         latency_profile=profile_val,
+                        spike_probability=sp[0] if sp else None,
+                        spike_min_multiplier=sp[1] if sp else None,
+                        spike_max_multiplier=sp[2] if sp else None,
                     ),
                     children=[],
                 )
             )
             i += 1
         elif step_lower in ("response_compose", "response"):
+            sp = _spike(SpanType.RESPONSE_COMPOSE)
             children.append(
                 TraceHierarchy(
                     root_config=SpanConfig(
@@ -1039,6 +1134,9 @@ def _hierarchy_from_context(
                             config_attr("step.outcome"): "success",
                         },
                         latency_profile=profile_val,
+                        spike_probability=sp[0] if sp else None,
+                        spike_min_multiplier=sp[1] if sp else None,
+                        spike_max_multiplier=sp[2] if sp else None,
                     ),
                     children=[],
                 )
@@ -1060,6 +1158,7 @@ def _hierarchy_from_context(
             tool_request_count = len(tool_step_names)
             if tool_request_count > 0:
                 llm_overrides[config_attr("llm.tool.request.count")] = tool_request_count
+            llm_spike = _spike(SpanType.LLM_CALL)
             llm_call_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.LLM_CALL,
@@ -1068,9 +1167,13 @@ def _hierarchy_from_context(
                     error_rate=0.0,
                     attribute_overrides=llm_overrides,
                     latency_profile=profile_val,
+                    spike_probability=llm_spike[0] if llm_spike else None,
+                    spike_min_multiplier=llm_spike[1] if llm_spike else None,
+                    spike_max_multiplier=llm_spike[2] if llm_spike else None,
                 ),
                 children=[],
             )
+            task_spike = _spike(SpanType.TASK_EXECUTE)
             children.append(
                 TraceHierarchy(
                     root_config=SpanConfig(
@@ -1080,6 +1183,9 @@ def _hierarchy_from_context(
                         error_rate=0.0,
                         attribute_overrides=task_overrides,
                         latency_profile=profile_val,
+                        spike_probability=task_spike[0] if task_spike else None,
+                        spike_min_multiplier=task_spike[1] if task_spike else None,
+                        spike_max_multiplier=task_spike[2] if task_spike else None,
                     ),
                     children=[llm_call_hierarchy],
                 )
@@ -1087,6 +1193,7 @@ def _hierarchy_from_context(
             i += 1
         elif step_lower in ("tools_recommend", "tools.recommend"):
             # tools.recommend parent MUST be task.execute (task.type=tool_recommendation).
+            tools_spike = _spike(SpanType.TOOLS_RECOMMEND)
             tools_recommend_hierarchy = TraceHierarchy(
                 root_config=SpanConfig(
                     span_type=SpanType.TOOLS_RECOMMEND,
@@ -1095,9 +1202,13 @@ def _hierarchy_from_context(
                     error_rate=0.0,
                     attribute_overrides={},
                     latency_profile=profile_val,
+                    spike_probability=tools_spike[0] if tools_spike else None,
+                    spike_min_multiplier=tools_spike[1] if tools_spike else None,
+                    spike_max_multiplier=tools_spike[2] if tools_spike else None,
                 ),
                 children=[],
             )
+            task_spike = _spike(SpanType.TASK_EXECUTE)
             task_config = SpanConfig(
                 span_type=SpanType.TASK_EXECUTE,
                 latency_mean_ms=mean_ms[SpanType.TASK_EXECUTE],
@@ -1108,6 +1219,9 @@ def _hierarchy_from_context(
                     config_attr("task.type"): "tool_recommendation",
                 },
                 latency_profile=profile_val,
+                spike_probability=task_spike[0] if task_spike else None,
+                spike_min_multiplier=task_spike[1] if task_spike else None,
+                spike_max_multiplier=task_spike[2] if task_spike else None,
             )
             children.append(
                 TraceHierarchy(root_config=task_config, children=[tools_recommend_hierarchy])
