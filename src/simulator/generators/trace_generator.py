@@ -427,6 +427,11 @@ class SpanConfig:
     # Optional: latency profile name (e.g. happy_path, higher_latency). Used to allow 5% spikes only for
     # higher_latency and retry contexts so happy_path stays below them.
     latency_profile: str | None = None
+    # Optional: explicit heavy-tail configuration per span, derived from latency_profiles.<profile>.spans.<span>.spike.
+    # When set, this overrides the generic 5% spike logic below.
+    spike_probability: float | None = None
+    spike_min_multiplier: float | None = None
+    spike_max_multiplier: float | None = None
 
 
 @dataclass
@@ -496,18 +501,33 @@ class SpanBuilder:
     def generate_latency(self, config: SpanConfig) -> float:
         """Generate latency based on config.
 
-        Apply a 5% random spike (2x--4x) only when it is meaningful and does not invert
-        ordering: skip the spike for happy_path spans (so they stay below higher_latency
-        traces), but allow it for higher_latency scenarios and for MCP retry / error
-        contexts (high mean from latency_by_error_type). Rule: skip spike only when
-        latency_profile == "happy_path" and latency_mean_ms < 2000 (so retry timeouts
-        and higher_latency spans still get meaningful spikes).
+        Base latency uses a Gaussian multiplier around mean_ms. On top of that, we optionally
+        apply a heavy-tail "spike":
+
+        - If SpanConfig has explicit spike_probability / spike_*_multiplier (from config latency_profiles),
+          we use those values.
+        - Otherwise we fall back to the generic 5% random spike (2x–4x) only when it is meaningful
+          and does not invert ordering: skip the spike for happy_path spans (so they stay below
+          higher_latency traces), but allow it for higher_latency scenarios and for MCP retry /
+          error contexts (high mean from latency_by_error_type). Rule: skip spike only when
+          latency_profile == "happy_path" and latency_mean_ms < 2000 (so retry timeouts and
+          higher_latency spans still get meaningful spikes).
         """
         latency = config.latency_mean_ms * (1 + random.gauss(0, config.latency_variance))
         profile = (config.latency_profile or "").strip().lower()
-        allow_spike = profile != "happy_path" or config.latency_mean_ms >= 2000.0
-        if allow_spike and random.random() < 0.05:
-            latency *= random.uniform(2.0, 4.0)
+
+        # Determine spike parameters: explicit per-span config wins, otherwise fallback heuristic.
+        explicit_prob = config.spike_probability if config.spike_probability is not None else 0.0
+        explicit_min = config.spike_min_multiplier if config.spike_min_multiplier is not None else 1.0
+        explicit_max = config.spike_max_multiplier if config.spike_max_multiplier is not None else 1.0
+
+        if explicit_prob > 0.0 and explicit_max > 1.0 and explicit_max >= explicit_min:
+            if random.random() < explicit_prob:
+                latency *= random.uniform(explicit_min, explicit_max)
+        else:
+            allow_spike = profile != "happy_path" or config.latency_mean_ms >= 2000.0
+            if allow_spike and random.random() < 0.05:
+                latency *= random.uniform(2.0, 4.0)
         return max(15.0, latency)
 
     def should_error(self, config: SpanConfig) -> bool:

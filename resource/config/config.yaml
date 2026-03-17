@@ -259,9 +259,19 @@ latency_profiles:
       a2a_orchestrate: { mean_ms: 3000.0, variance: 0.28 }
       planner: { mean_ms: 280.0, variance: 0.22 }
       task_execute: { mean_ms: 95.0, variance: 0.2 }
-      llm_call: { mean_ms: 520.0, variance: 0.35 }
+      llm_call:
+        mean_ms: 520.0
+        variance: 0.35
+        spike:
+          probability: 0.03
+          multiplier_range: [2.0, 3.5]
       tools_recommend: { mean_ms: 68.0, variance: 0.28 }
-      mcp_tool_execute: { mean_ms: 1100.0, variance: 0.4 }
+      mcp_tool_execute:
+        mean_ms: 1100.0
+        variance: 0.4
+        spike:
+          probability: 0.05
+          multiplier_range: [2.5, 5.0]
       response_compose: { mean_ms: 72.0, variance: 0.2 }
       request_validation: { mean_ms: 36.0, variance: 0.25 }
       response_validation: { mean_ms: 38.0, variance: 0.25 }
