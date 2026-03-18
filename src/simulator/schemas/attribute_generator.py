@@ -430,6 +430,10 @@ class AttributeGenerator:
             return None
         if name == "gen_ai.tool.call.id":
             return None
+        # MCP server/tool UUIDs must come from config-driven scenario context only.
+        # Do not synthesize placeholder UUID-like strings (e.g. uuid_*) when not provided.
+        if _attr_matches(name, "mcp.server.uuid", "mcp.tool.uuid"):
+            return None
         # SemConv-aligned: step.outcome use only allowed values from schema/conventions.
         if _attr_matches(name, "step.outcome"):
             return random.choice(SEMCONV_STEP_OUTCOME_VALUES)

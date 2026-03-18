@@ -1,0 +1,65 @@
+# Cross-region / degraded network path.
+# Misrouting/failover to a distant region shifts the whole distribution right.
+
+name: mcp_cross_region_degraded_path_phone
+description: >
+  MCP tool calls are routed over a degraded or cross-region network path (misrouting/failover).
+  Typical latencies shift right (higher p50) with a moderate tail.
+
+tags:
+  - data-plane
+  - higher-latency
+  - mcp-latency
+  - cross-region
+  - network-degradation
+
+workload_weight: 0.6
+interval_ms: 100
+redaction_applied: none
+
+data_plane:
+  workflow: new_claim
+  goal: higher_latency
+  latency_profile: mcp_cross_region_degraded_path
+  control_plane_template: allowed
+  higher_latency_condition:
+    cause: "cross_region_degraded_network_path"
+    route: "failover_misroute"
+
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Create a tool plan that calls the "new_claim"
+        MCP tool on server "phone". This scenario represents cross-region routing or degraded network,
+        so tool calling latencies are consistently higher.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "phone" with arguments from the external request.
+          2) Return a confirmation including the claim ID and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the new_claim tool call into a clear final response for the end user.
+
+conversation:
+  external:
+    user_input: "My phone won’t power on after a drop. Start a claim please."
+    agent_response: "I’ve started a claim for your phone. Your claim ID is PH-8842. You can upload photos or a short video of the issue, and we’ll confirm the next steps."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Phone will not power on after a drop"
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-8842"
+      product_type: "phone"
+      status: "opened"
+      notes: "Claim created over a degraded cross-region network path."
+

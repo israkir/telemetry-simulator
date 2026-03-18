@@ -1534,6 +1534,14 @@ def _apply_context_to_hierarchy(
             # gentoro.tools.recommend / gentoro.mcp.tool.execute spans instead.
             pass
         elif cfg.span_type == SpanType.MCP_TOOL_EXECUTE:
+            # MCP spans must have a config-resolved MCP server UUID.
+            # If the scenario emits MCP spans without context.mcp_server, we'd otherwise emit
+            # an empty string and ship invalid telemetry to collectors.
+            if not server_uuid:
+                raise ValueError(
+                    "Scenario emitted MCP tool spans but has no MCP server resolved from config. "
+                    "Set context.mcp_server to a key defined in resource/config/config.yaml."
+                )
             if id_generator:
                 call_id = id_generator.mcp_tool_call_id(tenant_id=context.tenant_uuid)
             else:
@@ -1549,11 +1557,16 @@ def _apply_context_to_hierarchy(
             tool = (tools_by_name.get(step_name) if step_name else None) or (
                 tools_by_index[idx] if idx < len(tools_by_index) else None
             )
-            if tool:
-                overrides["gen_ai.tool.name"] = tool.name
-                overrides[config_attr("mcp.tool.uuid")] = tool.uuid
-                # Do not set gen_ai.tool.call.arguments or tool_call_results on parent;
-                # they are emitted only on gentoro.mcp.tool.execute.attempt.
+            if not tool:
+                raise ValueError(
+                    "Scenario emitted MCP tool spans but could not resolve tool UUID from config. "
+                    "Ensure context.tools and workflow steps match tools listed under the selected "
+                    "context.mcp_server in resource/config/config.yaml."
+                )
+            overrides["gen_ai.tool.name"] = tool.name
+            overrides[config_attr("mcp.tool.uuid")] = tool.uuid
+            # Do not set gen_ai.tool.call.arguments or tool_call_results on parent;
+            # they are emitted only on gentoro.mcp.tool.execute.attempt.
             mcp_index[0] += 1
             cfg.attribute_overrides = overrides
             for attempt_child in h.children:
@@ -1561,12 +1574,8 @@ def _apply_context_to_hierarchy(
                 attempt_overrides = dict(attempt_cfg.attribute_overrides or {})
                 attempt_overrides[config_attr("mcp.tool.call.id")] = call_id
                 # Propagate MCP server/tool semantics to attempt spans for consistent context.
-                if server_uuid:
-                    attempt_overrides[config_attr("mcp.server.uuid")] = server_uuid
-                if overrides.get(config_attr("mcp.tool.uuid")):
-                    attempt_overrides[config_attr("mcp.tool.uuid")] = overrides[
-                        config_attr("mcp.tool.uuid")
-                    ]
+                attempt_overrides[config_attr("mcp.server.uuid")] = server_uuid
+                attempt_overrides[config_attr("mcp.tool.uuid")] = overrides[config_attr("mcp.tool.uuid")]
                 if overrides.get("gen_ai.tool.name"):
                     attempt_overrides["gen_ai.tool.name"] = overrides["gen_ai.tool.name"]
                 # Parent step.outcome=success and single attempt: ensure attempt outcome is success.
@@ -1663,8 +1672,10 @@ def _control_plane_scenario_data(name: str, entry: dict[str, Any]) -> dict[str, 
         "tags": ["control-plane"],
         "workload_weight": workload_weight,
         "control_plane": {"template": entry["template"]},
-        "context": {"tenant": "toro", "agent": "toro-customer-assistant-001"},
-        "mcp_server": "phone",
+        # Context is key-based; IDs must be resolved from config/config.yaml.
+        # If the control-plane template allows data_plane (trace_flow includes it),
+        # we must also provide context.mcp_server so MCP spans can resolve UUIDs.
+        "context": {"tenant": "toro", "agent": "toro-customer-assistant-001", "mcp_server": "phone"},
         "repeat_count": 2,
         "interval_ms": 50,
         "emit_metrics": False,
