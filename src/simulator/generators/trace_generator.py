@@ -20,6 +20,7 @@ Example tree:
 
 import json
 import math
+import os
 import random
 import re
 import time
@@ -33,6 +34,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
+    SimpleSpanProcessor,
     SpanExporter,
     SpanExportResult,
 )
@@ -56,6 +58,7 @@ from ..config import attr as config_attr
 from ..config import resource_attributes as config_resource_attributes
 from ..config import span_name as config_span_name
 from ..defaults import get_default_tenant_ids
+from ..exporters.file_exporter import FileSpanExporter
 from ..schemas.attribute_generator import AttributeGenerator, GenerationContext
 from ..schemas.schema_parser import SchemaParser, TelemetrySchema
 
@@ -731,6 +734,13 @@ class TraceGenerator:
             attrs["service.version"] = service_version
             return Resource.create(attrs, schema_url=resource_schema_url())
 
+        # Always-on debug file exporter for "loss-proof" local span capture.
+        # Every span is also written synchronously to this file via
+        # SimpleSpanProcessor so local traces-debug.json can be used to
+        # distinguish generator bugs from downstream OTLP/collector/backend
+        # drops.
+        debug_file_exporter: FileSpanExporter | None = FileSpanExporter("traces-debug.json")
+
         # Share one exporter across N BatchSpanProcessors; only shut it down after all have shut down.
         num_providers = 1 + len(DATA_PLANE_COMPONENT_VALUES)
         ref_count: list[int] = [num_providers]
@@ -742,6 +752,8 @@ class TraceGenerator:
         default_provider.add_span_processor(
             BatchSpanProcessor(_RefCountingSpanExporter(exporter, ref_count))
         )
+        if debug_file_exporter is not None:
+            default_provider.add_span_processor(SimpleSpanProcessor(debug_file_exporter))
         self._providers.append(default_provider)
         self._provider_by_component[None] = default_provider
         # Instrumentation scope: name = module, version = otelsim package version so otel.scope.version is populated.
@@ -754,6 +766,8 @@ class TraceGenerator:
             prov.add_span_processor(
                 BatchSpanProcessor(_RefCountingSpanExporter(exporter, ref_count))
             )
+            if debug_file_exporter is not None:
+                prov.add_span_processor(SimpleSpanProcessor(debug_file_exporter))
             self._providers.append(prov)
             self._provider_by_component[comp] = prov
             self._tracers[(comp, "")] = prov.get_tracer(__name__, _OTELSIM_VERSION)
