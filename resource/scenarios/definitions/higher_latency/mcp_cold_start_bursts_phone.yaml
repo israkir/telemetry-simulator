@@ -13,14 +13,14 @@ tags:
   - cold-start
   - autoscaling
 
-workload_weight: 0.6
+workload_weight: 5.0
 interval_ms: 100
 redaction_applied: none
 
 data_plane:
   workflow: new_claim
   goal: higher_latency
-  latency_profile: mcp_cold_start_bursts
+  latency_profile: higher_latency_peak
   control_plane_template: allowed
   higher_latency_condition:
     cause: "cold_starts_scale_to_zero"

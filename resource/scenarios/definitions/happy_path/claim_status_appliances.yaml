@@ -12,7 +12,7 @@ tags:
   - appliances
   - claim-status
 
-workload_weight: 3.0
+workload_weight: 2.0
 interval_ms: 90
 interval_deviation_ms: 40
 redaction_applied: basic

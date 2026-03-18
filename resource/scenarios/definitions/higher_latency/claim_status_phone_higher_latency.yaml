@@ -13,7 +13,7 @@ tags:
   - claim-status
 
 # Higher-latency status checks (e.g. technician on-route) are a minority of traffic.
-workload_weight: 1.2
+workload_weight: 5.0
 interval_ms: 80
 redaction_applied: none
 

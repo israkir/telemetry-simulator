@@ -98,39 +98,36 @@ workload_schedules:
       night:
         hours: [0-6, 22-24]
         scenario_weights:
-          new_claim_phone: 0.78
-          generic_higher_latency_peak_hours: 0.05
-          generic_mcp_extreme_latency: 0.02
-          mcp_queueing_saturation_phone: 0.02
-          mcp_rate_limit_backpressure_phone: 0.02
-          mcp_cold_start_bursts_phone: 0.02
-          mcp_cross_region_degraded_path_phone: 0.02
-          mcp_cache_miss_storm_phone: 0.02
+          new_claim_phone: 0.45
+          generic_higher_latency_peak_hours: 0.15
+          mcp_queueing_saturation_phone: 0.08
+          mcp_rate_limit_backpressure_phone: 0.07
+          mcp_cold_start_bursts_phone: 0.08
+          mcp_cross_region_degraded_path_phone: 0.06
+          mcp_cache_miss_storm_phone: 0.06
           new_claim_phone_mcp_tool_retry_then_success: 0.05
       day:
         hours: [6-9, 14-18]
         scenario_weights:
-          new_claim_phone: 0.48
-          generic_higher_latency_peak_hours: 0.3
-          generic_mcp_extreme_latency: 0.02
-          mcp_queueing_saturation_phone: 0.02
-          mcp_rate_limit_backpressure_phone: 0.02
-          mcp_cold_start_bursts_phone: 0.02
-          mcp_cross_region_degraded_path_phone: 0.02
-          mcp_cache_miss_storm_phone: 0.02
-          new_claim_phone_mcp_tool_retry_then_success: 0.1
+          new_claim_phone: 0.30
+          generic_higher_latency_peak_hours: 0.35
+          mcp_queueing_saturation_phone: 0.07
+          mcp_rate_limit_backpressure_phone: 0.06
+          mcp_cold_start_bursts_phone: 0.06
+          mcp_cross_region_degraded_path_phone: 0.06
+          mcp_cache_miss_storm_phone: 0.06
+          new_claim_phone_mcp_tool_retry_then_success: 0.04
       true_peak:
         hours: [9-14]
         scenario_weights:
-          new_claim_phone: 0.18
-          generic_higher_latency_peak_hours: 0.4
-          generic_mcp_extreme_latency: 0.02
-          mcp_queueing_saturation_phone: 0.02
-          mcp_rate_limit_backpressure_phone: 0.02
-          mcp_cold_start_bursts_phone: 0.02
-          mcp_cross_region_degraded_path_phone: 0.02
-          mcp_cache_miss_storm_phone: 0.02
-          new_claim_phone_mcp_tool_retry_then_success: 0.3
+          new_claim_phone: 0.20
+          generic_higher_latency_peak_hours: 0.38
+          mcp_queueing_saturation_phone: 0.08
+          mcp_rate_limit_backpressure_phone: 0.06
+          mcp_cold_start_bursts_phone: 0.06
+          mcp_cross_region_degraded_path_phone: 0.05
+          mcp_cache_miss_storm_phone: 0.05
+          new_claim_phone_mcp_tool_retry_then_success: 0.12
 
 # -----------------------------------------------------------------------------
 # Tenants (by key). Scenarios reference context.tenant by key.
@@ -268,192 +265,57 @@ scenarios:
 # are clearly distinguishable (e.g. mcp_tool_execute 160ms vs 800ms, a2a_orchestrate 1500 vs 2200).
 # -----------------------------------------------------------------------------
 latency_profiles:
+  # Normal operations: realistic base with visible variance (not flat).
+  # MCP tool calls: p50 ~400ms, p95 ~1.2s due to lognormal + variance.
   happy_path:
-    default_variance: 0.2
+    default_variance: 0.3
     spans:
-      a2a_orchestrate: { mean_ms: 1500.0, variance: 0.2 }
-      planner: { mean_ms: 220.0, variance: 0.22 }
-      task_execute: { mean_ms: 75.0, variance: 0.18 }
-      llm_call: { mean_ms: 420.0, variance: 0.35 }
-      tools_recommend: { mean_ms: 52.0, variance: 0.28 }
-      mcp_tool_execute: { mean_ms: 160.0, variance: 0.32 }
-      response_compose: { mean_ms: 58.0, variance: 0.2 }
-      request_validation: { mean_ms: 36.0, variance: 0.25 }
-      response_validation: { mean_ms: 38.0, variance: 0.25 }
-      validation_payload: { mean_ms: 18.0, variance: 0.22 }
-      validation_policy: { mean_ms: 24.0, variance: 0.25 }
-      augmentation: { mean_ms: 85.0, variance: 0.35 }
+      a2a_orchestrate: { mean_ms: 1800.0, variance: 0.35 }
+      planner: { mean_ms: 280.0, variance: 0.4 }
+      task_execute: { mean_ms: 90.0, variance: 0.35 }
+      llm_call: { mean_ms: 500.0, variance: 0.5 }
+      tools_recommend: { mean_ms: 65.0, variance: 0.4 }
+      mcp_tool_execute: { mean_ms: 400.0, variance: 0.6 }
+      response_compose: { mean_ms: 70.0, variance: 0.35 }
+      request_validation: { mean_ms: 45.0, variance: 0.4 }
+      response_validation: { mean_ms: 48.0, variance: 0.4 }
+      validation_payload: { mean_ms: 22.0, variance: 0.35 }
+      validation_policy: { mean_ms: 30.0, variance: 0.4 }
+      augmentation: { mean_ms: 100.0, variance: 0.5 }
+  # Degraded conditions: higher base + more variance.
+  # MCP tool calls: p50 ~1.2s, p95 ~3.5s.
   higher_latency:
-    default_variance: 0.2
+    default_variance: 0.35
     spans:
-      a2a_orchestrate: { mean_ms: 2200.0, variance: 0.25 }
-      planner: { mean_ms: 220.0, variance: 0.22 }
-      task_execute: { mean_ms: 75.0, variance: 0.18 }
-      llm_call: { mean_ms: 420.0, variance: 0.35 }
-      tools_recommend: { mean_ms: 52.0, variance: 0.28 }
-      mcp_tool_execute: { mean_ms: 800.0, variance: 0.4 }
-      response_compose: { mean_ms: 58.0, variance: 0.2 }
-      request_validation: { mean_ms: 36.0, variance: 0.25 }
-      response_validation: { mean_ms: 38.0, variance: 0.25 }
-      validation_payload: { mean_ms: 18.0, variance: 0.22 }
-      validation_policy: { mean_ms: 24.0, variance: 0.25 }
-      augmentation: { mean_ms: 85.0, variance: 0.35 }
-  # Peak hours / post long weekend: higher than base higher_latency for realistic peak load.
+      a2a_orchestrate: { mean_ms: 2800.0, variance: 0.4 }
+      planner: { mean_ms: 350.0, variance: 0.45 }
+      task_execute: { mean_ms: 120.0, variance: 0.4 }
+      llm_call: { mean_ms: 650.0, variance: 0.55 }
+      tools_recommend: { mean_ms: 85.0, variance: 0.45 }
+      mcp_tool_execute: { mean_ms: 1200.0, variance: 0.7 }
+      response_compose: { mean_ms: 95.0, variance: 0.4 }
+      request_validation: { mean_ms: 55.0, variance: 0.45 }
+      response_validation: { mean_ms: 58.0, variance: 0.45 }
+      validation_payload: { mean_ms: 28.0, variance: 0.4 }
+      validation_policy: { mean_ms: 38.0, variance: 0.45 }
+      augmentation: { mean_ms: 140.0, variance: 0.55 }
+  # Peak hours / incident conditions: significantly higher latency + wide variance.
+  # MCP tool calls: p50 ~2.5s, p95 ~6s.
   higher_latency_peak:
-    default_variance: 0.22
+    default_variance: 0.4
     spans:
-      a2a_orchestrate: { mean_ms: 3000.0, variance: 0.28 }
-      planner: { mean_ms: 280.0, variance: 0.22 }
-      task_execute: { mean_ms: 95.0, variance: 0.2 }
-      llm_call:
-        mean_ms: 520.0
-        variance: 0.35
-        spike:
-          probability: 0.03
-          multiplier_range: [2.0, 3.5]
-      tools_recommend: { mean_ms: 68.0, variance: 0.28 }
-      mcp_tool_execute:
-        mean_ms: 1100.0
-        variance: 0.4
-        spike:
-          probability: 0.05
-          multiplier_range: [2.5, 5.0]
-      response_compose: { mean_ms: 72.0, variance: 0.2 }
-      request_validation: { mean_ms: 36.0, variance: 0.25 }
-      response_validation: { mean_ms: 38.0, variance: 0.25 }
-      validation_payload: { mean_ms: 18.0, variance: 0.22 }
-      validation_policy: { mean_ms: 24.0, variance: 0.25 }
-      augmentation: { mean_ms: 85.0, variance: 0.35 }
-  # Occasional extreme MCP tool-calling latency (e.g. backend stall, cold start, network partition).
-  # Same base as higher_latency_peak but mcp_tool_execute has a rare, very high spike (e.g. 15–25s).
-  higher_latency_extreme:
-    default_variance: 0.22
-    spans:
-      a2a_orchestrate: { mean_ms: 3000.0, variance: 0.28 }
-      planner: { mean_ms: 280.0, variance: 0.22 }
-      task_execute: { mean_ms: 95.0, variance: 0.2 }
-      llm_call:
-        mean_ms: 520.0
-        variance: 0.35
-        spike:
-          probability: 0.03
-          multiplier_range: [2.0, 3.5]
-      tools_recommend: { mean_ms: 68.0, variance: 0.28 }
-      mcp_tool_execute:
-        mean_ms: 1200.0
-        variance: 0.42
-        spike:
-          probability: 0.02
-          multiplier_range: [9.0, 22.0]
-      response_compose: { mean_ms: 72.0, variance: 0.2 }
-      request_validation: { mean_ms: 36.0, variance: 0.25 }
-      response_validation: { mean_ms: 38.0, variance: 0.25 }
-      validation_payload: { mean_ms: 18.0, variance: 0.22 }
-      validation_policy: { mean_ms: 24.0, variance: 0.25 }
-      augmentation: { mean_ms: 85.0, variance: 0.35 }
-  # Realistic incident archetypes for MCP tool-calling latency.
-  # These are intended to shift the whole distribution (p50) and thicken the tail (p95/p99),
-  # not just produce rare single outliers.
-  mcp_queueing_saturation:
-    default_variance: 0.25
-    spans:
-      a2a_orchestrate: { mean_ms: 3800.0, variance: 0.3 }
-      planner: { mean_ms: 300.0, variance: 0.24 }
-      task_execute: { mean_ms: 110.0, variance: 0.22 }
-      llm_call: { mean_ms: 560.0, variance: 0.35 }
-      tools_recommend: { mean_ms: 80.0, variance: 0.3 }
-      mcp_tool_execute:
-        mean_ms: 2600.0
-        variance: 0.55
-        spike:
-          probability: 0.12
-          multiplier_range: [1.7, 6.0]
-      response_compose: { mean_ms: 85.0, variance: 0.22 }
-      request_validation: { mean_ms: 40.0, variance: 0.25 }
-      response_validation: { mean_ms: 42.0, variance: 0.25 }
-      validation_payload: { mean_ms: 22.0, variance: 0.22 }
-      validation_policy: { mean_ms: 26.0, variance: 0.25 }
-      augmentation: { mean_ms: 110.0, variance: 0.4 }
-  mcp_rate_limit_backpressure:
-    default_variance: 0.25
-    spans:
-      a2a_orchestrate: { mean_ms: 3600.0, variance: 0.3 }
-      planner: { mean_ms: 290.0, variance: 0.24 }
-      task_execute: { mean_ms: 105.0, variance: 0.22 }
-      llm_call: { mean_ms: 540.0, variance: 0.35 }
-      tools_recommend: { mean_ms: 78.0, variance: 0.3 }
-      mcp_tool_execute:
-        mean_ms: 2100.0
-        variance: 0.5
-        spike:
-          probability: 0.18
-          multiplier_range: [1.5, 4.5]
-      response_compose: { mean_ms: 82.0, variance: 0.22 }
-      request_validation: { mean_ms: 40.0, variance: 0.25 }
-      response_validation: { mean_ms: 42.0, variance: 0.25 }
-      validation_payload: { mean_ms: 22.0, variance: 0.22 }
-      validation_policy: { mean_ms: 26.0, variance: 0.25 }
-      augmentation: { mean_ms: 110.0, variance: 0.4 }
-  mcp_cold_start_bursts:
-    default_variance: 0.24
-    spans:
-      a2a_orchestrate: { mean_ms: 3400.0, variance: 0.28 }
-      planner: { mean_ms: 280.0, variance: 0.22 }
-      task_execute: { mean_ms: 100.0, variance: 0.2 }
-      llm_call: { mean_ms: 520.0, variance: 0.35 }
-      tools_recommend: { mean_ms: 72.0, variance: 0.28 }
-      mcp_tool_execute:
-        mean_ms: 900.0
-        variance: 0.45
-        spike:
-          probability: 0.22
-          multiplier_range: [3.0, 12.0]
-      response_compose: { mean_ms: 75.0, variance: 0.2 }
-      request_validation: { mean_ms: 38.0, variance: 0.25 }
-      response_validation: { mean_ms: 40.0, variance: 0.25 }
-      validation_payload: { mean_ms: 20.0, variance: 0.22 }
-      validation_policy: { mean_ms: 25.0, variance: 0.25 }
-      augmentation: { mean_ms: 95.0, variance: 0.35 }
-  mcp_cross_region_degraded_path:
-    default_variance: 0.22
-    spans:
-      a2a_orchestrate: { mean_ms: 3200.0, variance: 0.26 }
-      planner: { mean_ms: 280.0, variance: 0.22 }
-      task_execute: { mean_ms: 95.0, variance: 0.2 }
-      llm_call: { mean_ms: 520.0, variance: 0.35 }
-      tools_recommend: { mean_ms: 70.0, variance: 0.28 }
-      mcp_tool_execute:
-        mean_ms: 1700.0
-        variance: 0.3
-        spike:
-          probability: 0.06
-          multiplier_range: [1.2, 2.2]
-      response_compose: { mean_ms: 75.0, variance: 0.2 }
-      request_validation: { mean_ms: 38.0, variance: 0.25 }
-      response_validation: { mean_ms: 40.0, variance: 0.25 }
-      validation_payload: { mean_ms: 20.0, variance: 0.22 }
-      validation_policy: { mean_ms: 25.0, variance: 0.25 }
-      augmentation: { mean_ms: 95.0, variance: 0.35 }
-  mcp_cache_miss_storm:
-    default_variance: 0.24
-    spans:
-      a2a_orchestrate: { mean_ms: 3550.0, variance: 0.28 }
-      planner: { mean_ms: 285.0, variance: 0.22 }
-      task_execute: { mean_ms: 105.0, variance: 0.22 }
-      llm_call: { mean_ms: 520.0, variance: 0.35 }
-      tools_recommend: { mean_ms: 74.0, variance: 0.28 }
-      mcp_tool_execute:
-        mean_ms: 1500.0
-        variance: 0.55
-        spike:
-          probability: 0.14
-          multiplier_range: [1.6, 6.5]
-      response_compose: { mean_ms: 78.0, variance: 0.2 }
-      request_validation: { mean_ms: 38.0, variance: 0.25 }
-      response_validation: { mean_ms: 40.0, variance: 0.25 }
-      validation_payload: { mean_ms: 20.0, variance: 0.22 }
-      validation_policy: { mean_ms: 25.0, variance: 0.25 }
-      augmentation: { mean_ms: 95.0, variance: 0.35 }
+      a2a_orchestrate: { mean_ms: 4000.0, variance: 0.45 }
+      planner: { mean_ms: 450.0, variance: 0.5 }
+      task_execute: { mean_ms: 150.0, variance: 0.45 }
+      llm_call: { mean_ms: 850.0, variance: 0.6 }
+      tools_recommend: { mean_ms: 110.0, variance: 0.5 }
+      mcp_tool_execute: { mean_ms: 2500.0, variance: 0.75 }
+      response_compose: { mean_ms: 120.0, variance: 0.45 }
+      request_validation: { mean_ms: 70.0, variance: 0.5 }
+      response_validation: { mean_ms: 75.0, variance: 0.5 }
+      validation_payload: { mean_ms: 35.0, variance: 0.45 }
+      validation_policy: { mean_ms: 48.0, variance: 0.5 }
+      augmentation: { mean_ms: 180.0, variance: 0.6 }
 
 # -----------------------------------------------------------------------------
 # Control-plane (semconv-aligned). Add new templates here; no code change needed.

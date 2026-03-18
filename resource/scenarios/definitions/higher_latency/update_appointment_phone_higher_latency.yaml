@@ -12,7 +12,7 @@ tags:
   - scheduling
 
 # Higher-latency reschedule (e.g. zip-based) is a minority of traffic.
-workload_weight: 1.0
+workload_weight: 5.0
 interval_ms: 80
 redaction_applied: none
 

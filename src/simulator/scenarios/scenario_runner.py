@@ -405,11 +405,33 @@ class ScenarioRunner:
         augmentation_exception_override = getattr(
             scenario, "control_plane_augmentation_exception_override", None
         )
-        return build_request_validation_hierarchy_from_template(
+        hierarchy = build_request_validation_hierarchy_from_template(
             template_id,
             policy_exception_override=policy_exception_override,
             augmentation_exception_override=augmentation_exception_override,
         )
+        # Ensure incoming control-plane validation spans carry the same agent identity
+        # as the data-plane root so users can filter/correlate by tenant + agent.
+        #
+        # Data-plane hierarchies get this via scenario_loader._apply_context_to_hierarchy,
+        # but the incoming validation hierarchy is built here from templates, so we
+        # must apply the overrides explicitly.
+        try:
+            sc_ctx = getattr(scenario, "context", None)
+            tenant_uuid = getattr(sc_ctx, "tenant_uuid", None)
+            if isinstance(tenant_uuid, str) and tenant_uuid.strip():
+                overrides = dict(hierarchy.root_config.attribute_overrides or {})
+                overrides[config_attr("tenant.id")] = tenant_uuid
+                agents = getattr(sc_ctx, "agents", None)
+                if isinstance(agents, list) and agents:
+                    agent0 = agents[0]
+                    agent_uuid = getattr(agent0, "uuid", None)
+                    if isinstance(agent_uuid, str) and agent_uuid.strip():
+                        overrides[config_attr("a2a.agent.target.id")] = agent_uuid
+                hierarchy.root_config.attribute_overrides = overrides
+        except Exception:
+            pass
+        return hierarchy
 
     def _response_validation_hierarchy(self, scenario: Scenario) -> TraceHierarchy:
         """Build outgoing response validation hierarchy from config template."""

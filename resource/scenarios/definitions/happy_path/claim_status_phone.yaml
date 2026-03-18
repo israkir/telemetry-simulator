@@ -11,7 +11,7 @@ tags:
   - phone
   - claim-status
 
-workload_weight: 6.0
+workload_weight: 3.0
 interval_ms: 90
 interval_deviation_ms: 40
 redaction_applied: basic
