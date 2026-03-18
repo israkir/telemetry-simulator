@@ -174,6 +174,46 @@ class ScenarioContext:
     tool_call_results: dict[str, Any] | None = None
 
 
+def _assert_no_inline_context_uuids(context_dict: dict[str, Any]) -> None:
+    """
+    Scenarios must reference MCP servers/tools by key/name only.
+    UUIDs are resolved exclusively from resource/config/config.yaml.
+    """
+    for k in context_dict.keys():
+        if not isinstance(k, str):
+            continue
+        key = k.strip()
+        if not key:
+            continue
+        if key.endswith("_uuid"):
+            raise ValueError(
+                f"Scenario context must not define UUID fields ({key}); "
+                f"use key-based references and resolve IDs from {CONFIG_PATH}."
+            )
+
+
+_FORBIDDEN_INLINE_ATTR_KEYS = {
+    config_attr("mcp.server.uuid"),
+    config_attr("mcp.tool.uuid"),
+}
+
+
+def _assert_no_inline_uuid_attributes(attrs: dict[str, Any]) -> None:
+    """
+    Scenarios must not set MCP UUID attributes directly.
+    These are populated from config-driven context resolution.
+    """
+    for k in attrs.keys():
+        if not isinstance(k, str):
+            continue
+        norm = _normalize_attr_key(k.strip())
+        if norm in _FORBIDDEN_INLINE_ATTR_KEYS:
+            raise ValueError(
+                f"Scenario attributes must not set {norm}; "
+                f"MCP UUIDs must be resolved from {CONFIG_PATH}."
+            )
+
+
 def _parse_and_resolve_context(
     data: dict[str, Any] | None,
     config_path: Path,
@@ -185,6 +225,8 @@ def _parse_and_resolve_context(
     """
     if not data or not isinstance(data, dict):
         return None
+
+    _assert_no_inline_context_uuids(data)
     tenant_key = data.get("tenant")
     agent_id = data.get("agent")
     mcp_server_key = data.get("mcp_server")
@@ -2243,7 +2285,11 @@ class ScenarioLoader:
 
         attr_dists = {}
         plain_attrs = {}
-        for key, value in (data.get("attributes") or {}).items():
+        raw_attrs = data.get("attributes") or {}
+        if not isinstance(raw_attrs, dict):
+            raw_attrs = {}
+        _assert_no_inline_uuid_attributes(raw_attrs)
+        for key, value in raw_attrs.items():
             norm_key = _normalize_attr_key(key)
             if isinstance(value, dict) and "distribution" in value:
                 attr_dists[norm_key] = DistributionFactory.create(value)

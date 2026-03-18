@@ -434,9 +434,6 @@ class AttributeGenerator:
         if _attr_matches(name, "step.outcome"):
             return random.choice(SEMCONV_STEP_OUTCOME_VALUES)
 
-        if attr.examples:
-            return random.choice(attr.examples)
-
         return self._generate_by_type(attr.attr_type, name)
 
     def _generate_by_type(self, attr_type: str, name: str) -> Any:

@@ -19,6 +19,7 @@ Example tree:
 """
 
 import json
+import math
 import random
 import re
 import time
@@ -501,20 +502,39 @@ class SpanBuilder:
     def generate_latency(self, config: SpanConfig) -> float:
         """Generate latency based on config.
 
-        Base latency uses a Gaussian multiplier around mean_ms. On top of that, we optionally
-        apply a heavy-tail "spike":
+        Base latency uses a lognormal distribution (right-skewed, more realistic for latency)
+        parameterized by latency_mean_ms and latency_variance (treated as coefficient of
+        variation, roughly matching the old gaussian multiplier behavior).
+
+        On top of the base distribution, we optionally apply heavy-tail behavior:
 
         - If SpanConfig has explicit spike_probability / spike_*_multiplier (from config latency_profiles),
           we use those values.
-        - Otherwise we fall back to the generic 5% random spike (2x–4x) only when it is meaningful
-          and does not invert ordering: skip the spike for happy_path spans (so they stay below
-          higher_latency traces), but allow it for higher_latency scenarios and for MCP retry /
-          error contexts (high mean from latency_by_error_type). Rule: skip spike only when
-          latency_profile == "happy_path" and latency_mean_ms < 2000 (so retry timeouts and
-          higher_latency spans still get meaningful spikes).
+        - Otherwise we apply:
+          - a small-probability heavy-tail multiplier (rare slow outliers)
+          - plus an optional moderate spike (more common than the heavy-tail)
+
+        We keep the "happy_path should not randomly exceed higher_latency" property by
+        suppressing non-explicit spikes when latency_profile == "happy_path" and mean_ms < 2000.
         """
-        latency = config.latency_mean_ms * (1 + random.gauss(0, config.latency_variance))
+        mean_ms = max(0.0, float(config.latency_mean_ms))
+        cv = max(0.0, float(config.latency_variance))
         profile = (config.latency_profile or "").strip().lower()
+
+        # Lognormal parameters derived from mean and coefficient of variation:
+        # If X ~ LogNormal(mu, sigma^2), then:
+        #   E[X] = exp(mu + sigma^2 / 2)
+        #   CV^2 = exp(sigma^2) - 1
+        # => sigma^2 = ln(1 + CV^2), mu = ln(mean) - sigma^2/2
+        if mean_ms <= 0.0:
+            latency = 0.0
+        else:
+            # Cap cv to avoid extreme params when variance is misconfigured.
+            cv = min(cv, 3.0)
+            sigma2 = math.log(1.0 + (cv * cv))
+            sigma = math.sqrt(max(0.0, sigma2))
+            mu = math.log(mean_ms) - (sigma2 / 2.0)
+            latency = random.lognormvariate(mu, sigma)
 
         # Determine spike parameters: explicit per-span config wins, otherwise fallback heuristic.
         explicit_prob = config.spike_probability if config.spike_probability is not None else 0.0
@@ -525,10 +545,20 @@ class SpanBuilder:
             if random.random() < explicit_prob:
                 latency *= random.uniform(explicit_min, explicit_max)
         else:
-            allow_spike = profile != "happy_path" or config.latency_mean_ms >= 2000.0
-            if allow_spike and random.random() < 0.05:
-                latency *= random.uniform(2.0, 4.0)
-        return max(15.0, latency)
+            allow_spike = profile != "happy_path" or mean_ms >= 2000.0
+            if allow_spike:
+                # Rare heavy-tail outliers (e.g. backend stalls, queueing).
+                # random.paretovariate(alpha) returns >= 1; we convert to a multiplier >= 1.
+                # Use a modest alpha so outliers exist but are rare and bounded-ish.
+                if random.random() < 0.01:
+                    tail = random.paretovariate(3.0)  # ~1..inf, heavy tail
+                    latency *= min(12.0, tail)  # keep within a sane range for dashboards
+                # More common moderate spikes (cold path, cache miss).
+                elif random.random() < 0.04:
+                    latency *= random.uniform(1.8, 3.5)
+
+        # Avoid 0/negative and keep a small floor so spans are visible.
+        return max(15.0, float(latency))
 
     def should_error(self, config: SpanConfig) -> bool:
         """Determine if span should have error status."""
@@ -753,12 +783,15 @@ class TraceGenerator:
         if context is None:
             context = GenerationContext.create()
 
+        planned_latencies_ms, root_start_ns = self._plan_trace_timing(hierarchy)
         trace_id, _, _, _ = self._generate_span_recursive(
             hierarchy,
             context,
             None,
             None,
             span_callback=span_callback,
+            planned_latencies_ms=planned_latencies_ms,
+            logical_start_ns=root_start_ns,
         )
         return trace_id
 
@@ -793,6 +826,7 @@ class TraceGenerator:
             root_config=incoming_hierarchy.root_config,
             children=list(incoming_hierarchy.children) + [data_plane_with_outgoing],
         )
+        planned_latencies_ms, root_start_ns = self._plan_trace_timing(unified_hierarchy)
         trace_id, _, _, _ = self._generate_span_recursive(
             unified_hierarchy,
             context,
@@ -800,8 +834,49 @@ class TraceGenerator:
             None,
             span_callback=span_callback,
             use_single_tracer=True,
+            planned_latencies_ms=planned_latencies_ms,
+            logical_start_ns=root_start_ns,
         )
         return trace_id
+
+    def _plan_trace_timing(
+        self,
+        hierarchy: TraceHierarchy,
+    ) -> tuple[dict[int, float], int]:
+        """Plan simulated latencies and an anchored root start time.
+
+        We generate one simulated latency per SpanConfig (per trace emission) and compute
+        the total duration of the resulting sequential hierarchy (with _MIN_SPAN_GAP_NS gaps).
+        We then shift the whole trace timeline into the past before emitting spans, so
+        explicit start/end timestamps are never in the future.
+        """
+
+        planned_latencies_ms: dict[int, float] = {}
+
+        def plan_node(node: TraceHierarchy, start_ns: int) -> int:
+            cfg = node.root_config
+            latency_ms = self.span_builder.generate_latency(cfg)
+            planned_latencies_ms[id(cfg)] = latency_ms
+
+            last_child_end_ns = start_ns
+            next_child_start_ns = start_ns + _MIN_SPAN_GAP_NS
+            for child in node.children:
+                child_end_ns = plan_node(child, next_child_start_ns)
+                if child_end_ns > last_child_end_ns:
+                    last_child_end_ns = child_end_ns
+                next_child_start_ns = child_end_ns + _MIN_SPAN_GAP_NS
+
+            span_end_from_latency_ns = start_ns + int(latency_ms * 1_000_000)
+            return max(span_end_from_latency_ns, last_child_end_ns)
+
+        # Use a synthetic 0-based clock for planning.
+        end_ns = plan_node(hierarchy, 0)
+        total_duration_ns = max(0, end_ns)
+
+        # Anchor in the past so span timestamps are never "in the future" relative to wall clock.
+        # Some backends drop/ignore future-timestamp spans, which looks like missing spans.
+        root_start_ns = time.time_ns() - total_duration_ns - _MIN_SPAN_GAP_NS
+        return planned_latencies_ms, root_start_ns
 
     def _generate_span_recursive(
         self,
@@ -812,6 +887,7 @@ class TraceGenerator:
         compose_accumulated_failure: str | None = None,
         use_single_tracer: bool = False,
         logical_start_ns: int | None = None,
+        planned_latencies_ms: dict[int, float] | None = None,
         span_callback: Any | None = None,
     ) -> tuple[str, str, int, float]:
         """Recursively generate spans in the hierarchy. Returns (trace_id_hex, span_id_hex, end_time_ns, tool_latency_ms).
@@ -840,7 +916,12 @@ class TraceGenerator:
         span_name = get_span_name(config.span_type)
         span_kind = SPAN_KIND_MAP.get(config.span_type, SpanKind.INTERNAL)
 
-        latency_ms = self.span_builder.generate_latency(config)
+        if planned_latencies_ms is not None:
+            latency_ms = planned_latencies_ms.get(id(config), None)
+        else:
+            latency_ms = None
+        if latency_ms is None:
+            latency_ms = self.span_builder.generate_latency(config)
 
         overrides = config.attribute_overrides or {}
         component = _get_component_for_span_type(config.span_type)
@@ -1334,6 +1415,7 @@ class TraceGenerator:
                     compose_accumulated_failure=child_compose_failure,
                     use_single_tracer=use_single_tracer,
                     logical_start_ns=next_child_start_ns,
+                    planned_latencies_ms=planned_latencies_ms,
                     span_callback=span_callback,
                 )
                 last_child_end_ns = max(last_child_end_ns, child_end_ns)

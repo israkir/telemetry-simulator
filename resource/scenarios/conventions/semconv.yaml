@@ -1651,7 +1651,7 @@ mcp_tool_attributes:
     required: true
     category: first_class
     description: "MCP tool identifier (UUID)."
-    examples: ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
+    examples: ["11111111-1111-4eec-8001-000000000011"]
 
   gentoro.mcp.tool.call.id:
     type: string
