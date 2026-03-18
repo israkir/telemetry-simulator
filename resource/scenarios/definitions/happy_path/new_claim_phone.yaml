@@ -13,7 +13,7 @@ tags:
   - phone
 
 # Primary flow: new claims dominate; phone division highest volume.
-workload_weight: 4.0
+workload_weight: 2.0
 interval_ms: 100
 interval_deviation_ms: 50
 redaction_applied: basic

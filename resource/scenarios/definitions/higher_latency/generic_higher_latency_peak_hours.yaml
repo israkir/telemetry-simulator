@@ -13,7 +13,7 @@ tags:
   - peak-hours
 
 # Peak-hours / post–long-weekend higher latency is a minority of traffic.
-workload_weight: 1.5
+workload_weight: 5.0
 interval_ms: 80
 redaction_applied: none
 

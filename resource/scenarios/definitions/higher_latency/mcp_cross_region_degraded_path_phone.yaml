@@ -13,14 +13,14 @@ tags:
   - cross-region
   - network-degradation
 
-workload_weight: 0.6
+workload_weight: 5.0
 interval_ms: 100
 redaction_applied: none
 
 data_plane:
   workflow: new_claim
   goal: higher_latency
-  latency_profile: mcp_cross_region_degraded_path
+  latency_profile: higher_latency
   control_plane_template: allowed
   higher_latency_condition:
     cause: "cross_region_degraded_network_path"
