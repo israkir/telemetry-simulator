@@ -544,6 +544,7 @@ control_plane_validation_model:
         - gentoro.tenant.id
       optional_attributes:
         - gen_ai.conversation.id
+        - gentoro.a2a.agent.target.id
         - gentoro.enduser.pseudo.id
     child_spans:
       payload:

@@ -1,0 +1,65 @@
+# Rate limiting + backpressure.
+# Tool calls are throttled; latency increases and clusters at higher values due to waiting/backoff.
+
+name: mcp_rate_limit_backpressure_phone
+description: >
+  MCP server throttles requests; client experiences backpressure (waiting/backoff),
+  shifting typical tool-call latency upward and increasing tail latency.
+
+tags:
+  - data-plane
+  - higher-latency
+  - mcp-latency
+  - rate-limiting
+  - backpressure
+
+workload_weight: 0.6
+interval_ms: 100
+redaction_applied: none
+
+data_plane:
+  workflow: new_claim
+  goal: higher_latency
+  latency_profile: mcp_rate_limit_backpressure
+  control_plane_template: allowed
+  higher_latency_condition:
+    cause: "rate_limiting_backpressure"
+    throttle_policy: "token_bucket"
+
+  llm_interactions:
+    - role: planner
+      system_prompt: >
+        You are the Toro orchestration planner. Create a tool plan that calls the "new_claim"
+        MCP tool on server "phone". This scenario represents rate limiting and backpressure,
+        so tool calling latencies are elevated and may include waiting/backoff.
+      output: >
+        PLAN:
+          1) Call MCP tool "new_claim" on server "phone" with arguments from the external request.
+          2) Return a confirmation including the claim ID and next steps.
+    - role: summarizer
+      system_prompt: >
+        Summarize the outcome of the new_claim tool call into a clear final response for the end user.
+
+conversation:
+  external:
+    user_input: "My phone screen cracked today. Please start a claim."
+    agent_response: "I’ve started a claim for your phone and noted the cracked screen. Your claim ID is PH-8842. Upload photos when you’re ready, and we’ll confirm the next steps."
+
+context:
+  tenant: toro
+  agent: toro-customer-assistant-001
+  mcp_server: phone
+  tools:
+    - new_claim
+  tool_call_arguments:
+    new_claim:
+      product_type: "phone"
+      description: "Cracked screen"
+      incident_date: "2025-03-10"
+  tool_call_results:
+    new_claim:
+      claim_id: "PH-8842"
+      product_type: "phone"
+      status: "opened"
+      notes: "Claim created while MCP server applied rate limiting/backpressure."
+

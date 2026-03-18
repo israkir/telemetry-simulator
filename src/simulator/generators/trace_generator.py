@@ -596,6 +596,11 @@ class SpanBuilder:
         if span_type == SpanType.REQUEST_VALIDATION:
             attrs[config_attr("request.id")] = context.request_id
             attrs[config_attr("enduser.pseudo.id")] = context.user_id or ""
+            # Include target agent identity on incoming validation so control-plane
+            # spans can be correlated to the same agent as the data-plane root.
+            agent_target = overrides.get(config_attr("a2a.agent.target.id"))
+            if isinstance(agent_target, str) and agent_target.strip():
+                attrs[config_attr("a2a.agent.target.id")] = agent_target.strip()
         # vendor.a2a.orchestrate gets enduser.pseudo.id from schema (a2a_orchestrate_attributes)
         # vendor.a2a.orchestrate root: only root-level attrs (no response.format, no route).
         # vendor.response.compose: only compose attrs (no a2a.outcome, a2a.agent.target.id).
