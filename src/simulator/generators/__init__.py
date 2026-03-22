@@ -1,12 +1,15 @@
 """Telemetry generators for traces, metrics, and logs."""
 
-from .log_generator import LogGenerator
-from .metric_generator import MetricGenerator
-from .trace_generator import TraceGenerator, TraceHierarchy
+from .trace_generator import (
+    SpanSpec,
+    TraceSpec,
+    build_unified_trace_from_semconv,
+    render_trace,
+)
 
 __all__ = [
-    "TraceGenerator",
-    "TraceHierarchy",
-    "MetricGenerator",
-    "LogGenerator",
+    "SpanSpec",
+    "TraceSpec",
+    "build_unified_trace_from_semconv",
+    "render_trace",
 ]

@@ -1,155 +1,110 @@
 """
-Resolve key-based scenario context to UUIDs and refs from config.
+Resolve scenario context from config.yaml.
 
-Scenarios specify tenant (key), agent (id), mcp_server (key). This module
-resolves them against config/config.yaml so that tenant.id, a2a.agent.target.id,
-mcp.server.uuid, and mcp.tool.uuid always come from config only.
-
-Returns plain dicts/lists so that scenario_loader can build ScenarioContext
-without circular imports.
+Scenarios reference tenant by key, agent by id, mcp_server by key.
+This module resolves those to concrete tenant id, agent id, mcp_server_uuid,
+and tool name -> tool_uuid mapping.
 """
 
-import os
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any
 
 
-class ConfigResolutionError(Exception):
-    """Raised when a scenario key cannot be resolved from config."""
+@dataclass
+class ResolvedMcpTool:
+    """Resolved MCP tool: name and UUID."""
 
-    pass
-
-
-def _load_config(config_path: Path | None = None) -> dict[str, Any]:
-    from ..config import CONFIG_PATH, load_yaml
-
-    path = config_path or CONFIG_PATH
-    data = load_yaml(path)
-    if not isinstance(data, dict):
-        raise ConfigResolutionError("Config is missing or invalid")
-    return data
+    name: str
+    tool_uuid: str
 
 
-def _get_tenant_uuid(tenants: dict[str, Any], tenant_key: str) -> str:
-    # Optional global override: when TELEMETRY_SIMULATOR_TENANT_ID is set,
-    # use it for all tenants regardless of key. This allows CLI to override
-    # the UUID while keeping config as the default source of truth.
-    override = os.environ.get("TELEMETRY_SIMULATOR_TENANT_ID", "").strip()
-    if override:
-        return override
+@dataclass
+class ResolvedContext:
+    """Resolved scenario context from config."""
 
-    key = (tenant_key or "").strip().lower()
-    if not key:
-        raise ConfigResolutionError("context.tenant is required")
-    tenant = tenants.get(key)
-    if not isinstance(tenant, dict):
-        raise ConfigResolutionError(f"Unknown tenant key: {tenant_key}")
-    tid = tenant.get("id")
-    if not isinstance(tid, str) or not tid.strip():
-        raise ConfigResolutionError(f"Tenant '{tenant_key}' has no id in config")
-    return tid.strip()
+    tenant_id: str
+    agent_id: str
+    mcp_server_uuid: str
+    tools_by_name: dict[str, ResolvedMcpTool]
 
-
-def _get_agent_id(agents: list[Any], agent_id: str) -> str:
-    aid = (agent_id or "").strip()
-    if not aid:
-        raise ConfigResolutionError("context.agent is required")
-    for a in agents or []:
-        if not isinstance(a, dict):
-            continue
-        if (a.get("id") or "").strip() == aid:
-            return aid
-    raise ConfigResolutionError(f"Unknown agent id: {agent_id}")
-
-
-def _get_mcp_server_ref(
-    mcp_servers: dict[str, Any], mcp_server_key: str
-) -> tuple[str, list[dict[str, str]]]:
-    key = (mcp_server_key or "").strip().lower()
-    if not key:
-        raise ConfigResolutionError("context.mcp_server is required")
-    server = mcp_servers.get(key)
-    if not isinstance(server, dict):
-        raise ConfigResolutionError(f"Unknown mcp_server key: {mcp_server_key}")
-    uuid_val = server.get("mcp_server_uuid")
-    if not isinstance(uuid_val, str) or not uuid_val.strip():
-        raise ConfigResolutionError(
-            f"MCP server '{mcp_server_key}' has no mcp_server_uuid in config"
-        )
-    tools_raw = server.get("tools") or []
-    tools: list[dict[str, str]] = []
-    for t in tools_raw:
-        if (
-            isinstance(t, dict)
-            and isinstance(t.get("name"), str)
-            and isinstance(t.get("tool_uuid"), str)
-        ):
-            tools.append({"name": t["name"], "tool_uuid": t["tool_uuid"]})
-    return uuid_val.strip(), tools
+    def get_tool_uuid(self, tool_name: str) -> str | None:
+        """Return tool UUID for tool name, or None if not found."""
+        t = self.tools_by_name.get(tool_name)
+        return t.tool_uuid if t else None
 
 
 def resolve_context(
-    tenant_key: str,
-    agent_id: str,
+    config: dict[str, Any],
+    *,
+    tenant_key: str | None = None,
+    agent_id: str | None = None,
     mcp_server_key: str | None = None,
-    workflow: str | None = None,
-    correct_flow: Any = None,
-    error_pattern: str = "happy_path",
-    error_config: Any = None,
-    redaction_applied: str = "none",
-    actual_steps: list[str] | None = None,
-    config_path: Path | None = None,
-) -> dict[str, Any]:
+    default_tenant_id: str | None = None,
+) -> ResolvedContext:
     """
-    Resolve key-based context to a dict with tenant_uuid and agents (plain structs) from config.
+    Resolve tenant, agent, and mcp_server from config using scenario keys.
 
-    mcp_server_key is optional: when missing or empty, agents get mcp: [] (e.g. control-plane-only scenarios).
-    Caller (scenario_loader) builds ScenarioContext from the returned dict.
+    tenant_key: key in config.tenants (e.g. "toro")
+    agent_id: id from config.agents (e.g. "toro-customer-assistant-001")
+    mcp_server_key: key in config.mcp_servers (e.g. "phone")
+    default_tenant_id: explicit tenant id override. When provided, it takes
+        precedence over `tenant_key` (including scenarios that set `tenant:` in
+        YAML). This is primarily intended for the CLI `--tenant-id` flag.
     """
-    data = _load_config(config_path)
-    tenants = data.get("tenants") or {}
-    if not isinstance(tenants, dict):
-        tenants = {}
-    agents_list = data.get("agents")
-    if not isinstance(agents_list, list):
-        agents_list = []
-    mcp_servers = data.get("mcp_servers") or {}
-    if not isinstance(mcp_servers, dict):
-        mcp_servers = {}
+    tenants = config.get("tenants") or {}
+    agents_list = config.get("agents") or []
+    mcp_servers = config.get("mcp_servers") or {}
 
-    tenant_uuid = _get_tenant_uuid(tenants, tenant_key)
-    resolved_agent_id = _get_agent_id(agents_list, agent_id)
-    mcp_key = (mcp_server_key or "").strip() if mcp_server_key is not None else ""
-    if mcp_key:
-        server_uuid, tools_list = _get_mcp_server_ref(mcp_servers, mcp_key)
+    # Tenant
+    if default_tenant_id:
+        tenant_id = default_tenant_id
+    elif tenant_key:
+        if tenant_key not in tenants:
+            raise ValueError(
+                f"Unable to resolve tenant id: scenario.context.tenant_key={tenant_key!r} "
+                "was not found in resource/config/config.yaml (expected `tenants` entry)."
+            )
+        t = tenants[tenant_key]
+        tenant_id = t.get("id", str(t)) if isinstance(t, dict) else str(t)
     else:
-        server_uuid = ""
-        tools_list = []
+        raise ValueError(
+            "Unable to resolve tenant id: scenario did not define context.tenant "
+            "scenario.context.tenant_key is missing and no default_tenant_id was provided "
+            "(expected `tenant` in scenario YAML and/or `tenants` in resource/config/config.yaml "
+            "or --tenant-id via CLI)."
+        )
 
-    agents_payload = [
-        {
-            "uuid": resolved_agent_id,
-            "mcp": [{"server_uuid": server_uuid, "tools": tools_list}] if server_uuid else [],
-        }
-    ]
-    return {
-        "tenant_uuid": tenant_uuid,
-        "agents": agents_payload,
-        "workflow": workflow,
-        "correct_flow": correct_flow,
-        "error_pattern": error_pattern,
-        "error_config": error_config,
-        "redaction_applied": redaction_applied,
-        "actual_steps": actual_steps,
-    }
+    # Agent (list of {id: "..."})
+    resolved_agent_id = ""
+    if agent_id:
+        for a in agents_list:
+            aid = a.get("id", "") if isinstance(a, dict) else str(a)
+            if aid == agent_id:
+                resolved_agent_id = aid
+                break
+        if not resolved_agent_id:
+            resolved_agent_id = agent_id
+    elif agents_list:
+        first = agents_list[0]
+        resolved_agent_id = first.get("id", str(first)) if isinstance(first, dict) else str(first)
 
+    # MCP server and tools
+    mcp_server_uuid = ""
+    tools_by_name: dict[str, ResolvedMcpTool] = {}
+    if mcp_server_key and mcp_server_key in mcp_servers:
+        server = mcp_servers[mcp_server_key]
+        if isinstance(server, dict):
+            mcp_server_uuid = server.get("mcp_server_uuid", "")
+            for tool in server.get("tools") or []:
+                if isinstance(tool, dict) and tool.get("name"):
+                    tools_by_name[tool["name"]] = ResolvedMcpTool(
+                        name=tool["name"],
+                        tool_uuid=tool.get("tool_uuid", ""),
+                    )
 
-def get_default_tenant_id(config_path: Path | None = None) -> str:
-    """Return the first tenant id from config (delegates to config.get_default_tenant_id)."""
-    from ..config import CONFIG_PATH
-    from ..config import get_default_tenant_id as _config_default_tenant_id
-
-    try:
-        return _config_default_tenant_id(config_path or CONFIG_PATH)
-    except ValueError as e:
-        raise ConfigResolutionError(str(e)) from e
+    return ResolvedContext(
+        tenant_id=tenant_id,
+        agent_id=resolved_agent_id,
+        mcp_server_uuid=mcp_server_uuid,
+        tools_by_name=tools_by_name,
+    )

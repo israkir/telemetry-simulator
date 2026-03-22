@@ -4,14 +4,10 @@
 # Python and venv paths
 # Prefer 'python' (user's default in PATH), fallback to 'python3'. Override with PYTHON=... if needed.
 PYTHON ?= $(shell command -v python >/dev/null 2>&1 && echo python || echo python3)
-VENV := venv
+VENV := .venv
 VENV_BIN := $(VENV)/bin
 VENV_ACTIVATE := $(VENV_BIN)/activate
 VENV_PYTHON := $(VENV_BIN)/python
-VENV_PIP := $(VENV_BIN)/pip
-
-# Default OTLP endpoint (override as needed)
-OTLP_ENDPOINT ?= http://localhost:4318
 
 # CLI program name (from project.scripts in pyproject.toml; use variable to avoid hardcoding)
 CLI_NAME ?= otelsim
@@ -70,9 +66,9 @@ help:
 	@printf '  $(COLOR_GREEN)make venv-force$(COLOR_RESET)            - Force recreate virtual environment\n'
 	@printf '  $(COLOR_GREEN)make install$(COLOR_RESET)               - Install the package in development mode\n'
 	@printf '  $(COLOR_GREEN)make install-dev$(COLOR_RESET)           - Install with development dependencies\n\n'
-	@printf 'Running the simulator (default schema: resource/scenarios/conventions/semconv.yaml):\n'
-	@printf '  $(COLOR_GREEN)make run-validate$(COLOR_RESET)          - Validate schema and show summary\n'
-	@printf '  $(COLOR_GREEN)make list-scenarios$(COLOR_RESET)        - List available scenarios\n\n'
+	@printf 'Running the simulator:\n'
+	@printf '  $(COLOR_GREEN)make run-validate$(COLOR_RESET)          - Same as: $(CLI_NAME) validate --show-schema --show-spans --show-metrics\n'
+	@printf '  $(COLOR_GREEN)make list-scenarios$(COLOR_RESET)        - Same as: $(CLI_NAME) list\n\n'
 	@printf 'Code quality and tests:\n'
 	@printf '  $(COLOR_GREEN)make test$(COLOR_RESET)                  - Run tests (pytest)\n'
 	@printf '  $(COLOR_GREEN)make format$(COLOR_RESET)                - Format code with black\n'
@@ -82,22 +78,14 @@ help:
 	@printf 'Cleanup:\n'
 	@printf '  $(COLOR_GREEN)make clean$(COLOR_RESET)                 - Clean generated cache files\n'
 	@printf '  $(COLOR_GREEN)make clean-venv$(COLOR_RESET)            - Remove virtual environment\n\n'
-	@printf 'Environment variables:\n'
-	@printf '  PYTHON                     - Interpreter for '"'"'make venv'"'"' (default: python if in PATH, else python3)\n'
-	@printf '  CLI_NAME                   - CLI program name (default: otelsim)\n'
-	@printf '  SEMCONV                    - Path to semantic-conventions YAML (default: resource/scenarios/conventions/semconv.yaml)\n'
-	@printf '  OTLP_ENDPOINT              - OTLP collector endpoint (default: http://localhost:4318)\n'
-	@printf '  VENDOR                     - Attribute prefix for spans/metrics (default: vendor)\n'
-	@printf '  TELEMETRY_SIMULATOR_TENANT_ID - Override default tenant id (otherwise first tenant from resource/config/config.yaml is used)\n'
-	@printf '  SCENARIOS_DIR              - Folder with scenario YAML files (default: built-in sample definitions)\n\n'
 	@printf 'Live trace visualization (Docker or Podman):\n'
 	@printf '  $(COLOR_GREEN)make jaeger-up$(COLOR_RESET)             - Start Jaeger (OTLP + UI) for live traces\n'
 	@printf '  $(COLOR_GREEN)make jaeger-down$(COLOR_RESET)           - Stop and remove Jaeger container\n'
 	@printf '  (then run simulator with CLI and open http://localhost:16686/search)\n\n'
 	@printf 'Example workflows:\n'
 	@printf '  $(COLOR_GREEN)make venv$(COLOR_RESET) && $(COLOR_GREEN)make install$(COLOR_RESET)\n'
-	@printf '  $(CLI_NAME) run --semconv /path/to/semconv.yaml\n'
-	@printf '  make jaeger-up && $(CLI_NAME) run --semconv /path/to/semconv.yaml\n'
+	@printf '  $(CLI_NAME) run --count 10\n'
+	@printf '  make jaeger-up && $(CLI_NAME) run\n'
 
 # Virtual environment
 venv:
@@ -131,7 +119,7 @@ install: check-venv
 	$(VENV_PYTHON) -m pip install -e .
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "Run with CLI: $(CLI_NAME) run --vendor=your_vendor --count 100 --interval 200"
+	@echo "Run with CLI: $(CLI_NAME) run"
 
 # Install with development dependencies
 install-dev: check-venv
@@ -139,7 +127,7 @@ install-dev: check-venv
 	$(VENV_PYTHON) -m pip install -e ".[dev]"
 	@echo "✅ Installation complete"
 	@echo ""
-	@echo "Run with CLI: $(CLI_NAME) run --vendor=your_vendor --count 100 --interval 200"
+	@echo "Run with CLI: $(CLI_NAME) run"
 
 # =============================================================================
 # SIMULATOR COMMANDS
@@ -148,20 +136,19 @@ install-dev: check-venv
 # Validate schema
 run-validate: check-venv
 	$(VENV_PYTHON) -m simulator.cli validate \
-		$(if $(SEMCONV),--semconv $(SEMCONV),) \
 		--show-schema \
 		--show-spans \
 		--show-metrics
 
-# List available scenarios (use SCENARIOS_DIR for custom definitions folder)
+# List available scenarios
 list-scenarios: check-venv
-	$(VENV_PYTHON) -m simulator.cli list $(if $(SCENARIOS_DIR),--scenarios-dir $(SCENARIOS_DIR),)
+	$(VENV_PYTHON) -m simulator.cli list
 
 # =============================================================================
 # LIVE TRACE VISUALIZATION (Jaeger)
 # =============================================================================
 # Start Jaeger all-in-one with OTLP receiver. Simulator sends to localhost:4318.
-# Open http://localhost:16686/search to view traces. See docs/live-trace-visualization.md.
+# Open http://localhost:16686/search to view traces.
 # Prefer Podman if available, otherwise Docker.
 
 JAEGER_IMAGE ?= jaegertracing/jaeger:2.15.0
@@ -195,7 +182,7 @@ jaeger-up:
 			$(JAEGER_IMAGE) 2>&1) || true; \
 		if $(CONTAINER_CMD) ps -q -f name=^/$(JAEGER_NAME)$$ 2>/dev/null | grep -q .; then \
 			echo "✓ Jaeger started. UI: http://localhost:16686/search  OTLP: http://localhost:4318"; \
-			echo "  Run: $(CLI_NAME) run --semconv /path/to/semconv.yaml then open the UI."; \
+			echo "  Run: $(CLI_NAME) run  then open the UI."; \
 		else \
 			echo "✗ Failed to start Jaeger."; \
 			if [ -n "$$_run_out" ]; then echo "  $$_run_out"; fi; \
@@ -255,7 +242,13 @@ clean:
 	rm -rf __pycache__/
 	rm -rf src/simulator/__pycache__/
 	rm -rf src/simulator/**/__pycache__/
+	rm -rf tests/__pycache__/
+	rm -rf tests/**/__pycache__/
 	rm -rf *.pyc
+	rm -rf .pytest_cache/
+	rm -rf .coverage .coverage.*
+	rm -rf htmlcov/
+	rm -rf build/ dist/
 	rm -rf .ruff_cache/
 	rm -rf .mypy_cache/
 	rm -rf *.egg-info/

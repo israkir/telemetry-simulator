@@ -1,6 +1,5 @@
-"""Schema definitions and parsers for telemetry attribute conventions."""
+"""Schema and semantic conventions loading."""
 
-from .attribute_generator import AttributeGenerator
-from .schema_parser import SchemaParser, TelemetrySchema
+from .schema_parser import SchemaParser
 
-__all__ = ["SchemaParser", "TelemetrySchema", "AttributeGenerator"]
+__all__ = ["SchemaParser"]

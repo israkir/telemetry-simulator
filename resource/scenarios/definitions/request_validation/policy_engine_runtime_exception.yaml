@@ -1,0 +1,88 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: request_validation/policy_engine_runtime_exception.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: single ingress attempt; policy engine timeout / runtime error path
+# MCP / tools: none (control-plane error short-circuit)
+# Path: payload ok; policy engine execution fails — diagnostics on spans/events
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: policy_engine_runtime_exception
+description: >
+  Incoming request passes payload validation, but policy engine execution fails
+  at runtime (timeout). The request-validation path records an error outcome
+  and captures exception diagnostics for policy troubleshooting.
+
+tags:
+  - request-validation
+  - control-plane
+  - error
+  - policy-exception
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 20
+repeat_count: 1
+
+# Policy engine throws: longer tail on policy span (retries / unstable dependency behavior).
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 42, deviation: 15 }
+      payload.validation: { mean: 24, deviation: 10 }
+      policy.validation: { mean: 165, deviation: 62 }
+
+default_latency_profile: normal
+
+endusers:
+  - id: user_e
+    vendor.enduser.pseudo.id: "user_c74a31"
+    turns:
+      - turn_index: 1
+        span_plan:
+          cp_request:
+            root: request.validation
+            children:
+              - payload.validation
+              - policy.validation
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "I need to open a phone damage claim after my device stopped working."
+          - target_span_class: request.validation
+            name: gentoro.request.error
+            attributes:
+              vendor.request.outcome: error
+              error.type: policy_engine_timeout
+              vendor.error.category: policy_runtime_exception
+              vendor.error.stage: policy_validation
+          - target_span_class: payload.validation
+            name: gentoro.validation.payload.result
+            attributes:
+              vendor.step.outcome: pass
+              vendor.validation.result: valid
+          - target_span_class: policy.validation
+            name: gentoro.validation.policy.decision
+            attributes:
+              vendor.step.outcome: fail
+              vendor.policy.engine: dlp
+              vendor.policy.decision: allow
+          - target_span_class: policy.validation
+            name: exception
+            attributes:
+              error.type: policy_engine_timeout
+              exception.type: PolicyEngineTimeout
+              exception.message: policy_engine_timeout
+              exception.escaped: false
+        vendor.enduser.request.raw: "I need to open a phone damage claim after my device stopped working."

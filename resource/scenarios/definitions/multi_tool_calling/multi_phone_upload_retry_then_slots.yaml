@@ -1,0 +1,167 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_phone_upload_retry_then_slots.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: one user message → three MCP tools; upload_documents retries once then succeeds
+# MCP: phone — claim_status → upload_documents (2 attempts) → get_available_slots
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_phone_upload_retry_then_slots
+description: >
+  Phone glass claim follow-up in one turn: confirm the file shows “awaiting photos,” register new
+  damage images (first upload attempt times out, second succeeds), then list repair-collection slots
+  for the rest of the week.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.3
+trace_interval_ms: 215
+trace_interval_deviation_ms: 50
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 2000, deviation: 380 }
+      planner: { mean: 500, deviation: 115 }
+      llm.call: { mean: 640, deviation: 145 }
+      task.execute: { mean: 700, deviation: 155 }
+      tools.recommend: { mean: 52, deviation: 17 }
+      mcp.tool.execute: { mean: 220, deviation: 60 }
+      response.compose: { mean: 340, deviation: 85 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_upload_retry_then_slots
+    vendor.enduser.pseudo.id: "user_mt_ph_upload_retry_58"
+    channel: app_chat
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          PH-GL-9903 — the app still says waiting on pictures. I just added three new shots of the
+          cracked lens and the IMEI screen. Can you confirm they’re on the claim and show pickup-repair
+          slots from tomorrow through Sunday?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                PH-GL-9903 — the app still says waiting on pictures. I just added three new shots of the
+                cracked lens and the IMEI screen. Can you confirm they’re on the claim and show pickup-repair
+                slots from tomorrow through Sunday?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-GL-9903 is updated with your new photos and IMEI capture. Here are authorized
+                pickup-repair windows through Sunday — pick one in the app or tell me which you prefer.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                PH-GL-9903 — the app still says waiting on pictures. I just added three new shots of the
+                cracked lens and the IMEI screen. Can you confirm they’re on the claim and show pickup-repair
+                slots from tomorrow through Sunday?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim state vs photo gate.","trigger_quote":"PH-GL-9903","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"PH-GL-9903"}},{"tool_name":"upload_documents","trigger_summary":"Register new damage and IMEI photos.","trigger_quote":"three new shots","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"PH-GL-9903","document_types":["photo_damage","photo_imei_screen"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Pickup-repair availability through Sunday.","trigger_quote":"from tomorrow through Sunday","missing_info":null,"confidence":0.87,"tool_args":{"claim_id":"PH-GL-9903","service_type":"repair_collection","date_range_start":"2026-03-23","date_range_end":"2026-03-29"}}]}
+        agent_response: >
+          PH-GL-9903 is updated with your new photos and IMEI capture. Here are authorized
+          pickup-repair windows through Sunday — pick one in the app or tell me which you prefer.
+        tool_chain: [claim_status, upload_documents, get_available_slots]
+        mcp_tool_retries:
+          upload_documents:
+            policy: exponential_jitter
+            attempts:
+              - outcome: fail
+                error.type: timeout
+              - outcome: success
+                gentoro.retry.backoff.ms: 280
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1310
+        gen_ai.usage.output_tokens: 455
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 3
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-GL-9903"
+          upload_documents:
+            claim_id: "PH-GL-9903"
+            document_types: ["photo_damage", "photo_imei_screen"]
+            expected_count: 3
+          get_available_slots:
+            claim_id: "PH-GL-9903"
+            service_type: "repair_collection"
+            date_range_start: "2026-03-23"
+            date_range_end: "2026-03-29"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-GL-9903"
+            status: "awaiting_photos"
+            last_updated: "2026-03-22T16:05:00Z"
+            milestones:
+              - intake_complete
+              - assessor_review_pending
+          upload_documents:
+            claim_id: "PH-GL-9903"
+            upload_batch_id: "UPL-PH-9903-07"
+            pending_count: 0
+            status: "received"
+          get_available_slots:
+            claim_id: "PH-GL-9903"
+            slots:
+              - { slot_id: "SLOT-2026-03-24T09:00", duration_minutes: 60 }
+              - { slot_id: "SLOT-2026-03-25T14:00", duration_minutes: 60 }
+              - { slot_id: "SLOT-2026-03-28T11:30", duration_minutes: 60 }
+            timezone: "Europe/London"
+        planner:
+          system_prompt: >
+            Toro phone planner: three tools — status, document upload with possible retry, then slots.
+          output: >
+            PLAN: claim_status PH-GL-9903; upload_documents for damage + IMEI; get_available_slots
+            repair_collection 23–29 Mar; confirm photos cleared the gate.
+        response_compose:
+          system_prompt: >
+            Short app-chat tone; reassure photos landed and list slot count without internal errors.

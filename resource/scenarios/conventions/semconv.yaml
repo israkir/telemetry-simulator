@@ -49,6 +49,15 @@ lineage:
     incoming_outgoing_semantics:
       status: "Control-plane uses gentoro.request.outcome and gentoro.response.outcome (allowed, blocked, error); status.code UNSET for allowed/blocked, ERROR for runtime failure."
 
+  # When emitting one trace per logical request (e.g. simulator), link the three roots in this parent-child order.
+  # Root = request.validation; a2a.orchestrate is child of request.validation; response.validation is child of a2a.orchestrate.
+  single_trace_request_lifecycle:
+    description: "When emitting one trace per logical request (e.g. simulator), the three roots are linked in this parent-child order so the trace shows request validation → orchestration → response validation."
+    root_span_class: "request.validation"
+    child_chain:
+      - "a2a.orchestrate"
+      - "response.validation"
+
 # =============================================================================
 # EMISSION POLICY: ONE SOURCE OF TRUTH
 # Metrics and logs are emitted directly by applications (data-plane, control-plane).
@@ -216,7 +225,7 @@ span_names:
     description: "LLM interaction span: direct model invocation, multi-turn, tool usage. One span per LLM call; parent is task with type llm_call."
     span_kind: CLIENT
     parent: gentoro.task.execute
-    note: "MUST have kind=CLIENT. Parent MUST be gentoro.task.execute where gentoro.task.type=llm_call. Parent for gentoro.mcp.tool.execute when model requests tools."
+    note: "MUST have kind=CLIENT. Parent MUST be gentoro.task.execute where gentoro.task.type=llm_call. tool execution spans are emitted under separate gentoro.task.execute(type=tool_execution) after gentoro.tools.recommend."
 
   gentoro.tools.recommend:
     description: "Tool Recommender / MCP Advisor: selects which MCP tools to make available to the LLM. Does not execute tools."
@@ -227,8 +236,8 @@ span_names:
   gentoro.mcp.tool.execute:
     description: "Logical MCP tool invocation (covers all retries/attempts). Parent of attempt spans."
     span_kind: CLIENT
-    parent: gentoro.llm.call | gentoro.task.execute
-    note: "MUST have kind=CLIENT. Parent MUST be active gentoro.llm.call (preferred) or surrounding gentoro.task.execute where gentoro.task.type=tool_execution."
+    parent: gentoro.task.execute
+    note: "MUST have kind=CLIENT. Parent MUST be gentoro.task.execute where gentoro.task.type=tool_execution. gentoro.llm.call is emitted earlier under the same orchestration timeline (as a sibling task) and MUST precede tool recommendation and tool execution."
 
   gentoro.mcp.tool.execute.attempt:
     description: "Individual execution attempt (one per retry). Child of gentoro.mcp.tool.execute."
@@ -241,31 +250,31 @@ span_names:
     description: "Root span for incoming request validation (payload, policy, augmentation). One per request; MUST create this root SERVER span."
     span_kind: SERVER
     is_root: true
-    note: "MUST have kind=SERVER, name=gentoro.request.validation. Required: gentoro.span.class=request.validation, gentoro.request.outcome, gentoro.tenant.id. status.code UNSET for allowed/blocked; ERROR for runtime failure."
+    note: "MUST have kind=SERVER, name=gentoro.request.validation. Required: gentoro.span.class=request.validation, gentoro.request.outcome, gentoro.tenant.id. status.code UNSET for allowed/blocked; ERROR for runtime failure. MUST emit span event gentoro.enduser.request with gentoro.enduser.request.raw.redacted (and may include gentoro.enduser.request.raw only when redaction policy allows)."
 
   gentoro.validation.payload:
     description: "Payload validation step. Child of gentoro.request.validation; create when step executes."
     span_kind: INTERNAL
     parent: gentoro.request.validation
-    note: "SHOULD create when payload validation runs. gentoro.span.class=validation.payload; gentoro.step.outcome (pass|fail); gentoro.validation.result (valid|invalid). On failure: status.code=ERROR, emit gentoro.validation.error events."
+    note: "SHOULD create when payload validation runs. gentoro.span.class=payload.validation; gentoro.step.outcome (pass|fail); gentoro.validation.result (valid|invalid). On failure: status.code=ERROR, emit gentoro.validation.error events."
 
-  gentoro.augmentation:
-    description: "Augmentation step. Child of gentoro.request.validation."
+  gentoro.augmentation.validation:
+    description: "Control-plane context augmentation / enrichment. Child of gentoro.request.validation (matches gentoro-enterprise analytics SPANCLASS_AUGMENTATION_VALIDATION)."
     span_kind: INTERNAL
     parent: gentoro.request.validation
-    note: "SHOULD create when augmentation runs. Required: gentoro.span.class=augmentation, gentoro.step.outcome. Use gentoro.augment.*.action (created|propagated|attached|missing) for low-cardinality."
+    note: "SHOULD create when augmentation runs. Required: gentoro.span.class=augmentation.validation, gentoro.step.outcome. Span name SHOULD be gentoro.augmentation.validation. Use gentoro.augment.*.action (created|propagated|attached|missing) for low-cardinality."
 
   gentoro.response.validation:
     description: "Root span for outgoing response validation (policy/DLP). One SERVER span per outgoing response; separate trace from request validation."
     span_kind: SERVER
     is_root: true
-    note: "MUST create one root per outgoing response. Required: gentoro.span.class=response.validation, gentoro.response.outcome. Optional: gen_ai.conversation.id. status.code UNSET for allowed/blocked; ERROR for runtime failure."
+    note: "MUST create one root per outgoing response. Required: gentoro.span.class=response.validation, gentoro.response.outcome. Optional: gen_ai.conversation.id. status.code UNSET for allowed/blocked; ERROR for runtime failure. When span event emission is configured, SHOULD emit gentoro.agent.response with gentoro.agent.response.raw.redacted (and may include gentoro.agent.response.raw only when redaction policy allows)."
 
   gentoro.validation.policy:
     description: "Policy evaluation step. Child of gentoro.request.validation or gentoro.response.validation."
     span_kind: INTERNAL
     parent: gentoro.request.validation | gentoro.response.validation
-    note: "SHOULD create when policy step runs. Required: gentoro.span.class=validation.policy, gentoro.policy.engine, gentoro.policy.decision, gentoro.step.outcome. Request: parent=gentoro.request.validation; Response: parent=gentoro.response.validation."
+    note: "SHOULD create when policy step runs. Required: gentoro.span.class=policy.validation, gentoro.policy.engine, gentoro.policy.decision, gentoro.step.outcome. Request: parent=gentoro.request.validation; Response: parent=gentoro.response.validation."
 
   gentoro.llm.tool.response.bridge:
     description: "Bridge span when tool results are fed back into the LLM (same task as the LLM call). Optional; supports debugging tool-augmented flows."
@@ -529,9 +538,9 @@ control_plane_validation_model:
   span_classes:
     description: "gentoro.span.class values for control-plane spans (normative)."
     request_validation: "request.validation — incoming request validation root"
-    validation_payload: "validation.payload — payload validation step"
-    validation_policy: "validation.policy — policy validation step"
-    augmentation: "augmentation — augmentation step"
+    payload_validation: "payload.validation — payload validation step"
+    policy_validation: "policy.validation — policy validation step"
+    augmentation.validation: "augmentation.validation — CP augmentation / enrichment step (enterprise analytics)"
     response_validation: "response.validation — outgoing response validation root"
 
   incoming_request_validation:
@@ -540,6 +549,7 @@ control_plane_validation_model:
       kind: SERVER
       required_attributes:
         - gentoro.span.class = "request.validation"
+        - gentoro.request.id
         - gentoro.request.outcome
         - gentoro.tenant.id
       optional_attributes:
@@ -558,12 +568,12 @@ control_plane_validation_model:
         parent: gentoro.request.validation
         required: [gentoro.span.class, gentoro.policy.engine, gentoro.policy.decision, gentoro.step.outcome]
         recommended: [gentoro.policy.rule.id, gentoro.policy.reason, gentoro.policy.severity]
-      augmentation:
-        name: "gentoro.augmentation"
+      augmentation.validation:
+        name: "gentoro.augmentation.validation"
         kind: INTERNAL
         parent: gentoro.request.validation
         required: [gentoro.span.class, gentoro.step.outcome]
-        recommended: [gentoro.augment.conversation_id.action, gentoro.augment.target_agent_id.action]
+        recommended: [gentoro.augment.conversation_id.action, gentoro.augment.request_id.action, gentoro.augment.enduser_id.action, gentoro.augment.target_agent_id.action]
     request_outcome_rules:
       fully_allowed: "gentoro.request.outcome = allowed"
       allowed_but_flagged: "gentoro.request.outcome = allowed; gentoro.request.audit.flag = true"
@@ -678,9 +688,9 @@ control_plane_validation_model:
       description: "Span class for control-plane validation spans"
       values:
         request.validation: "Incoming request validation"
-        validation.payload: "Payload validation"
-        validation.policy: "Policy validation"
-        augmentation: "Augmentation"
+        payload.validation: "Payload validation"
+        policy.validation: "Policy validation"
+        augmentation.validation: "Augmentation (CP validation chain)"
         response.validation: "Outgoing response validation"
 
 # =============================================================================
@@ -740,7 +750,7 @@ a2a_orchestration_model:
   task_execute_span:
     name: "gentoro.task.execute"
     kind: INTERNAL
-    parent_required: "gentoro.planner or gentoro.a2a.orchestrate (if no planner)"
+    parent_required: "gentoro.a2a.orchestrate (same layer as planner and response.compose)"
     required_attributes:
       gentoro.span.class: { value: "task.execute", type: string }
       gentoro.task.id: { type: string }
@@ -751,6 +761,15 @@ a2a_orchestration_model:
       gentoro.task.fallback.used: { type: boolean }
       error.type: { type: string, when: "if failed" }
     cardinality: "MUST avoid: raw prompts, retrieved documents, full tool inputs/outputs, entity values. SHOULD prefer: stable IDs (gentoro.task.id), counts, enums, boolean flags."
+
+  task_execution_sequence_model:
+    description: "Required orchestration timeline order for tool-augmented requests."
+    normative_rule: |
+      Within each gentoro.a2a.orchestrate, emit task.execute spans in this order:
+      1) task.execute (gentoro.task.type=llm_call) → child span gentoro.llm.call (CLIENT)
+      2) task.execute (gentoro.task.type=tool_recommendation) → child span gentoro.tools.recommend (INTERNAL)
+      3) task.execute (gentoro.task.type=tool_execution) → child span gentoro.mcp.tool.execute (CLIENT) and then gentoro.mcp.tool.execute.attempt (CLIENT)
+      If there are no tools, step (3) is omitted.
 
   compose_span:
     name: "gentoro.response.compose"
@@ -931,6 +950,24 @@ context_augmentation_model:
 llm_call_model:
   overview: "One span per LLM interaction under a task with type=llm_call. Captures outcome, provider/model, token usage, turn and tool counts; events for gen_ai.turn, gen_ai.tool.request, gen_ai.tool.response."
 
+  # Which "turn" is this trace? Scenario vs span vs events (do not conflate).
+  scenario_turn_context:
+    description: >
+      Scenario YAML may set turn_index on each enduser turn (1-based within that enduser's turns
+      list; if omitted, the loader uses list position starting at 1). That index identifies which
+      conversation round the simulator compiles into one logical request (one trace graph: control-plane
+      request, data-plane orchestration, control-plane response). It is not specified here as a
+      required Gentoro span attribute; correlate multi-turn chats with gen_ai.conversation.id and
+      gentoro.session.id, and distinguish each round with gentoro.request.id (and trace_id) per compilation.
+    distinct_from:
+      gentoro_llm_turn_count: >
+        gentoro.llm.turn.count on gentoro.llm.call is an aggregate for that LLM invocation
+        (simulator inference: see llm_call_attributes.gentoro.llm.turn.count). It is not the same
+        field as YAML turn_index.
+      gen_ai_turn_event_index: >
+        OTEL gen_ai.turn events on this span use gen_ai.turn.index for model-side steps
+        (user / assistant / tool) within a single LLM call—not the scenario conversation round index.
+
   span:
     name: "gentoro.llm.call"
     kind: CLIENT
@@ -948,6 +985,10 @@ llm_call_model:
       gentoro.llm.turn.count: { type: int }
       gentoro.llm.tool.request.count: { type: int }
       gentoro.llm.streaming: { type: boolean }
+      gentoro.llm.content.capture.enabled: { type: boolean, description: "Scenario/simulator: when true, MAY emit gen_ai.input.messages and gen_ai.output.messages (from YAML or derived from enduser request and agent_response)." }
+      gentoro.llm.content.redaction.enabled: { type: boolean, description: "When true with content capture, SHOULD also emit gentoro.gen_ai.input.redacted / gentoro.gen_ai.output.redacted." }
+      gen_ai.input.messages: { type: string, description: "JSON string per OTEL Input messages schema; only when content capture enabled." }
+      gen_ai.output.messages: { type: string, description: "JSON string per OTEL Output messages schema; only when content capture enabled." }
       error.type: { type: string, when: "if failed" }
     cardinality: "By default MUST avoid: raw prompts, full completions, tool arguments/results, conversation transcripts. SHOULD prefer: token counts, turn counts, tool counts, model/provider identifiers. When gentoro.llm.content.capture.enabled is true, MAY include gen_ai.input.messages and gen_ai.output.messages (and redacted variants when gentoro.llm.content.redaction.enabled is true) per OTEL GenAI events convention."
     optional_content_attributes:
@@ -963,7 +1004,10 @@ llm_call_model:
 
   events:
     gen_ai.turn:
-      description: "Model turn boundary"
+      description: >
+        Model turn boundary within this LLM span. gen_ai.turn.index orders steps inside one call
+        (e.g. user message, assistant, tool). It does not replace scenario YAML turn_index for
+        which enduser conversation round produced this trace.
       attributes: ["gen_ai.turn.index (int)", "gen_ai.turn.role (enum: system, user, assistant, tool)"]
     gen_ai.tool.request:
       description: "Model requested a tool"
@@ -1032,8 +1076,9 @@ tools_recommend_model:
       gentoro.mcp.selection.constraints: { type: enum, ref: "gentoro.mcp.selection.constraints" }
       gentoro.mcp.selection.latency.ms: { type: int }
       gentoro.mcp.selection.fallback.used: { type: boolean }
+      gen_ai.tool.name: { type: string, description: "Tool name selected for the task (OTEL GenAI). Single tool, or comma-separated when multiple are recommended in one phase." }
       error.type: { type: string, when: "if failed" }
-    cardinality: "MUST avoid: tool descriptions, tool schemas, raw selection reasoning, prompts/context. SHOULD prefer: counts, enum strategy/constraint, latency, fallback flags."
+    cardinality: "MUST avoid: tool descriptions, tool schemas, raw selection reasoning, prompts/context. SHOULD prefer: counts, enum strategy/constraint, latency, fallback flags, gen_ai.tool.name for the chosen tool(s)."
 
   enums:
     gentoro.step.outcome.tools_recommend:
@@ -1081,7 +1126,7 @@ mcp_tool_execution_model:
   span_hierarchy:
     description: "Required hierarchy"
     structure: |
-      gentoro.llm.call (CLIENT)
+      gentoro.task.execute (type=tool_execution, INTERNAL)
         └── gentoro.mcp.tool.execute (CLIENT)   ← Parent (logical call)
               ├── gentoro.mcp.tool.execute.attempt (CLIENT) ← Attempt #1
               ├── gentoro.mcp.tool.execute.attempt (CLIENT) ← Attempt #2
@@ -1090,19 +1135,18 @@ mcp_tool_execution_model:
   parent_span:
     name: "gentoro.mcp.tool.execute"
     kind: CLIENT
-    parent_required: "Active gentoro.llm.call span (preferred) or surrounding gentoro.task.execute span where gentoro.task.type=tool_execution"
+    parent_required: "gentoro.task.execute where gentoro.task.type=tool_execution"
     required_attributes:
       gentoro.span.class: { value: "mcp.tool.execute", type: string }
       gentoro.step.outcome: { type: enum, ref: "gentoro.step.outcome" }
       gentoro.mcp.server.uuid: { type: string, format: uuid }
       gentoro.mcp.tool.uuid: { type: string, format: uuid }
-      gentoro.mcp.tool.call.id: { type: string }
+      gen_ai.tool.call.id: { type: string, description: "Logical tool call identifier (OTEL GenAI); do not duplicate under gentoro.mcp.tool.call.id." }
+      gen_ai.tool.name: { type: string }
     recommended_attributes:
       gentoro.retry.count: { type: int, description: "Number of retries (attempts − 1)" }
       gentoro.retry.policy: { type: enum, ref: "gentoro.retry.policy" }
       gentoro.llm.tool.execution.count: { type: int, description: "Execution index of this logical tool call within the LLM interaction (1..N)." }
-      gen_ai.tool.call.id: { type: string }
-      gen_ai.tool.name: { type: string }
       error.type: { type: string, when: "if failed" }
 
   attempt_span:
@@ -1111,7 +1155,7 @@ mcp_tool_execution_model:
     parent_required: "The logical tool call span (gentoro.mcp.tool.execute)"
     required_attributes:
       gentoro.span.class: { value: "mcp.tool.execute.attempt", type: string }
-      gentoro.mcp.tool.call.id: { type: string, same_as_parent: true }
+      gen_ai.tool.call.id: { type: string, same_as_parent: true, description: "Same logical call id as parent gentoro.mcp.tool.execute (OTEL GenAI)." }
       gentoro.mcp.attempt.index: { type: int, description: "Attempt sequence number (1..N)" }
       gentoro.mcp.attempt.outcome: { type: enum, ref: "gentoro.mcp.attempt.outcome" }
     recommended_attributes:
@@ -1240,6 +1284,13 @@ common_attributes:
 # Set on gentoro.a2a.orchestrate only when the trace was generated with a
 # higher-latency scenario (same span as gentoro.orchestration.duration_ms).
 # Reference: https://opentelemetry.io/docs/specs/semconv/general/how-to-define-semantic-conventions/
+#
+# Scenario YAML latency_profile_conditions: use condition_key and a typed block.
+# First matching condition wins. Supported condition_key / block types (runner must
+# evaluate and set corresponding attributes): peak_hours (peak_hours.*), post_long_weekend
+# (post_long_weekend.days_after), claim_status_output, zip_code, appointment_scheduled,
+# throttle_policy, infra, upstream, cache_layer, route, extreme_tail. All condition
+# attributes below MUST use <vendor> prefix in scenario YAML (substituted at runtime).
 # -----------------------------------------------------------------------------
 higher_latency_condition_attributes:
   note: "Vendor extension (gentoro.*). No OTEL standard exists for this use case; these attributes follow OTEL guidance for custom attributes: namespaced prefix, typed, documented, optional."
@@ -1249,8 +1300,8 @@ higher_latency_condition_attributes:
     type: string
     required: false
     category: metadata
-    description: "Comma-separated list of condition keys that triggered higher-latency profile (e.g. peak_hours, post_long_weekend, claim_status_output, zip_code)."
-    examples: ["claim_status_output", "peak_hours,post_long_weekend"]
+    description: "Comma-separated list of condition keys that triggered higher-latency profile. Supported keys (for scenario latency_profile_conditions): peak_hours, post_long_weekend, claim_status_output, zip_code, appointment_scheduled, throttle_policy, infra, upstream, cache_layer, route, extreme_tail."
+    examples: ["claim_status_output", "peak_hours,post_long_weekend", "zip_code", "throttle_policy"]
 
   # Structured conditions (when present in scenario data_plane.higher_latency_condition)
   gentoro.higher_latency.peak_hours.timezone:
@@ -1291,7 +1342,55 @@ higher_latency_condition_attributes:
     required: false
     category: metadata
     description: "Example: zip code that triggered higher-latency for scheduling scenarios."
-    examples: ["90210"]
+    examples: ["90210", "10001"]
+
+  gentoro.higher_latency.condition.appointment_scheduled:
+    type: boolean
+    required: false
+    category: metadata
+    description: "When true, claim already has a technician booked; cancellation/reschedule flows use higher-latency profile (e.g. coordination with scheduling)."
+
+  # MCP latency incident cause attributes (scenario-defined; set when condition matches)
+  gentoro.higher_latency.condition.throttle_policy:
+    type: string
+    required: false
+    category: metadata
+    description: "Throttling policy that caused higher MCP latency (e.g. rate limit backpressure)."
+    examples: ["token_bucket"]
+
+  gentoro.higher_latency.condition.infra:
+    type: string
+    required: false
+    category: metadata
+    description: "Infrastructure factor that caused higher latency (e.g. cold starts, scale-to-zero)."
+    examples: ["serverless_autoscaling"]
+
+  gentoro.higher_latency.condition.upstream:
+    type: string
+    required: false
+    category: metadata
+    description: "Upstream dependency that caused queueing or saturation (e.g. DB, search, billing)."
+    examples: ["db_search_billing"]
+
+  gentoro.higher_latency.condition.cache_layer:
+    type: string
+    required: false
+    category: metadata
+    description: "Cache layer where misses caused higher latency (e.g. feature store)."
+    examples: ["feature_store"]
+
+  gentoro.higher_latency.condition.route:
+    type: string
+    required: false
+    category: metadata
+    description: "Network/routing factor (e.g. cross-region, failover path) that caused higher latency."
+    examples: ["failover_misroute"]
+
+  gentoro.higher_latency.condition.extreme_tail:
+    type: boolean
+    required: false
+    category: metadata
+    description: "When true, trace was generated with extreme-tail latency (rare high-duration spikes for SLO/alerting tests)."
 
 # =============================================================================
 # SPAN-SPECIFIC ATTRIBUTES
@@ -1573,11 +1672,11 @@ mcp_tool_attempt_attributes:
     description: "Span class. Value: mcp.tool.execute.attempt (MUST)."
     allowed_values: ["mcp.tool.execute.attempt"]
 
-  gentoro.mcp.tool.call.id:
+  gen_ai.tool.call.id:
     type: string
     required: true
     category: first_class
-    description: "Stable ID for this logical tool call; shared with parent."
+    description: "Logical tool call identifier (OTEL GenAI); MUST match parent gentoro.mcp.tool.execute."
     examples: ["call_100", "call_102"]
 
   gentoro.mcp.attempt.index:
@@ -1654,11 +1753,11 @@ mcp_tool_attributes:
     description: "MCP tool identifier (UUID)."
     examples: ["11111111-1111-4eec-8001-000000000011"]
 
-  gentoro.mcp.tool.call.id:
+  gen_ai.tool.call.id:
     type: string
     required: true
     category: first_class
-    description: "Stable ID for this logical tool call; shared across parent and all attempt spans."
+    description: "Stable logical tool call id for this MCP invocation (OTEL GenAI). Use this instead of a separate gentoro.mcp.tool.call.id."
     examples: ["call_100", "call_101"]
 
   gentoro.retry.count:
@@ -1678,19 +1777,12 @@ mcp_tool_attributes:
   # OTEL GenAI tool attributes (tool name and call id only)
   gen_ai.tool.name:
     type: string
-    required: false
+    required: true
     category: first_class
-    description: "Stable tool name. SHOULD set on parent span; correlates to LLM tool request."
+    description: "Stable tool name; correlates to LLM tool request."
     examples: ["claims.getClaimStatus", "slack.sendMessage", "customer_profile_lookup"]
 
-  gen_ai.tool.call.id:
-    type: string
-    required: false
-    category: first_class
-    description: "Tool call identifier"
-    examples: ["call_mszuSIzqtI65i1wAUOE8w5H4"]
-
-  # gen_ai.tool.call.arguments and gen_ai.tool.call.result are NOT on the parent; they are on gentoro.mcp.tool.execute.attempt only.
+  # gen_ai.tool.call.id is required on this span (see block above). gen_ai.tool.call.arguments / .result are on gentoro.mcp.tool.execute.attempt only.
 
   # OTEL standard; set when span is in error (status.code=ERROR). See error_recording.
   error.type:
@@ -1806,6 +1898,13 @@ tools_recommend_attributes:
     category: first_class
     description: "Whether fallback/default selection was used."
 
+  gen_ai.tool.name:
+    type: string
+    required: false
+    category: first_class
+    description: "Recommended MCP tool name for this recommendation phase (OTEL GenAI; same attribute as on mcp.tool.execute). Multiple tools in one phase: comma-separated, stable order."
+    applies_to: ["tools.recommend"]
+
   gentoro.tools.recommended.source:
     type: string
     required: false
@@ -1894,8 +1993,16 @@ llm_call_attributes:
     type: int
     required: false
     category: first_class
-    description: "Number of turns in this LLM interaction."
-    examples: [1, 4]
+    description: >
+      Cardinality of turns attributed to this LLM invocation (analytics / capacity), not the OTEL
+      gen_ai.turn.index on events and not a duplicate of YAML turn_index on the span (see
+      llm_call_model.scenario_turn_context). Simulator: explicit gentoro.llm.turn.count in scenario
+      YAML wins; else max(scenario_turn_index, effective_input_message_count) where scenario_turn_index
+      is the turn's turn_index (1-based per enduser turns; default list order), and
+      effective_input_message_count is len(gen_ai.input.messages) when provided in YAML, else 1 when
+      content capture is enabled and vendor.enduser.request.raw is set (one synthesized user message),
+      else 0 (attribute value is scenario_turn_index only).
+    examples: [1, 3, 6]
 
   gentoro.llm.tool.request.count:
     type: int
@@ -2057,6 +2164,13 @@ diagnostic_event_attributes:
 # Validation details as events; enums from model (gentoro.request.outcome, gentoro.response.outcome, etc.).
 # -----------------------------------------------------------------------------
 cp_request_attributes:
+  gentoro.request.id:
+    type: string
+    required: true
+    category: first_class
+    description: "Logical request correlation ID for control-plane request validation."
+    examples: ["req_6afa08", "req_9b31c1f2"]
+
   # Normative outcome enums (control_plane_validation_model)
   gentoro.request.outcome:
     type: string
@@ -2159,6 +2273,20 @@ cp_request_attributes:
     required: false
     category: first_class
     description: "Augmentation action for conversation ID (low-cardinality)."
+    allowed_values: ["created", "propagated", "attached", "missing"]
+
+  gentoro.augment.request_id.action:
+    type: string
+    required: false
+    category: first_class
+    description: "Augmentation action for request ID (low-cardinality)."
+    allowed_values: ["created", "propagated", "attached", "missing"]
+
+  gentoro.augment.enduser_id.action:
+    type: string
+    required: false
+    category: first_class
+    description: "Augmentation action for end-user pseudo ID (low-cardinality)."
     allowed_values: ["created", "propagated", "attached", "missing"]
 
   gentoro.augment.target_agent_id.action:
