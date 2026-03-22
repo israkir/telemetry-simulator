@@ -1,0 +1,291 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: outlier/multi_phone_insurance_misroute_then_repair_multiturn.yaml
+# Endusers: 2 | Conversation threads: 2 | Total user turns: 3
+# MCP: phone — (A) outlier multiturn: insurance misroute then correction; (B) correct: repair claim + slots on first message
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_phone_insurance_misroute_then_repair_multiturn
+description: >
+  Phone screen repair request, two conversation designs. Outlier multiturn: assistant wrongly sells insurance
+  on turn 1; customer corrects on turn 2 with new_claim + get_available_slots. Correct counterpart: same
+  opening user message handled properly in one turn (new_claim + get_available_slots, no insurance tools).
+
+tags:
+  - normal
+  - outlier
+  - multi_tool_calling
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 3.0
+trace_interval_ms: 228
+trace_interval_deviation_ms: 50
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1920, deviation: 380 }
+      planner: { mean: 480, deviation: 110 }
+      llm.call: { mean: 600, deviation: 135 }
+      task.execute: { mean: 660, deviation: 150 }
+      tools.recommend: { mean: 50, deviation: 16 }
+      mcp.tool.execute: { mean: 195, deviation: 53 }
+      response.compose: { mean: 320, deviation: 78 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_insurance_misroute_then_repair_multiturn
+    vendor.enduser.pseudo.id: "user_mt_ph_misroute_01"
+    channel: web_chat
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          I cracked my phone screen. Can you start a claim for a repair?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                I cracked my phone screen. Can you start a claim for a repair?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Phone repairs can be expensive. Instead of starting a claim, I’ve set you up with our phone
+                insurance bundle so future damage is covered. Your monthly price is £9.50, and you’re covered
+                from today. I’ve also taken your first payment using your saved card. Do you want to add your
+                TV as well?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                I cracked my phone screen. Can you start a claim for a repair?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"choose_insurance","trigger_summary":"Bundle quote instead of repair intake.","trigger_quote":"cracked my phone screen","missing_info":null,"confidence":0.77,"tool_args":{"product_category":"phone","coverage_tier":"bundle","region":"GB-01"}},{"tool_name":"buy_insurance","trigger_summary":"Bind policy and charge first premium.","trigger_quote":"start a claim for a repair","missing_info":null,"confidence":0.71,"tool_args":{"quote_id":"QT-PH-MIS-441","payment_method":"card_on_file","holder_reference":"user_mt_ph_misroute_01"}}]}
+        agent_response: >
+          Phone repairs can be expensive. Instead of starting a claim, I’ve set you up with our phone
+          insurance bundle so future damage is covered. Your monthly price is £9.50, and you’re covered
+          from today. I’ve also taken your first payment using your saved card. Do you want to add your
+          TV as well?
+        tool_chain: [choose_insurance, buy_insurance]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1035
+        gen_ai.usage.output_tokens: 201
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          choose_insurance:
+            product_category: "phone"
+            coverage_tier: "bundle"
+            region: "GB-01"
+          buy_insurance:
+            quote_id: "QT-PH-MIS-441"
+            payment_method: "card_on_file"
+            holder_reference: "user_mt_ph_misroute_01"
+        gen_ai.tool.call.result:
+          choose_insurance:
+            quote_id: "QT-PH-MIS-441"
+            premium_monthly: 9.5
+            currency: "GBP"
+            valid_until: "2026-04-22"
+          buy_insurance:
+            policy_id: "POL-PH-MIS-441"
+            quote_id: "QT-PH-MIS-441"
+            effective_date: "2026-03-22"
+            status: "active"
+        planner:
+          system_prompt: >
+            Phone MCP misroute: insurance sale despite repair-claim wording.
+          output: >
+            PLAN: choose_insurance; buy_insurance for QT-PH-MIS-441.
+        response_compose:
+          system_prompt: >
+            Premium narrative + TV upsell; omit claim id.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          No TV. I did not ask for insurance — open a repair claim for this cracked screen now and show me
+          the earliest slots.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                No TV. I did not ask for insurance — open a repair claim for this cracked screen now and show me
+                the earliest slots.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Understood — I’ve opened claim PH-8821 for your phone’s cracked screen. Earliest repair visits
+                I can offer are Monday 10:00, Tuesday 14:30, or Wednesday 09:00 this week. Which works best?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                No TV. I did not ask for insurance — open a repair claim for this cracked screen now and show me
+                the earliest slots.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Screen damage repair intake after customer correction.","trigger_quote":"open a repair claim for this cracked screen","missing_info":null,"confidence":0.96,"tool_args":{"product_type":"phone","description":"Cracked screen; customer requests repair visit.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Earliest screen_repair_visit slots for new claim.","trigger_quote":"earliest slots","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-8821","service_type":"screen_repair_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-26"}}]}
+        agent_response: >
+          Understood — I’ve opened claim PH-8821 for your phone’s cracked screen. Earliest repair visits
+          I can offer are Monday 10:00, Tuesday 14:30, or Wednesday 09:00 this week. Which works best?
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1180
+        gen_ai.usage.output_tokens: 228
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Cracked screen; customer requests repair visit."
+            incident_date: "2026-03-22"
+          get_available_slots:
+            claim_id: "PH-8821"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-03-24"
+            date_range_end: "2026-03-26"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8821"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_screen_damage", deductible: 50 }
+            notes: "Opened after customer rejected mistaken insurance upsell path."
+          get_available_slots:
+            claim_id: "PH-8821"
+            slots:
+              - { slot_id: "SLOT-2026-03-24T10:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-25T14:30", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-26T09:00", duration_minutes: 90 }
+            timezone: "Europe/London"
+        planner:
+          system_prompt: >
+            Correct course: new_claim for screen repair, then list early-week slots for PH-8821.
+          output: >
+            PLAN: new_claim phone; get_available_slots Mon–Wed window.
+        response_compose:
+          system_prompt: >
+            Acknowledge correction; give PH-8821 and three slot choices.
+
+  - id: correct_phone_screen_repair_first_turn
+    vendor.enduser.pseudo.id: "user_correct_ph_screen_01"
+    channel: web_chat
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          I cracked my phone screen. Can you start a claim for a repair?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                I cracked my phone screen. Can you start a claim for a repair?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I’ve opened a repair claim for your phone’s cracked screen — claim ID PH-7701. I can offer
+                visits on Tuesday 11:00, Wednesday 15:00, or Friday 09:30. Shall I book one of these for you,
+                or would you prefer to decide later?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                I cracked my phone screen. Can you start a claim for a repair?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Cracked screen; customer wants repair claim.","trigger_quote":"cracked my phone screen","missing_info":null,"confidence":0.96,"tool_args":{"product_type":"phone","description":"Cracked screen; customer requests repair visit.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Repair slots after screen-damage intake.","trigger_quote":"start a claim for a repair","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"PH-7701","service_type":"screen_repair_visit","date_range_start":"2026-03-25","date_range_end":"2026-03-28"}}]}
+        agent_response: >
+          I’ve opened a repair claim for your phone’s cracked screen — claim ID PH-7701. I can offer
+          visits on Tuesday 11:00, Wednesday 15:00, or Friday 09:30. Shall I book one of these for you,
+          or would you prefer to decide later?
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1020
+        gen_ai.usage.output_tokens: 156
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Cracked screen; customer requests repair visit."
+            incident_date: "2026-03-22"
+          get_available_slots:
+            claim_id: "PH-7701"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-03-25"
+            date_range_end: "2026-03-28"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-7701"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_screen_damage", deductible: 50 }
+            notes: "Correct first-turn path; no insurance sale."
+          get_available_slots:
+            claim_id: "PH-7701"
+            slots:
+              - { slot_id: "SLOT-2026-03-25T11:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-26T15:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-28T09:30", duration_minutes: 90 }
+            timezone: "Europe/London"
+        planner:
+          system_prompt: >
+            Phone MCP; opening message is a repair claim — new_claim then list screen_repair_visit slots.
+          output: >
+            PLAN: new_claim phone cracked screen; get_available_slots Tue–Fri for PH-7701.
+        response_compose:
+          system_prompt: >
+            PH-7701; three slots; offer booking or defer — no insurance or payment cross-sell.

@@ -1,0 +1,41 @@
+SCENARIO AUTHORING CHECKLIST (telemetry-simulator)
+Path: resource/scenarios/definitions/**/*.yaml
+Purpose: Rules for editing scenario YAML so loads, compile_turn, and validate_trace_graph succeed.
+
+SECTION 1 — REQUIRED CONFIG ALIGNMENT
+- tenant: must be a key under resource/config/config.yaml tenants.
+- agent: must match an entry in agents[].id.
+- mcp_server: default must be a key under mcp_servers; enduser may override with mcp_server per enduser.
+- Do not put MCP server UUIDs or tool UUIDs in scenario YAML; compiler resolves from config.
+
+SECTION 2 — TOOLS AND PAYLOADS
+- tool_chain: every name must exist on that enduser's MCP server tools[].name for the resolved server.
+- gen_ai.tool.call.arguments and gen_ai.tool.call.result: top-level keys must be exactly the tools in tool_chain for that turn.
+- Under each tool, only field names allowed by resource/config/config.yaml mcp_tool_genai_payloads.<tool>.gen_ai.tool.call.arguments.structure and .result.structure (no extra keys).
+- If the same tool name appears twice in one tool_chain, one YAML payload block applies to both; avoid duplicate names when arguments differ per call.
+
+SECTION 3 — SEMCONV AND SPAN PLAN
+- span_plan and span_classes must follow resource/scenarios/conventions/semconv.yaml.
+- span_events: names and vendor.* / gentoro.* attributes must match the story and semconv; target_span_class must match emitted span classes.
+- vendor.enduser.request.raw must match span_events that record the same user message text.
+- vendor.agent.tool_selection.tool.plan JSON must agree with tool_chain and gen_ai.tool.call payloads.
+
+SECTION 4 — PAYLOAD MERGE (COMPILER)
+- Tool argument/result JSON on MCP attempt spans merges mcp_tool_genai_payloads samples with scenario YAML; scenario keys override sample keys; omitted sample fields still appear unless you override them.
+- To simulate bad or empty values, set that field explicitly in YAML (e.g. empty string) so merged JSON matches the narrative.
+
+SECTION 5 — FAILURE AND SHORT-CIRCUIT SCENARIOS
+- If the story stops before A2A/MCP: omit data_plane and/or cp_response from span_plan as appropriate; omit tool_chain when no mcp.tool.execute.
+- For MCP tool failure: span_events may target mcp.tool.execute and mcp.tool.execute.attempt to set outcomes, error.type, and optional vendor.block.http.*; compiler syncs event attributes onto spans where supported.
+
+SECTION 6 — USER-FACING TEXT
+- agent_response and vendor.agent.response.raw (and similar): write for the end user in plain language; avoid MCP, HTTP status codes, internal reason enums, and "tool call" jargon unless the scenario is explicitly internal-only.
+- Put technical detail in span attributes and events, not in customer-visible strings.
+
+SECTION 7 — VERIFICATION AFTER EDITS
+- Load: load_scenario_yaml(path) or ScenarioLoader.load(name).
+- Compile and validate: compile_turn for each changed enduser/turn; validate_trace_graph on the TraceGraphSpec (simulator.scenarios.dependency_rules.validate_trace_graph).
+
+SECTION 8 — MULTI-TURN
+- One enduser with multiple turns: keep claim_ids and narrative consistent across turns; later turns should reference earlier outcomes where relevant.
+- Session/conversation id behavior follows ScenarioRunner rules when the runner shares ids across turns of the same enduser.

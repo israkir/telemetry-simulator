@@ -1,0 +1,89 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: request_validation/invalid_payload_multi_blocked.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: single ingress attempt; blocked before data plane
+# MCP / tools: none (control-plane short-circuit)
+# Path: multiple payload/schema violations in one request
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: invalid_payload_multi_blocked
+description: >
+  Incoming request is blocked during request validation because payload checks
+  detect multiple schema violations in a single request.
+
+tags:
+  - request-validation
+  - control-plane
+  - blocked
+  - invalid-payload
+  - multi-error
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 20
+repeat_count: 1
+
+# Slightly heavier payload validation (multiple errors) on top of ingress work.
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 38, deviation: 14 }
+      payload.validation: { mean: 34, deviation: 14 }
+
+default_latency_profile: normal
+
+endusers:
+  - id: user_f
+    vendor.enduser.pseudo.id: "user_93a1d7"
+    turns:
+      - turn_index: 1
+        span_plan:
+          cp_request:
+            root: request.validation
+            children:
+              - payload.validation
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Start a claim for my phone. The request has multiple payload format issues."
+          - target_span_class: request.validation
+            name: gentoro.request.blocked
+            attributes:
+              vendor.request.outcome: blocked
+              vendor.block.reason: invalid_payload
+          - target_span_class: payload.validation
+            name: gentoro.validation.payload.result
+            attributes:
+              vendor.step.outcome: fail
+              vendor.validation.result: invalid
+          - target_span_class: payload.validation
+            name: gentoro.validation.error
+            attributes:
+              vendor.validation.error.path: "$.messages"
+              vendor.validation.error.rule: minItems
+              vendor.validation.error.code: too_few_items
+          - target_span_class: payload.validation
+            name: gentoro.validation.error
+            attributes:
+              vendor.validation.error.path: "$.model"
+              vendor.validation.error.rule: enum
+              vendor.validation.error.code: invalid_enum
+          - target_span_class: payload.validation
+            name: gentoro.validation.error
+            attributes:
+              vendor.validation.error.path: "$.messages[0].role"
+              vendor.validation.error.rule: enum
+              vendor.validation.error.code: invalid_enum
+        vendor.enduser.request.raw: "Start a claim for my phone. The request has multiple payload format issues."

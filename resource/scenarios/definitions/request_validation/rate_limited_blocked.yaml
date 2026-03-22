@@ -1,0 +1,83 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: request_validation/rate_limited_blocked.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: single ingress attempt; blocked at request.validation (rate limit)
+# MCP / tools: none (earliest short-circuit)
+# Path: rate-limit policy triggered before deeper validation
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: rate_limited_blocked
+description: >
+  Incoming request is blocked during request validation because rate-limiting
+  policy is triggered for the current request window.
+
+tags:
+  - request-validation
+  - control-plane
+  - blocked
+  - rate-limited
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 20
+repeat_count: 1
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 52, deviation: 18 }
+      payload.validation: { mean: 22, deviation: 10 }
+      policy.validation: { mean: 28, deviation: 12 }
+
+default_latency_profile: normal
+
+endusers:
+  - id: user_g
+    vendor.enduser.pseudo.id: "user_b8d944"
+    turns:
+      - turn_index: 1
+        span_plan:
+          cp_request:
+            root: request.validation
+            children:
+              - payload.validation
+              - policy.validation
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Start a claim for my damaged phone. I retried this request several times."
+          - target_span_class: request.validation
+            name: gentoro.request.blocked
+            attributes:
+              vendor.request.outcome: blocked
+              vendor.block.reason: rate_limited
+              vendor.block.stage: request_validation
+              vendor.block.http.status_code: 429
+              vendor.block.http.error_type: too_many_requests
+          - target_span_class: payload.validation
+            name: gentoro.validation.payload.result
+            attributes:
+              vendor.step.outcome: pass
+              vendor.validation.result: valid
+          - target_span_class: policy.validation
+            name: gentoro.validation.policy.decision
+            attributes:
+              # Use fail (not step value "block") so GentoroStatusDeriver maps to BLOCKED_BY_POLICY_EVALUATION.
+              vendor.step.outcome: fail
+              vendor.policy.engine: abac
+              vendor.policy.decision: block
+              vendor.policy.reason: rate_limit_window_exceeded
+              vendor.policy.severity: medium
+        vendor.enduser.request.raw: "Start a claim for my damaged phone. I retried this request several times."

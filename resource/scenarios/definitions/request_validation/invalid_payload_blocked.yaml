@@ -1,0 +1,88 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: request_validation/invalid_payload_blocked.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: single ingress attempt; blocked before data plane
+# MCP / tools: none (span_plan ends after payload.validation short-circuit)
+# Path: invalid payload — request.validation + payload.validation + block events only
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+#
+# Phone MCP context, blocked request-validation path. Aligned with
+# resource/scenarios/conventions/semconv.yaml and config-backed IDs/context.
+name: invalid_payload_blocked
+description: >
+  Incoming request is blocked during request validation because the payload
+  misses required message content. The scenario keeps context realistic for
+  Toro phone claims while representing a validation short-circuit path.
+
+tags:
+  - normal
+  - control-plane
+  - blocked
+  - invalid-payload
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+# Semconv-aligned redaction state; generator should set <vendor>.redaction.applied on spans,
+# where <vendor> is substituted at runtime.
+vendor.redaction.applied: none
+
+workload_weight: 1.0
+
+# Interval between generated traces in milliseconds.
+trace_interval_ms: 200
+# Random jitter (+/-) applied to interval_ms for more realistic arrival patterns.
+trace_interval_deviation_ms: 20
+repeat_count: 1
+
+# Control-plane timings (ms): ingress/normalization + JSON/schema validation (short-circuit on invalid payload).
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 38, deviation: 14 }
+      payload.validation: { mean: 26, deviation: 11 }
+
+default_latency_profile: normal
+
+# Endusers: one shape only. Each has id, vendor.enduser.pseudo.id, optional labels (e.g. channel),
+# and turns[]. Session and conversation ids are generated using id_formats from config.yaml.
+endusers:
+  - id: user_b
+    vendor.enduser.pseudo.id: "user_48fa19"
+    turns:
+      - turn_index: 1
+        # Presence-driven span contract: omitted span classes should not be emitted.
+        span_plan:
+          cp_request:
+            root: request.validation
+            children:
+              - payload.validation
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Start a claim for my dropped phone. The request body is missing the message content field."
+          - target_span_class: request.validation
+            name: gentoro.request.blocked
+            attributes:
+              vendor.request.outcome: blocked
+              vendor.block.reason: invalid_payload
+              vendor.block.stage: payload_validation
+              vendor.block.http.status_code: 400
+              vendor.block.http.error_type: bad_request
+          - target_span_class: payload.validation
+            name: gentoro.validation.error
+            attributes:
+              vendor.validation.error.path: "$.messages[0].content"
+              vendor.validation.error.rule: required
+              vendor.validation.error.code: missing_field
+              vendor.validation.error.severity: error
+              vendor.validation.schema: a2a.request.v1
+              vendor.validation.result: invalid
+        vendor.enduser.request.raw: "Start a claim for my dropped phone. The request body is missing the message content field."

@@ -1,0 +1,160 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/mcp_tool_retries_exhausted_failed.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: one user message → two MCP tools; second tool exhausts retries (all attempts fail)
+# MCP: phone — claim_status (1× success) → pay (3× fail; exponential_jitter; final error.type on parent)
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: mcp_tool_retries_exhausted_failed
+description: >
+  Customer pays the policy excess on a phone glass claim: status check succeeds, then the payment MCP
+  call retries through unavailable, rate limiting, and a hard tool error — all attempts fail and the
+  logical tool span ends in fail with the last error class on the parent.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1900, deviation: 360 }
+      planner: { mean: 440, deviation: 100 }
+      llm.call: { mean: 520, deviation: 120 }
+      task.execute: { mean: 640, deviation: 140 }
+      tools.recommend: { mean: 48, deviation: 15 }
+      mcp.tool.execute: { mean: 280, deviation: 75 }
+      response.compose: { mean: 300, deviation: 70 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: mcp_tool_retries_exhausted_failed
+    vendor.enduser.pseudo.id: "user_ph_pay_retry_fail_22"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Claim PH-8820 for the cracked glass — the portal says I owe the ninety-five pound excess.
+          Can you confirm it’s ready to collect and charge that to my card on file?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Claim PH-8820 for the cracked glass — the portal says I owe the ninety-five pound excess.
+                Can you confirm it’s ready to collect and charge that to my card on file?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-8820 is waiting on the glass excess. I wasn’t able to finish the card charge just now;
+                please try again in a little while or pay in the app when you have a moment.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Claim PH-8820 for the cracked glass — the portal says I owe the ninety-five pound excess.
+                Can you confirm it’s ready to collect and charge that to my card on file?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim state and excess readiness.","trigger_quote":"Claim PH-8820","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"PH-8820"}},{"tool_name":"pay","trigger_summary":"Collect ninety-five GBP glass excess on file.","trigger_quote":"ninety-five pound excess","missing_info":null,"confidence":0.86,"tool_args":{"payment_target":"excess","reference_id":"PH-8820","amount":95.0,"currency":"GBP"}}]}
+        agent_response: >
+          PH-8820 is waiting on the glass excess. I wasn’t able to finish the card charge just now;
+          please try again in a little while or pay in the app when you have a moment.
+        tool_chain: [claim_status, pay]
+        mcp_tool_retries:
+          pay:
+            policy: exponential_jitter
+            attempts:
+              - outcome: fail
+                error.type: unavailable
+              - outcome: fail
+                error.type: rate_limited
+                gentoro.retry.reason: rate_limited
+                gentoro.retry.backoff.ms: 320
+              - outcome: fail
+                error.type: tool_error
+                gentoro.retry.reason: transient_error
+                gentoro.retry.backoff.ms: 750
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1180
+        gen_ai.usage.output_tokens: 360
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-8820"
+          pay:
+            payment_target: "excess"
+            reference_id: "PH-8820"
+            amount: 95.0
+            currency: "GBP"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-8820"
+            status: "pending_payment"
+            last_updated: "2026-03-21T14:22:00Z"
+            milestones:
+              - intake_complete
+              - assessor_approved
+              - excess_due
+          pay:
+            payment_id: "PAY-PH-8820-PEND"
+            reference_id: "PH-8820"
+            status: "not_captured"
+            amount: 95.0
+            currency: "GBP"
+        planner:
+          system_prompt: >
+            Toro phone planner: confirm PH-8820 status then charge glass excess via pay tool.
+          output: >
+            PLAN: claim_status PH-8820; pay excess 95 GBP; on payment failure offer app retry.
+        response_compose:
+          system_prompt: >
+            Calm, practical wording; no payment gateway codes or tool names.

@@ -1,0 +1,209 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: outlier/outlier_tv_claim_status_instead_of_new_claim.yaml
+# Endusers: 2 | Conversation threads: 2 | Total user turns: 2
+# MCP: electronics — (1) outlier: claim_status only on old EV-2291; (2) correct: new_claim + slots for new smash
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: outlier_tv_claim_status_instead_of_new_claim
+description: >
+  Paired flows for the same user wording (new TV damage claim). Outlier: assistant only runs claim_status
+  on completed EV-2291. Correct counterpart: new_claim for the fall / smashed screen plus
+  get_available_slots for engineer visits.
+
+tags:
+  - outlier
+  - unexpected_behavior
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: electronics
+
+vendor.redaction.applied: none
+
+workload_weight: 1.6
+trace_interval_ms: 205
+trace_interval_deviation_ms: 45
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1320, deviation: 280 }
+      planner: { mean: 400, deviation: 95 }
+      llm.call: { mean: 480, deviation: 110 }
+      task.execute: { mean: 520, deviation: 125 }
+      tools.recommend: { mean: 44, deviation: 14 }
+      mcp.tool.execute: { mean: 175, deviation: 48 }
+      response.compose: { mean: 290, deviation: 68 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_electronics_span_plan: &electronics_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: outlier_tv_claim_status_instead_of_new_claim
+    vendor.enduser.pseudo.id: "user_outlier_ev_status_02"
+    channel: web_chat
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *electronics_span_plan
+        vendor.enduser.request.raw: >
+          My TV fell over and the screen smashed. I need to make a new claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                My TV fell over and the screen smashed. I need to make a new claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I’ve checked your existing records and found claim EV-2291, which is already completed. The
+                technician visit is closed and no further action is pending. Is there anything else you want
+                to know about that claim?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                My TV fell over and the screen smashed. I need to make a new claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Lookup prior TV claim on file instead of new intake.","trigger_quote":"make a new claim","missing_info":null,"confidence":0.81,"tool_args":{"claim_id":"EV-2291"}}]}
+        agent_response: >
+          I’ve checked your existing records and found claim EV-2291, which is already completed. The
+          technician visit is closed and no further action is pending. Is there anything else you want
+          to know about that claim?
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 890
+        gen_ai.usage.output_tokens: 112
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "EV-2291"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "EV-2291"
+            status: "closed"
+            last_updated: "2026-02-14T16:40:00Z"
+            milestones:
+              - technician_visit_complete
+              - claim_closed
+              - no_pending_action
+        planner:
+          system_prompt: >
+            Electronics MCP misroute: user requests new_claim narrative; model only queries claim_status EV-2291.
+          output: >
+            PLAN: claim_status EV-2291 only; do not open a new claim.
+        response_compose:
+          system_prompt: >
+            Summarize completed claim and closed visit; offer help on that claim only.
+
+  - id: correct_tv_new_claim_screen_smash
+    vendor.enduser.pseudo.id: "user_correct_ev_newclaim_02"
+    channel: web_chat
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *electronics_span_plan
+        vendor.enduser.request.raw: >
+          My TV fell over and the screen smashed. I need to make a new claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                My TV fell over and the screen smashed. I need to make a new claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I’ve opened claim EV-6602 for your TV after the fall and screen damage. I can send an engineer
+                to assess it — available visits include Thursday 09:00, Friday 13:00, or Saturday 10:00 next
+                week. Would you like me to book one of these?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                My TV fell over and the screen smashed. I need to make a new claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"TV tipped; panel smashed; new intake.","trigger_quote":"TV fell over and the screen smashed","missing_info":null,"confidence":0.96,"tool_args":{"product_type":"tv","description":"Physical fall; screen smashed; customer requests repair assessment.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Engineer home visits after new TV damage claim.","trigger_quote":"make a new claim","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"EV-6602","service_type":"engineer_home_visit","date_range_start":"2026-03-27","date_range_end":"2026-03-29"}}]}
+        agent_response: >
+          I’ve opened claim EV-6602 for your TV after the fall and screen damage. I can send an engineer
+          to assess it — available visits include Thursday 09:00, Friday 13:00, or Saturday 10:00 next
+          week. Would you like me to book one of these?
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 940
+        gen_ai.usage.output_tokens: 168
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "tv"
+            description: "Physical fall; screen smashed; customer requests repair assessment."
+            incident_date: "2026-03-22"
+          get_available_slots:
+            claim_id: "EV-6602"
+            service_type: "engineer_home_visit"
+            date_range_start: "2026-03-27"
+            date_range_end: "2026-03-29"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EV-6602"
+            product_type: "tv"
+            status: "opened"
+            coverage: { type: "tv_accidental_damage", deductible: 85 }
+            notes: "Correct path: new incident; engineer visit options offered."
+          get_available_slots:
+            claim_id: "EV-6602"
+            slots:
+              - { slot_id: "SLOT-2026-03-27T09:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-03-28T13:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-03-29T10:00", duration_minutes: 120 }
+            timezone: "Europe/London"
+        planner:
+          system_prompt: >
+            Electronics MCP; user explicitly needs a new claim for TV physical damage; offer engineer slots.
+          output: >
+            PLAN: new_claim tv fall/smash; get_available_slots engineer_home_visit end of week window.
+        response_compose:
+          system_prompt: >
+            Claim id EV-6602; three visit options; offer to book.

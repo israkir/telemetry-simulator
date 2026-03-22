@@ -8,6 +8,23 @@ Supports both HTTP and gRPC protocols.
 from typing import Any
 
 
+def _normalize_http_base_endpoint(endpoint: str) -> str:
+    """
+    Normalize an OTLP HTTP base endpoint URL.
+
+    The simulator CLI passes a single `--endpoint` value to all exporters. Users may
+    include an OTLP signal suffix (e.g. `/v1/traces`) in that value; we strip any known
+    signal suffix so each exporter can append its correct `/v1/<signal>` path.
+    """
+
+    e = endpoint.strip().rstrip("/")
+    for suffix in ("/v1/traces", "/v1/metrics", "/v1/logs"):
+        if e.endswith(suffix):
+            e = e[: -len(suffix)].rstrip("/")
+            break
+    return e
+
+
 def create_otlp_trace_exporter(
     endpoint: str = "http://localhost:4318",
     protocol: str = "http",
@@ -39,9 +56,7 @@ def create_otlp_trace_exporter(
             OTLPSpanExporter,
         )
 
-        traces_endpoint = endpoint
-        if not traces_endpoint.endswith("/v1/traces"):
-            traces_endpoint = f"{endpoint}/v1/traces"
+        traces_endpoint = f"{_normalize_http_base_endpoint(endpoint)}/v1/traces"
         return OTLPSpanExporter(
             endpoint=traces_endpoint,
             headers=headers,
@@ -80,9 +95,7 @@ def create_otlp_metric_exporter(
             OTLPMetricExporter,
         )
 
-        metrics_endpoint = endpoint
-        if not metrics_endpoint.endswith("/v1/metrics"):
-            metrics_endpoint = f"{endpoint}/v1/metrics"
+        metrics_endpoint = f"{_normalize_http_base_endpoint(endpoint)}/v1/metrics"
         return OTLPMetricExporter(
             endpoint=metrics_endpoint,
             headers=headers,
@@ -121,9 +134,7 @@ def create_otlp_log_exporter(
             OTLPLogExporter,
         )
 
-        logs_endpoint = endpoint
-        if not logs_endpoint.endswith("/v1/logs"):
-            logs_endpoint = f"{endpoint}/v1/logs"
+        logs_endpoint = f"{_normalize_http_base_endpoint(endpoint)}/v1/logs"
         return OTLPLogExporter(
             endpoint=logs_endpoint,
             headers=headers,

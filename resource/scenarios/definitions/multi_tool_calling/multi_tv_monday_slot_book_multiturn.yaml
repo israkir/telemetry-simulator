@@ -1,0 +1,196 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_tv_monday_slot_book_multiturn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# MCP: electronics — TV claim EV-3301, engineer slots next Monday, book 16:00
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_tv_monday_slot_book_multiturn
+description: >
+  TV black screen with sound: claim EV-3301, next Monday 10:00 and 16:00 engineer slots, customer picks 16:00.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 2.4
+trace_interval_ms: 235
+trace_interval_deviation_ms: 52
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 2050, deviation: 410 }
+      planner: { mean: 505, deviation: 118 }
+      llm.call: { mean: 630, deviation: 142 }
+      task.execute: { mean: 690, deviation: 158 }
+      tools.recommend: { mean: 51, deviation: 17 }
+      mcp.tool.execute: { mean: 205, deviation: 56 }
+      response.compose: { mean: 350, deviation: 85 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_tv_monday_slot_book_multiturn
+    vendor.enduser.pseudo.id: "user_mt_tv_monday_04"
+    channel: web_chat
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          My TV screen went black but I can still hear sound. Can you open a claim and get me something next
+          Monday?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                My TV screen went black but I can still hear sound. Can you open a claim and get me something next
+                Monday?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I’ve opened a claim for your TV with audio-only and no picture. Your claim ID is EV-3301. Next
+                Monday I have 10:00 and 16:00 available. Which of those times do you prefer?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                My TV screen went black but I can still hear sound. Can you open a claim and get me something next
+                Monday?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"TV black screen; audio present; visit next Monday.","trigger_quote":"screen went black","missing_info":null,"confidence":0.93,"tool_args":{"product_type":"tv","description":"Picture black; audio still working.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Engineer home visit next Monday.","trigger_quote":"next Monday","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"EV-3301","service_type":"engineer_home_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-24"}}]}
+        agent_response: >
+          I’ve opened a claim for your TV with audio-only and no picture. Your claim ID is EV-3301. Next
+          Monday I have 10:00 and 16:00 available. Which of those times do you prefer?
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1160
+        gen_ai.usage.output_tokens: 210
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "tv"
+            description: "Picture black; audio still working."
+            incident_date: "2026-03-22"
+          get_available_slots:
+            claim_id: "EV-3301"
+            service_type: "engineer_home_visit"
+            date_range_start: "2026-03-24"
+            date_range_end: "2026-03-24"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EV-3301"
+            product_type: "tv"
+            status: "opened"
+            coverage: { type: "tv_panel_fault", deductible: 50 }
+            notes: "Monday engineer slots offered."
+          get_available_slots:
+            claim_id: "EV-3301"
+            slots:
+              - { slot_id: "SLOT-2026-03-24T10:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-03-24T16:00", duration_minutes: 120 }
+            timezone: "Europe/London"
+        planner:
+          system_prompt: >
+            Electronics MCP: TV fault intake and Monday-only engineer availability.
+          output: >
+            PLAN: new_claim tv; get_available_slots EV-3301 2026-03-24.
+        response_compose:
+          system_prompt: >
+            EV-3301; explain symptom on file; 10:00 vs 16:00 Monday.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: "16:00."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "16:00."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                All set — I’ve scheduled your TV repair for Monday at 16:00 under claim EV-3301. A confirmation
+                email is on the way.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "16:00."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Monday 16:00 engineer visit.","trigger_quote":"16:00","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"EV-3301","appointment_id":"APT-EV-3301-HOLD","slot_id":"SLOT-2026-03-24T16:00","preferred_time_window":"afternoon"}}]}
+        agent_response: >
+          All set — I’ve scheduled your TV repair for Monday at 16:00 under claim EV-3301. A confirmation
+          email is on the way.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 860
+        gen_ai.usage.output_tokens: 85
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "EV-3301"
+            appointment_id: "APT-EV-3301-HOLD"
+            slot_id: "SLOT-2026-03-24T16:00"
+            preferred_time_window: "afternoon"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "EV-3301"
+            appointment_id: "APT-EV-3301-01"
+            status: "scheduled"
+            scheduled_at: "2026-03-24T16:00:00Z"
+        planner:
+          system_prompt: >
+            Customer selected 16:00 Monday for EV-3301.
+          output: >
+            PLAN: update_appointment afternoon slot.
+        response_compose:
+          system_prompt: >
+            Confirm TV visit and email.

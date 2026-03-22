@@ -1,0 +1,137 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: latency/healthy_regional_p50.yaml
+# Focus: latency_profiles tuned to same-region, healthy-path p50-style durations.
+# Those values drive sampled span durations in OpenTelemetry (per span class).
+#
+# Rationale (approximate production-style targets, same AZ / low RTT):
+# - Ingress validation stacks: single-digit to low tens of ms.
+# - tools.recommend: tens of ms (routing + schema checks).
+# - mcp.tool.execute: low hundreds of ms (regional MCP + DB read).
+# - llm.call: ~1–2.5 s for a short tool-calling turn (not TTFT; full completion window).
+# - a2a.orchestrate: wall-clock for the data-plane orchestration segment (~2.5–4.5 s).
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: healthy_regional_p50
+description: >
+  Single claim-status turn with latency_profiles reflecting healthy regional p50-style
+  durations (validation, LLM, MCP, orchestration) as emitted on OTEL spans.
+
+tags:
+  - latency
+  - healthy
+  - regional
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 0.9
+trace_interval_ms: 280
+trace_interval_deviation_ms: 70
+repeat_count: 1
+
+latency_profiles:
+  healthy_regional:
+    span_durations_ms:
+      request.validation: { mean: 6, deviation: 2 }
+      payload.validation: { mean: 4, deviation: 1.5 }
+      policy.validation: { mean: 9, deviation: 3 }
+      augmentation.validation: { mean: 5, deviation: 2 }
+      a2a.orchestrate: { mean: 3400, deviation: 420 }
+      planner: { mean: 260, deviation: 70 }
+      llm.call: { mean: 1650, deviation: 320 }
+      task.execute: { mean: 410, deviation: 95 }
+      tools.recommend: { mean: 36, deviation: 12 }
+      mcp.tool.execute: { mean: 175, deviation: 48 }
+      response.compose: { mean: 220, deviation: 55 }
+      response.validation: { mean: 9, deviation: 3 }
+
+default_latency_profile: healthy_regional
+
+x_span_plan: &latency_demo_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: latency_healthy_p50_eu
+    vendor.enduser.pseudo.id: "user_lat_healthy_p50"
+    channel: web_chat
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Where is my phone claim PH-LAT-5001 — has anyone looked at the photos yet?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Where is my phone claim PH-LAT-5001 — has anyone looked at the photos yet?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-LAT-5001 is in review: photos are on file and an assessor is assigned; you will get an SMS when the decision is posted.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Where is my phone claim PH-LAT-5001 — has anyone looked at the photos yet?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for claim PH-LAT-5001.","trigger_quote":"Where is my phone claim PH-LAT-5001","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"PH-LAT-5001"}}]}
+        agent_response: >
+          PH-LAT-5001 is in review: photos are on file and an assessor is assigned; you will get an SMS when the decision is posted.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 680
+        gen_ai.usage.output_tokens: 92
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-LAT-5001"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-LAT-5001"
+            status: "in_review"
+            last_updated: "2026-03-21T14:22:00Z"
+            milestones:
+              - intake_complete
+              - photos_received
+              - assessor_assigned
+        planner:
+          system_prompt: >
+            Latency demo: single claim_status for PH-LAT-5001.
+          output: >
+            PLAN: claim_status PH-LAT-5001; summarize milestones.
+        response_compose:
+          system_prompt: >
+            Short reassurance; mention SMS when decision is ready.

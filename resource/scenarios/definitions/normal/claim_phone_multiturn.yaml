@@ -1,0 +1,272 @@
+# =============================================================================
+# SCENARIO MANIFEST (human + LLM)
+# =============================================================================
+# File: normal/new_claim_phone_multi_turn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 3
+# Interaction model: multi-turn chat — same pseudo-id, shared session + conversation ids
+# MCP: one tool per turn (tool_chain length 1); phone server only
+# Data plane: full span_plan per turn; each turn = separate request_id + tool execution
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+#
+# Single enduser, three turns: one continuous chat session. ScenarioRunner assigns the same
+# vendor.session.id and gen_ai.conversation.id to every turn of this enduser; each turn still
+# gets its own request_id and LLM/tool spans.
+
+name: claim_phone_multiturn
+description: >
+  Multi-turn phone support: open a screen-damage claim, check status after photos are uploaded,
+  then reschedule an existing repair appointment. Session and conversation ids are shared across
+  turns automatically when the simulator runs the scenario; each turn is a separate LLM orchestration and tool call.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 3.0
+trace_interval_ms: 250
+trace_interval_deviation_ms: 60
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1100, deviation: 180 }
+      planner: { mean: 360, deviation: 80 }
+      llm.call: { mean: 300, deviation: 70 }
+      task.execute: { mean: 550, deviation: 100 }
+      tools.recommend: { mean: 42, deviation: 14 }
+      mcp.tool.execute: { mean: 160, deviation: 45 }
+      response.compose: { mean: 260, deviation: 65 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: user_multiturn_01
+    vendor.enduser.pseudo.id: "user_mt_rina_88"
+    channel: "web_chat"
+    turns:
+      # Turn 1 — open claim
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Hi, I cracked my phone screen yesterday when it slid off the armrest. Touch still works in
+          most places. Can you start a damage claim for me?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Hi, I cracked my phone screen yesterday when it slid off the armrest. Touch still works in
+                most places. Can you start a damage claim for me?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I have opened claim PH-MT-9001 for your phone with screen damage from yesterday's fall
+                (partial touch still working). Please upload 2–3 clear photos in the chat or portal;
+                you will get an SMS with a repair booking link once intake is complete.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Hi, I cracked my phone screen yesterday when it slid off the armrest. Touch still works in
+                most places. Can you start a damage claim for me?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Screen crack after slide from armrest; partial touch OK.","trigger_quote":"I cracked my phone screen yesterday when it slid off the armrest","missing_info":null,"confidence":0.92,"tool_args":{"product_type":"phone","description":"Screen cracked after sliding off armrest; touch mostly functional.","incident_date":"2026-03-21"}}]}
+        agent_response: >
+          I have opened claim PH-MT-9001 for your phone with screen damage from yesterday's fall
+          (partial touch still working). Please upload 2–3 clear photos in the chat or portal;
+          you will get an SMS with a repair booking link once intake is complete.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 980
+        gen_ai.usage.output_tokens: 168
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Screen cracked after sliding off armrest; touch mostly functional."
+            incident_date: "2026-03-21"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-MT-9001"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_screen_damage", deductible: 75 }
+            notes: "Customer to upload photos; SMS with repair link pending intake."
+        planner:
+          system_prompt: >
+            You are the Toro orchestration planner for user_mt_rina_88 (turn 1 of an ongoing chat).
+            Open a phone damage claim from the user's message.
+          output: >
+            PLAN:
+              1) Call MCP tool "new_claim" on server "phone" with product_type=phone, description, incident_date.
+              2) Confirm claim id, photo upload, and SMS booking link expectation.
+        response_compose:
+          system_prompt: >
+            Friendly assistant: confirm claim opened, give PH-MT-9001, set expectations for photos and SMS.
+
+      # Turn 2 — status check (same session / conversation as turn 1)
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Thanks — I just uploaded the photos. Where does claim PH-MT-9001 stand now? Am I waiting on
+          an assessor or can I book already?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Thanks — I just uploaded the photos. Where does claim PH-MT-9001 stand now? Am I waiting on
+                an assessor or can I book already?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I checked PH-MT-9001: status is in review — photos are on file and an assessor is assigned.
+                You can go ahead and book a repair slot using the link from the SMS; if the calendar shows
+                no times you like, tell me and we can look for alternatives.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Thanks — I just uploaded the photos. Where does claim PH-MT-9001 stand now? Am I waiting on
+                an assessor or can I book already?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Follow-up on PH-MT-9001 after photo upload; booking readiness.","trigger_quote":"Where does claim PH-MT-9001 stand now?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"PH-MT-9001"}}]}
+        agent_response: >
+          I checked PH-MT-9001: status is in review — photos are on file and an assessor is assigned.
+          You can go ahead and book a repair slot using the link from the SMS; if the calendar shows
+          no times you like, tell me and we can look for alternatives.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1120
+        gen_ai.usage.output_tokens: 142
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-MT-9001"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-MT-9001"
+            status: "in_review"
+            last_updated: "2026-03-22T11:40:00Z"
+            milestones:
+              - intake_complete
+              - photos_received
+              - assessor_assigned
+        planner:
+          system_prompt: >
+            You are the Toro orchestration planner. Same chat session as prior turn; user follows up on
+            PH-MT-9001 after uploading photos.
+          output: >
+            PLAN:
+              1) Call "claim_status" with claim_id PH-MT-9001.
+              2) Explain current milestone and whether booking is allowed.
+        response_compose:
+          system_prompt: >
+            Concise status summary; reassure photos were received; mention SMS booking link and offer help if slots are poor.
+
+      # Turn 3 — reschedule (same session / conversation)
+      - turn_index: 3
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          I booked repair online — appointment APT-MT-9001 — but Tuesday 9am is impossible with school
+          drop-off. Please move it to Tuesday afternoon if you can, same store.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                I booked repair online — appointment APT-MT-9001 — but Tuesday 9am is impossible with school
+                drop-off. Please move it to Tuesday afternoon if you can, same store.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                All set — I moved appointment APT-MT-9001 for claim PH-MT-9001 to Tuesday 15:00 at the
+                same location. You should see the updated time in the app and get a confirmation text within
+                a few minutes.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                I booked repair online — appointment APT-MT-9001 — but Tuesday 9am is impossible with school
+                drop-off. Please move it to Tuesday afternoon if you can, same store.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule APT-MT-9001 from morning to afternoon same day/store.","trigger_quote":"Please move it to Tuesday afternoon if you can, same store.","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MT-9001","appointment_id":"APT-MT-9001","slot_id":"SLOT-2026-03-24T15:00","preferred_time_window":"afternoon"}}]}
+        agent_response: >
+          All set — I moved appointment APT-MT-9001 for claim PH-MT-9001 to Tuesday 15:00 at the
+          same location. You should see the updated time in the app and get a confirmation text within
+          a few minutes.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1050
+        gen_ai.usage.output_tokens: 155
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-MT-9001"
+            appointment_id: "APT-MT-9001"
+            slot_id: "SLOT-2026-03-24T15:00"
+            preferred_time_window: "afternoon"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-MT-9001"
+            appointment_id: "APT-MT-9001"
+            status: "rescheduled"
+            scheduled_at: "2026-03-24T15:00:00Z"
+        planner:
+          system_prompt: >
+            You are the Toro orchestration planner. Same session; user reschedules an existing appointment
+            tied to PH-MT-9001.
+          output: >
+            PLAN:
+              1) Call "update_appointment" with claim_id, appointment_id, new slot, preferred_time_window.
+              2) Confirm new time and notification expectations.
+        response_compose:
+          system_prompt: >
+            Confident closure tone: confirm new slot 15:00, same store, SMS confirmation soon.
