@@ -1,0 +1,196 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_phone_water_slots_book_multiturn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# MCP: phone — new_claim + get_available_slots, then update_appointment
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_phone_water_slots_book_multiturn
+description: >
+  Water-damaged phone: claim PH-7744, offer Tue 11:00 / Wed 15:00 / Fri 9:30, customer books Wednesday 15:00.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 2.4
+trace_interval_ms: 235
+trace_interval_deviation_ms: 52
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1980, deviation: 390 }
+      planner: { mean: 495, deviation: 112 }
+      llm.call: { mean: 610, deviation: 138 }
+      task.execute: { mean: 670, deviation: 152 }
+      tools.recommend: { mean: 50, deviation: 16 }
+      mcp.tool.execute: { mean: 198, deviation: 54 }
+      response.compose: { mean: 330, deviation: 80 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_water_slots_book_multiturn
+    vendor.enduser.pseudo.id: "user_mt_ph_water_02"
+    channel: web_chat
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          My phone fell in water and won’t turn on. Please start a claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                My phone fell in water and won’t turn on. Please start a claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I’ve opened a claim for your phone and recorded that it stopped working after water damage.
+                Your claim ID is PH-7744. I can offer repair slots on Tuesday 11:00, Wednesday 15:00, or Friday
+                9:30. Would you like me to book one of these now, or do you want to wait and decide later?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                My phone fell in water and won’t turn on. Please start a claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Water immersion; device will not power on.","trigger_quote":"fell in water","missing_info":null,"confidence":0.94,"tool_args":{"product_type":"phone","description":"Water damage; device will not turn on.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Repair slots after liquid claim.","trigger_quote":"start a claim","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"PH-7744","service_type":"screen_repair_visit","date_range_start":"2026-03-25","date_range_end":"2026-03-28"}}]}
+        agent_response: >
+          I’ve opened a claim for your phone and recorded that it stopped working after water damage.
+          Your claim ID is PH-7744. I can offer repair slots on Tuesday 11:00, Wednesday 15:00, or Friday
+          9:30. Would you like me to book one of these now, or do you want to wait and decide later?
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1120
+        gen_ai.usage.output_tokens: 235
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Water damage; device will not turn on."
+            incident_date: "2026-03-22"
+          get_available_slots:
+            claim_id: "PH-7744"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-03-25"
+            date_range_end: "2026-03-28"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-7744"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_liquid_damage", deductible: 75 }
+            notes: "Repair slots listed; customer may defer booking."
+          get_available_slots:
+            claim_id: "PH-7744"
+            slots:
+              - { slot_id: "SLOT-2026-03-25T11:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-26T15:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-28T09:30", duration_minutes: 90 }
+            timezone: "Europe/London"
+        planner:
+          system_prompt: >
+            Phone MCP: liquid damage intake plus same-turn slot listing.
+          output: >
+            PLAN: new_claim; get_available_slots Tue–Fri window for PH-7744.
+        response_compose:
+          system_prompt: >
+            Give PH-7744; three slot options; offer to book now or later.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: "Let’s do Wednesday at 3."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Let’s do Wednesday at 3."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                No problem — I’ve scheduled your repair for Wednesday at 15:00 under claim PH-7744. You’ll get a
+                confirmation shortly.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Let’s do Wednesday at 3."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Wednesday 15:00.","trigger_quote":"Wednesday at 3","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"PH-7744","appointment_id":"APT-PH-7744-HOLD","slot_id":"SLOT-2026-03-26T15:00","preferred_time_window":"afternoon"}}]}
+        agent_response: >
+          No problem — I’ve scheduled your repair for Wednesday at 15:00 under claim PH-7744. You’ll get a
+          confirmation shortly.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 880
+        gen_ai.usage.output_tokens: 88
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-7744"
+            appointment_id: "APT-PH-7744-HOLD"
+            slot_id: "SLOT-2026-03-26T15:00"
+            preferred_time_window: "afternoon"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-7744"
+            appointment_id: "APT-PH-7744-01"
+            status: "scheduled"
+            scheduled_at: "2026-03-26T15:00:00Z"
+        planner:
+          system_prompt: >
+            Customer confirms Wednesday 15:00 for PH-7744.
+          output: >
+            PLAN: update_appointment SLOT-2026-03-26T15:00.
+        response_compose:
+          system_prompt: >
+            Brief booking confirmation.

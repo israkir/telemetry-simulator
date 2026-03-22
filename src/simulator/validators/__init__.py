@@ -1,11 +1,5 @@
-"""Validators for OTEL telemetry payloads."""
+"""Validation utilities."""
 
-from .otel_validator import OtelValidator, ValidationError, ValidationResult
-from .trace_dependency_validator import validate_trace_dependencies
+from .otel_validator import OtelValidator
 
-__all__ = [
-    "OtelValidator",
-    "ValidationError",
-    "ValidationResult",
-    "validate_trace_dependencies",
-]
+__all__ = ["OtelValidator"]

@@ -8,24 +8,57 @@ Writes telemetry to JSON files for:
 """
 
 import json
+import threading
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from opentelemetry.sdk._logs.export import LogExporter, LogExportResult
+from opentelemetry.sdk._logs.export import LogRecordExporter, LogRecordExportResult
 from opentelemetry.sdk.metrics.export import MetricExporter, MetricExportResult, MetricsData
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 
+class FileSpanCoordinator:
+    """Lock + first-export counter shared by paired CP/DP ``FileSpanExporter`` instances."""
+
+    __slots__ = ("lock", "export_call_count")
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.export_call_count = 0
+
+
+class FileMetricCoordinator:
+    """Lock + export sequence shared by paired CP/DP ``FileMetricExporter`` instances."""
+
+    __slots__ = ("lock", "export_seq")
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.export_seq = 0
+
+
 class FileSpanExporter(SpanExporter):
     """Export spans to a JSON file."""
 
-    def __init__(self, output_path: str | Path, append: bool = True):
-        """Initialize file exporter."""
+    def __init__(
+        self,
+        output_path: str | Path,
+        append: bool = True,
+        *,
+        coordinator: FileSpanCoordinator | None = None,
+    ):
+        """Initialize file exporter.
+
+        Pass a shared ``coordinator`` when two exporters write the same path (CP + DP).
+        """
         self.output_path = Path(output_path)
         self.append = append
+        self._coordinator = coordinator
+        self._write_lock = coordinator.lock if coordinator is not None else threading.Lock()
+        self._export_call_count = 0
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not append and self.output_path.exists():
@@ -65,10 +98,24 @@ class FileSpanExporter(SpanExporter):
                     span_dict["events"] = events_serialized
                 span_dicts.append(span_dict)
 
-            mode = "a" if self.append else "w"
-            with open(self.output_path, mode, encoding="utf-8") as f:
-                for span_dict in span_dicts:
-                    f.write(json.dumps(span_dict, default=str) + "\n")
+            # With append=False, only the first export truncates; paired exporters
+            # share coordinator state so CP/DP both append after the first write.
+            with self._write_lock:
+                if self._coordinator is not None:
+                    n = self._coordinator.export_call_count
+                else:
+                    n = self._export_call_count
+                if self.append or n > 0:
+                    mode = "a"
+                else:
+                    mode = "w"
+                with open(self.output_path, mode, encoding="utf-8") as f:
+                    for span_dict in span_dicts:
+                        f.write(json.dumps(span_dict, default=str) + "\n")
+                if self._coordinator is not None:
+                    self._coordinator.export_call_count += 1
+                else:
+                    self._export_call_count += 1
 
             return SpanExportResult.SUCCESS
         except Exception:
@@ -86,11 +133,26 @@ class FileSpanExporter(SpanExporter):
 class FileMetricExporter(MetricExporter):
     """Export metrics to a JSON file."""
 
-    def __init__(self, output_path: str | Path, append: bool = True):
-        """Initialize file exporter."""
+    def __init__(
+        self,
+        output_path: str | Path,
+        append: bool = True,
+        *,
+        coordinator: FileMetricCoordinator | None = None,
+    ):
+        """Initialize file exporter.
+
+        Pass a shared ``coordinator`` when two exporters write the same path (CP + DP
+        ``PeriodicExportingMetricReader`` instances).
+        """
         super().__init__()
         self.output_path = Path(output_path)
         self.append = append
+        self._coordinator = coordinator
+        self._write_lock = coordinator.lock if coordinator is not None else threading.Lock()
+        # With append=False, truncate once then append so repeated metric exports do not
+        # overwrite each other. Shared coordinator keeps one sequence across CP/DP readers.
+        self._export_seq = 0
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not append and self.output_path.exists():
@@ -147,10 +209,19 @@ class FileMetricExporter(MetricExporter):
 
                         metric_dicts.append(metric_dict)
 
-            mode = "a" if self.append else "w"
-            with open(self.output_path, mode, encoding="utf-8") as f:
-                for metric_dict in metric_dicts:
-                    f.write(json.dumps(metric_dict, default=str) + "\n")
+            with self._write_lock:
+                if self._coordinator is not None:
+                    seq = self._coordinator.export_seq
+                else:
+                    seq = self._export_seq
+                mode = "a" if (self.append or seq > 0) else "w"
+                if self._coordinator is not None:
+                    self._coordinator.export_seq += 1
+                else:
+                    self._export_seq += 1
+                with open(self.output_path, mode, encoding="utf-8") as f:
+                    for metric_dict in metric_dicts:
+                        f.write(json.dumps(metric_dict, default=str) + "\n")
 
             return MetricExportResult.SUCCESS
         except Exception:
@@ -165,7 +236,7 @@ class FileMetricExporter(MetricExporter):
         return True
 
 
-class FileLogExporter(LogExporter):
+class FileLogExporter(LogRecordExporter):
     """Export logs to a JSON file."""
 
     def __init__(self, output_path: str | Path, append: bool = True):
@@ -177,7 +248,7 @@ class FileLogExporter(LogExporter):
         if not append and self.output_path.exists():
             self.output_path.unlink()
 
-    def export(self, batch: Sequence) -> LogExportResult:  # type: ignore[override]
+    def export(self, batch: Sequence[Any]) -> LogRecordExportResult:
         """Export logs to file."""
         try:
             log_dicts = []
@@ -187,34 +258,24 @@ class FileLogExporter(LogExporter):
                 record = getattr(log_record, "log_record", log_record)
                 log_dict = {
                     "timestamp": getattr(record, "timestamp", None),
-                    "observed_timestamp": (
-                        getattr(record, "observed_timestamp", None)
-                    ),
+                    "observed_timestamp": (getattr(record, "observed_timestamp", None)),
                     "severity_number": (
                         getattr(record.severity_number, "value", None)
                         if getattr(record, "severity_number", None) is not None
                         else None
                     ),
-                    "severity_text": (
-                        getattr(record, "severity_text", None)
-                    ),
+                    "severity_text": (getattr(record, "severity_text", None)),
                     "body": (
                         str(getattr(record, "body", None))
                         if getattr(record, "body", None) is not None
                         else None
                     ),
-                    "attributes": (
-                        dict(getattr(record, "attributes", {}) or {})
-                    ),
+                    "attributes": (dict(getattr(record, "attributes", {}) or {})),
                     "trace_id": (
-                        format(getattr(record, "trace_id"), "032x")
-                        if getattr(record, "trace_id", 0)
-                        else None
+                        format(record.trace_id, "032x") if getattr(record, "trace_id", 0) else None
                     ),
                     "span_id": (
-                        format(getattr(record, "span_id"), "016x")
-                        if getattr(record, "span_id", 0)
-                        else None
+                        format(record.span_id, "016x") if getattr(record, "span_id", 0) else None
                     ),
                     "resource": (
                         dict(log_record.resource.attributes)
@@ -229,9 +290,9 @@ class FileLogExporter(LogExporter):
                 for log_dict in log_dicts:
                     f.write(json.dumps(log_dict, default=str) + "\n")
 
-            return LogExportResult.SUCCESS
+            return LogRecordExportResult.SUCCESS
         except Exception:
-            return LogExportResult.FAILURE
+            return LogRecordExportResult.FAILURE
 
     def shutdown(self) -> None:
         """Shutdown exporter."""

@@ -1,0 +1,243 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_phone_full_lifecycle_cleanup.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: one user message → one orchestrated turn (10-tool chain)
+# MCP: phone — every distinct tool name once, including duplicate-claim cleanup
+# Data plane: full span_plan (planner → llm.call → tools.recommend → mcp… → compose)
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+#
+# Split from former normal/multi_tool_calling.yaml (10-tool phone path).
+
+name: multi_phone_full_lifecycle_cleanup
+description: >
+  Liquid-damage phone claim in one turn: open claim through documents, slots, appointment, excess,
+  Toro Plus purchase, cancel duplicate policy, void double-submit draft (ten MCP tools on phone).
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.5
+trace_interval_ms: 220
+trace_interval_deviation_ms: 55
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 2400, deviation: 450 }
+      planner: { mean: 520, deviation: 120 }
+      llm.call: { mean: 680, deviation: 150 }
+      task.execute: { mean: 720, deviation: 160 }
+      tools.recommend: { mean: 55, deviation: 18 }
+      mcp.tool.execute: { mean: 200, deviation: 55 }
+      response.compose: { mean: 380, deviation: 90 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_full_lifecycle_cleanup
+    vendor.enduser.pseudo.id: "user_mt_ph_bus_93"
+    channel: mobile_app
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Water splash on my phone at the gym today — open the claim, then confirm it's on file, attach
+          locker photos and the drying-kit receipt, show drop-off repair slots next week, book Wednesday 4pm
+          at Citypoint, bill the €75 excess to my saved Visa, email a Toro Plus quote for this handset and
+          buy it if it's under €17/month, cancel the duplicate screen-only micro-policy POL-SCR-8801 from my
+          carrier bundle, and void draft claim PH-MTC-0998 from when the submit button double-fired.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Water splash on my phone at the gym today — open the claim, then confirm it's on file, attach
+                locker photos and the drying-kit receipt, show drop-off repair slots next week, book Wednesday 4pm
+                at Citypoint, bill the €75 excess to my saved Visa, email a Toro Plus quote for this handset and
+                buy it if it's under €17/month, cancel the duplicate screen-only micro-policy POL-SCR-8801 from my
+                carrier bundle, and void draft claim PH-MTC-0998 from when the submit button double-fired.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Claim PH-MTC-1001 is open for liquid exposure; photos and receipt are logged. Wednesday 16:00
+                Citypoint drop-off is confirmed and excess paid. Toro Plus is active (POL-PH-PLUS-1001).
+                POL-SCR-8801 is cancelled pending refund, and duplicate draft PH-MTC-0998 is withdrawn.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Water splash on my phone at the gym today — open the claim, then confirm it's on file, attach
+                locker photos and the drying-kit receipt, show drop-off repair slots next week, book Wednesday 4pm
+                at Citypoint, bill the €75 excess to my saved Visa, email a Toro Plus quote for this handset and
+                buy it if it's under €17/month, cancel the duplicate screen-only micro-policy POL-SCR-8801 from my
+                carrier bundle, and void draft claim PH-MTC-0998 from when the submit button double-fired.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Liquid damage at gym today.","trigger_quote":"Water splash on my phone at the gym today","missing_info":null,"confidence":0.95,"tool_args":{"product_type":"phone","description":"Gym locker splash; drying kit used same day.","incident_date":"2026-03-22"}},{"tool_name":"claim_status","trigger_summary":"Confirm new claim recorded.","trigger_quote":"confirm it's on file","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-MTC-1001"}},{"tool_name":"upload_documents","trigger_summary":"Locker photos and kit receipt.","trigger_quote":"locker photos and the drying-kit receipt","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"PH-MTC-1001","document_types":["photo_locker","receipt_drying_kit"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Repair drop-off next week.","trigger_quote":"drop-off repair slots next week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-1001","service_type":"repair_collection","date_range_start":"2026-03-24","date_range_end":"2026-03-30"}},{"tool_name":"update_appointment","trigger_summary":"Wednesday 4pm Citypoint.","trigger_quote":"Wednesday 4pm at Citypoint","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"PH-MTC-1001","appointment_id":"APT-PH-NEW","slot_id":"SLOT-2026-03-26T16:00","preferred_time_window":"late_afternoon"}},{"tool_name":"pay","trigger_summary":"€75 excess on saved Visa.","trigger_quote":"€75 excess to my saved Visa","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"PH-MTC-1001","amount":75.0,"currency":"EUR"}},{"tool_name":"choose_insurance","trigger_summary":"Toro Plus quote for handset.","trigger_quote":"Toro Plus quote for this handset","missing_info":null,"confidence":0.87,"tool_args":{"product_category":"phone","coverage_tier":"plus","region":"NO-01"}},{"tool_name":"buy_insurance","trigger_summary":"Purchase if under €17/mo.","trigger_quote":"buy it if it's under €17/month","missing_info":null,"confidence":0.85,"tool_args":{"quote_id":"QT-PH-PLUS-1001","payment_method":"card_on_file","holder_reference":"user_mt_ph_bus_93"}},{"tool_name":"cancel_product","trigger_summary":"Remove carrier screen micro-policy.","trigger_quote":"cancel the duplicate screen-only micro-policy POL-SCR-8801","missing_info":null,"confidence":0.88,"tool_args":{"policy_id":"POL-SCR-8801","reason":"duplicate_coverage"}},{"tool_name":"cancel_claim","trigger_summary":"Withdraw accidental double-submit draft.","trigger_quote":"void draft claim PH-MTC-0998","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-0998","reason":"duplicate_customer_submit"}}]}
+        agent_response: >
+          Claim PH-MTC-1001 is open for liquid exposure; photos and receipt are logged. Wednesday 16:00
+          Citypoint drop-off is confirmed and excess paid. Toro Plus is active (POL-PH-PLUS-1001).
+          POL-SCR-8801 is cancelled pending refund, and duplicate draft PH-MTC-0998 is withdrawn.
+        tool_chain:
+          - new_claim
+          - claim_status
+          - upload_documents
+          - get_available_slots
+          - update_appointment
+          - pay
+          - choose_insurance
+          - buy_insurance
+          - cancel_product
+          - cancel_claim
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 2650
+        gen_ai.usage.output_tokens: 1480
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 10
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Gym locker splash; customer used drying kit same day; touch intermittent."
+            incident_date: "2026-03-22"
+          claim_status:
+            claim_id: "PH-MTC-1001"
+          upload_documents:
+            claim_id: "PH-MTC-1001"
+            document_types: ["photo_locker", "receipt_drying_kit"]
+            expected_count: 3
+          get_available_slots:
+            claim_id: "PH-MTC-1001"
+            service_type: "repair_collection"
+            date_range_start: "2026-03-24"
+            date_range_end: "2026-03-30"
+          update_appointment:
+            claim_id: "PH-MTC-1001"
+            appointment_id: "APT-PH-NEW"
+            slot_id: "SLOT-2026-03-26T16:00"
+            preferred_time_window: "late_afternoon"
+          pay:
+            payment_target: "excess"
+            reference_id: "PH-MTC-1001"
+            amount: 75.0
+            currency: "EUR"
+          choose_insurance:
+            product_category: "phone"
+            coverage_tier: "plus"
+            region: "NO-01"
+          buy_insurance:
+            quote_id: "QT-PH-PLUS-1001"
+            payment_method: "card_on_file"
+            holder_reference: "user_mt_ph_bus_93"
+          cancel_product:
+            policy_id: "POL-SCR-8801"
+            reason: "duplicate_coverage"
+          cancel_claim:
+            claim_id: "PH-MTC-0998"
+            reason: "duplicate_customer_submit"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-MTC-1001"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_liquid_damage", deductible: 75 }
+            notes: "Intake photos and receipt requested; gym incident detail captured."
+          claim_status:
+            claim_id: "PH-MTC-1001"
+            status: "pending_info"
+            last_updated: "2026-03-22T15:18:00Z"
+            milestones:
+              - opened
+              - awaiting_photo_review
+          upload_documents:
+            claim_id: "PH-MTC-1001"
+            upload_batch_id: "UPL-PH-1001-01"
+            pending_count: 0
+            status: "received"
+          get_available_slots:
+            claim_id: "PH-MTC-1001"
+            slots:
+              - { slot_id: "SLOT-2026-03-26T16:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-27T11:00", duration_minutes: 90 }
+            timezone: "Europe/Oslo"
+          update_appointment:
+            claim_id: "PH-MTC-1001"
+            appointment_id: "APT-PH-CITY-1001"
+            status: "scheduled"
+            scheduled_at: "2026-03-26T16:00:00Z"
+          pay:
+            payment_id: "PAY-PH-1001-EX"
+            reference_id: "PH-MTC-1001"
+            status: "captured"
+            amount: 75.0
+            currency: "EUR"
+          choose_insurance:
+            quote_id: "QT-PH-PLUS-1001"
+            premium_monthly: 15.5
+            currency: "EUR"
+            valid_until: "2026-04-10"
+          buy_insurance:
+            policy_id: "POL-PH-PLUS-1001"
+            quote_id: "QT-PH-PLUS-1001"
+            effective_date: "2026-03-23"
+            status: "active"
+          cancel_product:
+            policy_id: "POL-SCR-8801"
+            status: "cancelled_pending_refund"
+            refund_estimate: 4.5
+            currency: "EUR"
+          cancel_claim:
+            claim_id: "PH-MTC-0998"
+            status: "cancelled"
+            cancelled_at: "2026-03-22T15:22:00Z"
+        planner:
+          system_prompt: >
+            Phone MCP: ten-step agentic plan — new intake through policy cleanup and duplicate withdrawal.
+          output: >
+            PLAN: new_claim; claim_status PH-MTC-1001; upload_documents; get_available_slots;
+            update_appointment Citypoint Wed 16:00; pay excess; choose_insurance plus; buy_insurance;
+            cancel_product POL-SCR-8801; cancel_claim PH-MTC-0998.
+        response_compose:
+          system_prompt: >
+            Mobile app push style: one paragraph outcome with ids PH-MTC-1001, POL-PH-PLUS-1001, PH-MTC-0998.
