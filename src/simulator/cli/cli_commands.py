@@ -11,6 +11,7 @@ from ..defaults import get_default_tenant_ids
 from ..exporters.otlp_exporter import create_otlp_trace_exporter
 from ..scenarios.scenario_loader import ScenarioLoader
 from ..scenarios.scenario_runner import ScenarioRunner
+from ..resource_loader import load_resource_presets
 from ..schemas.schema_parser import SchemaParser
 from ..validators.otel_validator import OtelValidator
 from .cli_helpers import (
@@ -23,10 +24,32 @@ from .cli_helpers import (
 )
 
 
+def _get_service_version_for_banner() -> str | None:
+    """
+    Read `service.version` from the configured OTEL Resource presets.
+
+    This is intentionally derived from the same `resource/config/resource.yaml`
+    that drives exported `resource` attributes, so the banner matches what
+    collectors (e.g., Jaeger) will observe.
+    """
+    presets = load_resource_presets()
+    for key in ("control-plane", "data-plane"):
+        attrs = (presets.get(key) or {}).get("attributes") or {}
+        value = attrs.get("service.version")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     """Run mixed workload generation."""
     print("Starting mixed workload telemetry generation...")
     print(f"   Endpoint: {args.endpoint}")
+    service_version = _get_service_version_for_banner()
+    if service_version:
+        print(f"   service.version: {service_version}")
+    else:
+        print("   service.version: (unknown)")
     each_once = args.each_once
     if each_once:
         print("   Mode: each (tagged) scenario once")
@@ -200,6 +223,7 @@ def cmd_scenario(args: argparse.Namespace) -> None:
     """Run a single YAML-defined scenario."""
     print(f"Running scenario: {args.name}")
     loader = ScenarioLoader(args.scenarios_dir)
+    service_version = _get_service_version_for_banner()
 
     try:
         scenario = loader.load(args.name)
@@ -214,6 +238,10 @@ def cmd_scenario(args: argparse.Namespace) -> None:
 
     print(f"   Description: {scenario.description}")
     print(f"   Repeat count: {scenario.repeat_count}")
+    if service_version:
+        print(f"   service.version: {service_version}")
+    else:
+        print("   service.version: (unknown)")
     if not args.output_file:
         print(f"   Endpoint: {args.endpoint}")
         print(f"   Service: {args.service_name} (select this in Jaeger UI)")
