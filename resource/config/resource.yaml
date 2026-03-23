@@ -11,7 +11,7 @@ schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
 control-plane:
   attributes:
     service.name: "gentoro-enterprise"
-    service.version: "1.0.0"
+    service.version: "1.1.0"
     service.instance.id: "pod-7f9c6d4b8d-xyz12"
     deployment.environment.name: "development"
     vendor.module: "control-plane"
@@ -21,7 +21,7 @@ control-plane:
 data-plane:
   attributes:
     service.name: "gentoro-enterprise"
-    service.version: "1.0.0"
+    service.version: "1.1.0"
     service.instance.id: "pod-7f9c6d4b8d-xyz12"
     deployment.environment.name: "development"
     vendor.module: "data-plane"
