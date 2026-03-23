@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from ..defaults import get_default_tenant_ids
 from ..exporters.otlp_exporter import create_otlp_trace_exporter
@@ -41,15 +42,86 @@ def _get_service_version_for_banner() -> str | None:
     return None
 
 
+def _find_repo_root(start: Path) -> Path:
+    """Best-effort repo root discovery (searches for `pyproject.toml`)."""
+    for parent in start.parents:
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    return Path.cwd()
+
+
+def _print_resource_folder_status() -> None:
+    """
+    Print whether `resource/config` is discoverable.
+
+    This helps when running the CLI from an unexpected working directory.
+    """
+    repo_root = _find_repo_root(Path(__file__).resolve())
+    cwd_config_dir = Path.cwd() / "resource" / "config"
+    repo_config_dir = repo_root / "resource" / "config"
+
+    candidates = [("cwd", cwd_config_dir), ("repo_root", repo_config_dir)]
+    found = [label for label, p in candidates if p.is_dir()]
+
+    if found:
+        resource_config_value = f"found ({', '.join(found)})"
+    else:
+        looked = ", ".join(f"{label}={p}" for label, p in candidates)
+        resource_config_value = f"NOT found (looked in {looked})"
+
+    resource_yaml_candidates = [cwd_config_dir / "resource.yaml", repo_config_dir / "resource.yaml"]
+    resource_yaml_found = [p for p in resource_yaml_candidates if p.is_file()]
+    resource_yaml_found_unique: list[str] = []
+    for p in resource_yaml_found:
+        ps = str(p)
+        if ps not in resource_yaml_found_unique:
+            resource_yaml_found_unique.append(ps)
+
+    if resource_yaml_found_unique:
+        resource_yaml_value = resource_yaml_found_unique[0]
+    else:
+        looked = ", ".join(str(p) for p in resource_yaml_candidates)
+        resource_yaml_value = f"NOT found (looked in {looked})"
+
+    config_yaml_candidates = [cwd_config_dir / "config.yaml", repo_config_dir / "config.yaml"]
+    config_yaml_found = [p for p in config_yaml_candidates if p.is_file()]
+    config_yaml_found_unique: list[str] = []
+    for p in config_yaml_found:
+        ps = str(p)
+        if ps not in config_yaml_found_unique:
+            config_yaml_found_unique.append(ps)
+
+    if config_yaml_found_unique:
+        config_yaml_value = config_yaml_found_unique[0]
+    else:
+        looked = ", ".join(str(p) for p in config_yaml_candidates)
+        config_yaml_value = f"NOT found (looked in {looked})"
+
+    # ScenarioLoader default chooses between `Path.cwd()` and repo-root similarly.
+    scenarios_dir = ScenarioLoader().scenarios_dir
+    if scenarios_dir.is_dir():
+        scenarios_dir_value = str(scenarios_dir)
+    else:
+        scenarios_dir_value = f"NOT found ({scenarios_dir})"
+
+    print("   Resource config:")
+    if not found:
+        print(f"      {resource_config_value}")
+    print(f"      resource.yaml: {resource_yaml_value}")
+    print(f"      config.yaml: {config_yaml_value}")
+    print(f"      scenarios folder: {scenarios_dir_value}")
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     """Run mixed workload generation."""
     print("Starting mixed workload telemetry generation...")
+    _print_resource_folder_status()
     print(f"   Endpoint: {args.endpoint}")
     service_version = _get_service_version_for_banner()
     if service_version:
-        print(f"   Service Version: {service_version}")
+        print(f"   service.version: {service_version}")
     else:
-        print("   Service Version: (unknown)")
+        print("   service.version: (unknown)")
     each_once = args.each_once
     if each_once:
         print("   Mode: each (tagged) scenario once")
@@ -223,6 +295,7 @@ def cmd_scenario(args: argparse.Namespace) -> None:
     """Run a single YAML-defined scenario."""
     print(f"Running scenario: {args.name}")
     loader = ScenarioLoader(args.scenarios_dir)
+    _print_resource_folder_status()
     service_version = _get_service_version_for_banner()
 
     try:
@@ -239,9 +312,9 @@ def cmd_scenario(args: argparse.Namespace) -> None:
     print(f"   Description: {scenario.description}")
     print(f"   Repeat count: {scenario.repeat_count}")
     if service_version:
-        print(f"   Service Version: {service_version}")
+        print(f"   service.version: {service_version}")
     else:
-        print("   Service Version: (unknown)")
+        print("   service.version: (unknown)")
     if not args.output_file:
         print(f"   Endpoint: {args.endpoint}")
         print(f"   Service: {args.service_name} (select this in Jaeger UI)")
