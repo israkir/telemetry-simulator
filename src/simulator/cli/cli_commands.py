@@ -47,9 +47,9 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"   Endpoint: {args.endpoint}")
     service_version = _get_service_version_for_banner()
     if service_version:
-        print(f"   service.version: {service_version}")
+        print(f"   Service Version: {service_version}")
     else:
-        print("   service.version: (unknown)")
+        print("   Service Version: (unknown)")
     each_once = args.each_once
     if each_once:
         print("   Mode: each (tagged) scenario once")
@@ -239,9 +239,9 @@ def cmd_scenario(args: argparse.Namespace) -> None:
     print(f"   Description: {scenario.description}")
     print(f"   Repeat count: {scenario.repeat_count}")
     if service_version:
-        print(f"   service.version: {service_version}")
+        print(f"   Service Version: {service_version}")
     else:
-        print("   service.version: (unknown)")
+        print("   Service Version: (unknown)")
     if not args.output_file:
         print(f"   Endpoint: {args.endpoint}")
         print(f"   Service: {args.service_name} (select this in Jaeger UI)")
