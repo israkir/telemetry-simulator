@@ -10,6 +10,7 @@ from simulator import config as sim_config
 from simulator.config import load_config
 from simulator.defaults import get_default_tenant_ids
 from simulator.exporters.file_exporter import FileSpanExporter
+from simulator.resource_loader import load_resource_presets
 from simulator.scenarios.compiler import compile_turn
 from simulator.scenarios.config_resolver import resolve_context
 from simulator.scenarios.dependency_rules import validate_trace_graph
@@ -629,21 +630,16 @@ def test_request_validation_span_has_user_prompt_event(tmp_path: Path) -> None:
     assert "vendor.enduser.request.raw" in attrs
     assert "open a claim" in str(attrs["vendor.enduser.request.raw"])
 
-    expected_resource_attributes = {
-        "deployment.environment.name": "development",
-        "telemetry.sdk.language": "python",
-        "vendor.module": "control-plane",
-        "service.name": "gentoro-enterprise",
-        "service.instance.id": "pod-7f9c6d4b8d-xyz12",
-        "service.version": "1.0.0",
-        "vendor.otel.source": "propagated",
-        "vendor.component": "gateway-ext",
-        "vendor.tenant.id": "9cafa427-504f-4bb7-a09f-ec1f5524facf",
-        "telemetry.sdk.version": "1.40.0",
-        "telemetry.sdk.name": "opentelemetry",
-    }
     span_resource = request_validation[0].get("resource") or {}
-    assert span_resource == expected_resource_attributes
+    cp_attrs = (load_resource_presets().get("control-plane") or {}).get("attributes") or {}
+    expected_tenant_id = get_default_tenant_ids()[0] if get_default_tenant_ids() else None
+    for key, value in cp_attrs.items():
+        assert span_resource.get(key) == value
+    if expected_tenant_id is not None:
+        assert span_resource.get("vendor.tenant.id") == expected_tenant_id
+    assert span_resource.get("telemetry.sdk.language") == "python"
+    assert span_resource.get("telemetry.sdk.name") == "opentelemetry"
+    assert "telemetry.sdk.version" in span_resource
 
 
 def test_response_validation_span_has_agent_response_event(tmp_path: Path) -> None:

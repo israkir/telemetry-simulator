@@ -28,7 +28,7 @@ from ..scenarios.dependency_rules import validate_trace_graph
 from ..scenarios.id_generator import generate_ids_for_turn
 from ..scenarios.latency import LatencyModel
 from ..scenarios.scenario_loader import Scenario, ScenarioLoader
-from ..schemas.schema_parser import SchemaParser
+from ..schemas.schema_parser import ParsedSchema, SchemaParser
 from ..telemetry.export_constants import (
     BSP_EXPORT_TIMEOUT_MILLIS,
     BSP_MAX_EXPORT_BATCH_SIZE,
@@ -92,6 +92,10 @@ class ScenarioRunner:
         self.debug_validate = debug_validate
         self._config = load_config(config_dir)
         self._resource_presets = load_resource_presets(config_dir)
+        # Semconv parsing can be relatively expensive (yaml.safe_load + graph setup).
+        # Cache it for the runner lifetime since it doesn't change per scenario.
+        self._schema_parser: SchemaParser = SchemaParser(self.schema_path)
+        self._parsed_schema: ParsedSchema | None = None
         # TracerProviders include tenant-scoped resource attributes (``--vendor``),
         # so we cache them per tenant to keep traces consistent without leaking threads.
         self._providers_by_tenant: dict[str, tuple[TracerProvider, TracerProvider]] = {}
@@ -211,6 +215,7 @@ class ScenarioRunner:
         _continue_timeline: bool = False,
         trace_interval_ms: float | None = None,
         trace_interval_deviation_ms: float | None = None,
+        include_span_names_in_progress: bool = False,
     ) -> list[str]:
         """
         Run scenario: for each repeat and each turn, compile to TraceGraphSpec, validate (if debug), render and export.
@@ -252,7 +257,9 @@ class ScenarioRunner:
         provider_cp, provider_dp = self._get_providers_for_tenant(tenant_id=resolved_base.tenant_id)
 
         latency_model = LatencyModel.from_scenario(scenario)
-        schema = SchemaParser(self.schema_path).parse()
+        if self._parsed_schema is None:
+            self._parsed_schema = self._schema_parser.parse()
+        schema = self._parsed_schema
         if schema.single_trace_request_lifecycle is None:
             raise RuntimeError(
                 "Missing lineage.single_trace_request_lifecycle in semconv; "
@@ -325,12 +332,15 @@ class ScenarioRunner:
                         trace_ids.append(tid)
                     completed += 1
                     if progress_callback:
+                        span_names = (
+                            [s.name for s in spec.spans] if include_span_names_in_progress else None
+                        )
                         progress_callback(
                             completed,
                             total,
                             trace_id=tid or "",
                             tenant_id=resolved.tenant_id,
-                            span_names=[s.name for s in spec.spans],
+                            span_names=span_names,
                             scenario_name=scenario.name,
                         )
         # Batched export: BatchSpanProcessor, PeriodicExportingMetricReader, and
@@ -346,6 +356,7 @@ class ScenarioRunner:
         pick_complete_callback: Callable[[int, int | None, str, list[str]], None] | None = None,
         tags: list[str] | None = None,
         each_once: bool = False,
+        include_span_names_in_progress: bool = False,
     ) -> tuple[list[str], dict[str, int]]:
         """
         Run mixed workload: load scenarios (optionally filtered by tags), then
@@ -428,7 +439,12 @@ class ScenarioRunner:
                 )
 
             wrapped = _mixed_progress if progress_callback else None
-            ids = self.run_scenario(scenario, progress_callback=wrapped, _continue_timeline=True)
+            ids = self.run_scenario(
+                scenario,
+                progress_callback=wrapped,
+                _continue_timeline=True,
+                include_span_names_in_progress=include_span_names_in_progress,
+            )
             trace_ids.extend(ids)
             traces_by_scenario[scenario.name] = traces_by_scenario.get(scenario.name, 0) + 1
             if pick_complete_callback is not None:

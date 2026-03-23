@@ -316,12 +316,20 @@ class ScenarioLoader:
             raise FileNotFoundError(
                 f"Scenario not found: {name} (dir missing: {self.scenarios_dir})"
             )
+        lookup_names = {name}
+        if "_multi_turn" in name:
+            lookup_names.add(name.replace("_multi_turn", "_multiturn"))
+        if name.startswith("new_"):
+            legacy_name = name[len("new_") :]
+            lookup_names.add(legacy_name)
+            if "_multi_turn" in legacy_name:
+                lookup_names.add(legacy_name.replace("_multi_turn", "_multiturn"))
         # Prefer exact path, then any file with stem matching name (e.g. normal/single_tool_call.yaml)
         direct = self.scenarios_dir / f"{name}.yaml"
         if direct.is_file():
             return load_scenario_yaml(direct, self.scenarios_dir)
         for path in sorted(self.scenarios_dir.rglob("*.yaml")):
-            if path.stem == name:
+            if path.stem in lookup_names:
                 return load_scenario_yaml(path, self.scenarios_dir)
         raise FileNotFoundError(f"Scenario not found: {name} (looked in {self.scenarios_dir})")
 

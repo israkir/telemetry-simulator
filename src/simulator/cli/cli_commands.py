@@ -10,9 +10,9 @@ from pathlib import Path
 
 from ..defaults import get_default_tenant_ids
 from ..exporters.otlp_exporter import create_otlp_trace_exporter
+from ..resource_loader import load_resource_presets
 from ..scenarios.scenario_loader import ScenarioLoader
 from ..scenarios.scenario_runner import ScenarioRunner
-from ..resource_loader import load_resource_presets
 from ..schemas.schema_parser import SchemaParser
 from ..validators.otel_validator import OtelValidator
 from .cli_helpers import (
@@ -241,6 +241,7 @@ def cmd_run(args: argparse.Namespace) -> None:
             count=args.count,
             interval_ms=args.interval,
             progress_callback=progress_callback,
+            include_span_names_in_progress=verbose_traces,
             pick_complete_callback=pick_complete,
             tags=tags_list,
             each_once=each_once,
@@ -401,7 +402,12 @@ def cmd_scenario(args: argparse.Namespace) -> None:
             run_kw["trace_interval_ms"] = args.interval
             if args.interval_deviation is not None:
                 run_kw["trace_interval_deviation_ms"] = args.interval_deviation
-        trace_ids = runner.run_scenario(scenario, progress_callback=progress_callback, **run_kw)
+        trace_ids = runner.run_scenario(
+            scenario,
+            progress_callback=progress_callback,
+            include_span_names_in_progress=scenario_verbose,
+            **run_kw,
+        )
         runner.shutdown()
 
         print()
