@@ -144,7 +144,7 @@ endusers:
               - { slot_id: "SLOT-2026-03-26T11:00", duration_minutes: 90 }
               - { slot_id: "SLOT-2026-03-27T16:00", duration_minutes: 90 }
               - { slot_id: "SLOT-2026-03-28T09:30", duration_minutes: 90 }
-            timezone: "Europe/London"
+            timezone: "America/Los_Angeles"
           update_appointment:
             claim_id: "PH-4412"
             appointment_id: "APT-PH-4412-02"

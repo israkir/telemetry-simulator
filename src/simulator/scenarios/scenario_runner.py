@@ -11,7 +11,9 @@ import time
 import warnings
 from collections import OrderedDict
 from collections.abc import Callable, Iterable
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from opentelemetry.sdk._logs.export import LogRecordExporter
 from opentelemetry.sdk.metrics.export import MetricExporter
@@ -237,6 +239,74 @@ class ScenarioRunner:
             return base
         return f"{base}.{eid}"
 
+    def _scenario_is_active_now(self, scenario: Scenario) -> bool:
+        """
+        Return whether a scenario is currently eligible for mixed workload picking.
+
+        Scenarios may define optional schedule metadata in YAML:
+          workload_schedule:
+            peak_hours:
+              timezone: "Europe/Oslo"
+              weekdays: [1,2,3,4,5]   # ISO weekday (Mon=1 ... Sun=7)
+              start_hour: 17          # inclusive local hour [0..23]
+              end_hour: 21            # exclusive local hour [0..23], wrap supported
+        """
+        raw = scenario.raw if isinstance(scenario.raw, dict) else {}
+        schedule = raw.get("workload_schedule")
+        if not isinstance(schedule, dict):
+            return True
+        peak = schedule.get("peak_hours")
+        if not isinstance(peak, dict):
+            return True
+
+        tz_name = str(peak.get("timezone") or "UTC")
+        try:
+            tz = ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError:
+            warnings.warn(
+                f"Scenario '{scenario.name}' has invalid workload_schedule timezone '{tz_name}'; "
+                "treating it as always active.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return True
+
+        now_local = datetime.now(timezone.utc).astimezone(tz)
+
+        weekdays_raw = peak.get("weekdays")
+        if isinstance(weekdays_raw, list) and weekdays_raw:
+            weekdays: list[int] = []
+            for item in weekdays_raw:
+                try:
+                    weekdays.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+            if weekdays and now_local.isoweekday() not in weekdays:
+                return False
+
+        try:
+            start_hour = int(peak.get("start_hour"))
+            end_hour = int(peak.get("end_hour"))
+        except (TypeError, ValueError):
+            # If hours are missing/invalid, treat schedule as non-restrictive.
+            return True
+
+        if not (0 <= start_hour <= 23 and 0 <= end_hour <= 23):
+            warnings.warn(
+                f"Scenario '{scenario.name}' has out-of-range peak_hours window "
+                f"({start_hour}, {end_hour}); treating it as always active.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return True
+
+        hour = now_local.hour
+        if start_hour == end_hour:
+            return True
+        if start_hour < end_hour:
+            return start_hour <= hour < end_hour
+        return hour >= start_hour or hour < end_hour
+
     def run_scenario(
         self,
         scenario: Scenario,
@@ -408,6 +478,7 @@ class ScenarioRunner:
         scenarios = self.scenario_loader.load_all()
         if tags:
             scenarios = [s for s in scenarios if s.tags and any(t in s.tags for t in tags)]
+        scenarios = [s for s in scenarios if self._scenario_is_active_now(s)]
         if not scenarios:
             return ([], {})
         self._synthetic_next_trace_start_ns = None

@@ -32,7 +32,7 @@ mcp_server: phone
 
 vendor.redaction.applied: none
 
-workload_weight: 0.9
+workload_weight: 1.6
 trace_interval_ms: 280
 trace_interval_deviation_ms: 70
 repeat_count: 1
@@ -49,7 +49,7 @@ latency_profiles:
       llm.call: { mean: 1650, deviation: 320 }
       task.execute: { mean: 410, deviation: 95 }
       tools.recommend: { mean: 36, deviation: 12 }
-      mcp.tool.execute: { mean: 175, deviation: 48 }
+      mcp.tool.execute: { mean: 170, deviation: 70 }
       response.compose: { mean: 220, deviation: 55 }
       response.validation: { mean: 9, deviation: 3 }
 
