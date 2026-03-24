@@ -11,7 +11,7 @@ import time
 import warnings
 from collections import OrderedDict
 from collections.abc import Callable, Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -69,7 +69,7 @@ class ScenarioRunner:
         config_dir: str | Path | None = None,
         default_tenant_id: str | None = None,
         debug_validate: bool = False,
-        include_metric_span_trace_ids: bool = False,
+        include_metric_span_trace_ids: bool = True,
         max_cached_tenants: int = 8,
     ):
         # CP and DP each attach a BatchSpanProcessor, which calls exporter.shutdown().
@@ -168,7 +168,12 @@ class ScenarioRunner:
         else:
             delta_ms = mean
         delta_ms = max(0.0, delta_ms)
-        self._synthetic_next_trace_start_ns = trace_base_ns + int(delta_ms * 1_000_000)
+        scheduled_next_ns = trace_base_ns + int(delta_ms * 1_000_000)
+        now_ns = time.time_ns()
+        # Keep simulated timestamps near real time. Under sustained load, work per
+        # turn can exceed the configured interval and otherwise cause event-time to
+        # drift behind wall clock by minutes or hours.
+        self._synthetic_next_trace_start_ns = max(scheduled_next_ns, now_ns)
 
     def _get_providers_for_tenant(self, *, tenant_id: str) -> tuple[TracerProvider, TracerProvider]:
         """Return (cp_provider, dp_provider) for a tenant."""
@@ -204,7 +209,9 @@ class ScenarioRunner:
         self._evict_oldest_provider_if_needed()
         return provider_cp, provider_dp
 
-    def _shutdown_provider_pair(self, provider_cp: TracerProvider, provider_dp: TracerProvider) -> None:
+    def _shutdown_provider_pair(
+        self, provider_cp: TracerProvider, provider_dp: TracerProvider
+    ) -> None:
         """Best-effort flush+shutdown for a provider pair."""
         for provider in (provider_cp, provider_dp):
             try:
@@ -271,7 +278,7 @@ class ScenarioRunner:
             )
             return True
 
-        now_local = datetime.now(timezone.utc).astimezone(tz)
+        now_local = datetime.now(UTC).astimezone(tz)
 
         weekdays_raw = peak.get("weekdays")
         if isinstance(weekdays_raw, list) and weekdays_raw:
@@ -284,9 +291,14 @@ class ScenarioRunner:
             if weekdays and now_local.isoweekday() not in weekdays:
                 return False
 
+        start_hour_raw = peak.get("start_hour")
+        end_hour_raw = peak.get("end_hour")
+        if start_hour_raw is None or end_hour_raw is None:
+            # Missing hour bounds means no active-hour restriction.
+            return True
         try:
-            start_hour = int(peak.get("start_hour"))
-            end_hour = int(peak.get("end_hour"))
+            start_hour = int(start_hour_raw)
+            end_hour = int(end_hour_raw)
         except (TypeError, ValueError):
             # If hours are missing/invalid, treat schedule as non-restrictive.
             return True

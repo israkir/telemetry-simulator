@@ -105,7 +105,9 @@ def _build_cached_mapping(semconv_path_str: str, runtime_prefix: str) -> Semconv
         if not isinstance(dimension_keys, list):
             dimension_keys = []
 
-        dimension_keys_runtime = [_map_namespace_key(str(k), runtime_prefix) for k in dimension_keys]
+        dimension_keys_runtime = [
+            _map_namespace_key(str(k), runtime_prefix) for k in dimension_keys
+        ]
 
         value_attribute = metric_def.get("value_attribute")
         value_attribute_key_runtime = (
