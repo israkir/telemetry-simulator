@@ -9,6 +9,7 @@ import itertools
 import random
 import time
 import warnings
+from collections import OrderedDict
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
@@ -66,6 +67,8 @@ class ScenarioRunner:
         config_dir: str | Path | None = None,
         default_tenant_id: str | None = None,
         debug_validate: bool = False,
+        include_metric_span_trace_ids: bool = False,
+        max_cached_tenants: int = 8,
     ):
         # CP and DP each attach a BatchSpanProcessor, which calls exporter.shutdown().
         # Callers must pass distinct exporter instances (or pair file exporters with a
@@ -90,6 +93,8 @@ class ScenarioRunner:
             else None
         )
         self.debug_validate = debug_validate
+        self._include_metric_span_trace_ids = include_metric_span_trace_ids
+        self._max_cached_tenants = max(1, int(max_cached_tenants))
         self._config = load_config(config_dir)
         self._resource_presets = load_resource_presets(config_dir)
         # Semconv parsing can be relatively expensive (yaml.safe_load + graph setup).
@@ -98,7 +103,9 @@ class ScenarioRunner:
         self._parsed_schema: ParsedSchema | None = None
         # TracerProviders include tenant-scoped resource attributes (``--vendor``),
         # so we cache them per tenant to keep traces consistent without leaking threads.
-        self._providers_by_tenant: dict[str, tuple[TracerProvider, TracerProvider]] = {}
+        self._providers_by_tenant: OrderedDict[str, tuple[TracerProvider, TracerProvider]] = (
+            OrderedDict()
+        )
         self.scenario_loader: ScenarioLoader | None = None  # lazy init for run_mixed_workload
         # Next trace start time (nanoseconds since UNIX epoch) for spacing in OTLP/Jaeger.
         self._synthetic_next_trace_start_ns: int | None = None
@@ -124,6 +131,7 @@ class ScenarioRunner:
                 schema_path=self.schema_path,
                 dp_resource=Resource.create(dp_resource_attrs),
                 cp_resource=Resource.create(cp_resource_attrs),
+                include_metric_span_trace_ids=self._include_metric_span_trace_ids,
             )
             self._otel_emitter_resource_tenant = tenant_id
             return self._otel_emitter
@@ -164,6 +172,7 @@ class ScenarioRunner:
         """Return (cp_provider, dp_provider) for a tenant."""
         cached = self._providers_by_tenant.get(tenant_id)
         if cached:
+            self._providers_by_tenant.move_to_end(tenant_id)
             return cached
 
         cp_attrs = self._resource_presets.get("control-plane", {}).get("attributes") or {}
@@ -189,7 +198,28 @@ class ScenarioRunner:
         provider_dp.add_span_processor(BatchSpanProcessor(self.trace_exporter_dp, **bsp_kw))
 
         self._providers_by_tenant[tenant_id] = (provider_cp, provider_dp)
+        self._providers_by_tenant.move_to_end(tenant_id)
+        self._evict_oldest_provider_if_needed()
         return provider_cp, provider_dp
+
+    def _shutdown_provider_pair(self, provider_cp: TracerProvider, provider_dp: TracerProvider) -> None:
+        """Best-effort flush+shutdown for a provider pair."""
+        for provider in (provider_cp, provider_dp):
+            try:
+                provider.force_flush(timeout_millis=FLUSH_TIMEOUT_MILLIS)
+            except Exception:
+                pass
+        for provider in (provider_cp, provider_dp):
+            try:
+                provider.shutdown()
+            except Exception:
+                pass
+
+    def _evict_oldest_provider_if_needed(self) -> None:
+        """Bound provider/thread growth when many tenant ids are seen in one runner."""
+        while len(self._providers_by_tenant) > self._max_cached_tenants:
+            _tenant_id, pair = self._providers_by_tenant.popitem(last=False)
+            self._shutdown_provider_pair(*pair)
 
     def _get_instrumentation_scope_name(
         self, scenario: Scenario, *, enduser_id: str | None = None
@@ -260,6 +290,7 @@ class ScenarioRunner:
         if self._parsed_schema is None:
             self._parsed_schema = self._schema_parser.parse()
         schema = self._parsed_schema
+        assert schema is not None
         if schema.single_trace_request_lifecycle is None:
             raise RuntimeError(
                 "Missing lineage.single_trace_request_lifecycle in semconv; "
@@ -396,11 +427,17 @@ class ScenarioRunner:
         else:
             n_picks = None  # run until caller stops (e.g. Ctrl+C in CLI)
             pick_indices = itertools.count(0)
+        keep_trace_ids = n_picks is not None
+
+        effective_interval_ms = float(interval_ms)
+        if n_picks is None and effective_interval_ms <= 0:
+            # Safety valve for "run forever" mode to avoid an accidental hot loop.
+            effective_interval_ms = 50.0
 
         pending_interval_sleep = False
         for i in pick_indices:
-            if pending_interval_sleep and interval_ms > 0:
-                time.sleep(interval_ms / 1000.0)
+            if pending_interval_sleep and effective_interval_ms > 0:
+                time.sleep(effective_interval_ms / 1000.0)
             pending_interval_sleep = True
             if each_once and i < len(scenarios):
                 scenario = scenarios[i]
@@ -445,7 +482,8 @@ class ScenarioRunner:
                 _continue_timeline=True,
                 include_span_names_in_progress=include_span_names_in_progress,
             )
-            trace_ids.extend(ids)
+            if keep_trace_ids:
+                trace_ids.extend(ids)
             traces_by_scenario[scenario.name] = traces_by_scenario.get(scenario.name, 0) + 1
             if pick_complete_callback is not None:
                 pick_complete_callback(pick_index, n_picks, scenario.name, ids)

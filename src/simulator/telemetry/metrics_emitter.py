@@ -31,6 +31,9 @@ class SemconvMetricsEmitter:
     Note: The current simulator doesn't replicate all semconv common attributes onto every
     span. This emitter backfills a small set of commonly-used dimension values by scanning
     the TraceSpec for those attributes.
+
+    IMPORTANT: By default, trace_id/span_id are NOT included in metric attributes to avoid
+    cardinality explosion. Enable ``include_span_trace_ids=True`` only for debugging.
     """
 
     def __init__(
@@ -42,7 +45,9 @@ class SemconvMetricsEmitter:
         resource_data_plane: Resource,
         resource_control_plane: Resource | None = None,
         export_interval_ms: int = 500,
+        include_span_trace_ids: bool = False,
     ) -> None:
+        self._include_span_trace_ids = include_span_trace_ids
         self._mapping = SemconvMapping.from_schema_path(schema_path)
         self._resource_dp = resource_data_plane
         self._resource_cp = resource_control_plane or resource_data_plane
@@ -215,14 +220,18 @@ class SemconvMetricsEmitter:
                 if missing:
                     continue
 
-                if trace_id_hex:
-                    dim_attrs["trace_id"] = trace_id_hex
-                    dim_attrs["trace.id"] = trace_id_hex
-                if span_id_hex_by_index is not None and span_index < len(span_id_hex_by_index):
-                    sid = span_id_hex_by_index[span_index]
-                    if sid:
-                        dim_attrs["span_id"] = sid
-                        dim_attrs["span.id"] = sid
+                # High-cardinality trace/span IDs: only include when explicitly enabled.
+                # Including them by default causes linear memory/CPU growth and can trigger
+                # backend policy rejections (400 Bad Request) due to cardinality limits.
+                if self._include_span_trace_ids:
+                    if trace_id_hex:
+                        dim_attrs["trace_id"] = trace_id_hex
+                        dim_attrs["trace.id"] = trace_id_hex
+                    if span_id_hex_by_index is not None and span_index < len(span_id_hex_by_index):
+                        sid = span_id_hex_by_index[span_index]
+                        if sid:
+                            dim_attrs["span_id"] = sid
+                            dim_attrs["span.id"] = sid
 
                 instr = self._instrument_by_key.get(self._spec_key(spec))
                 if instr is None:

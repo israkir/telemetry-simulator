@@ -235,6 +235,7 @@ def cmd_run(args: argparse.Namespace) -> None:
             show_full_spans=args.show_full_spans,
             scenarios_dir=args.scenarios_dir,
             default_tenant_id=args.tenant_id,
+            include_metric_span_trace_ids=getattr(args, "metric_span_ids", False),
         )
 
         trace_ids, traces_by_scenario = runner.run_mixed_workload(
@@ -395,6 +396,7 @@ def cmd_scenario(args: argparse.Namespace) -> None:
             show_full_spans=args.show_full_spans,
             scenarios_dir=args.scenarios_dir,
             default_tenant_id=args.tenant_id,
+            include_metric_span_trace_ids=getattr(args, "metric_span_ids", False),
         )
 
         run_kw: dict = {}

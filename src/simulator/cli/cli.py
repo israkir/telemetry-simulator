@@ -150,6 +150,14 @@ Examples:
         action="store_true",
         help="Run each (tagged) scenario exactly once instead of --count random picks",
     )
+    run_parser.add_argument(
+        "--metric-span-ids",
+        action="store_true",
+        help=(
+            "Include trace_id/span_id in metric attributes (DEBUG ONLY: causes high cardinality "
+            "and linear CPU/memory growth; may trigger backend 400 rejections)"
+        ),
+    )
 
     scenario_parser = subparsers.add_parser("scenario", help="Run YAML-defined scenario")
     scenario_parser.add_argument("--endpoint", type=str, help=argparse.SUPPRESS)
@@ -225,6 +233,14 @@ Examples:
         type=str,
         default=None,
         help="Output file path (if set, exports traces to file instead of OTLP)",
+    )
+    scenario_parser.add_argument(
+        "--metric-span-ids",
+        action="store_true",
+        help=(
+            "Include trace_id/span_id in metric attributes (DEBUG ONLY: causes high cardinality "
+            "and linear CPU/memory growth; may trigger backend 400 rejections)"
+        ),
     )
 
     list_parser = subparsers.add_parser("list", help="List available scenarios")

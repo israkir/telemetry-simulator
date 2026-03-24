@@ -7,11 +7,12 @@
 # Do not set vendor.component under data-plane.attributes; it is overridden per span.
 
 schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
+service_version: &service_version "1.1.1"
 
 control-plane:
   attributes:
     service.name: "gentoro-enterprise"
-    service.version: "1.1.0"
+    service.version: *service_version
     service.instance.id: "pod-7f9c6d4b8d-xyz12"
     deployment.environment.name: "prod"
     vendor.module: "control-plane"
@@ -21,7 +22,7 @@ control-plane:
 data-plane:
   attributes:
     service.name: "gentoro-enterprise"
-    service.version: "1.1.0"
+    service.version: *service_version
     service.instance.id: "pod-7f9c6d4b8d-xyz12"
     deployment.environment.name: "prod"
     vendor.module: "data-plane"

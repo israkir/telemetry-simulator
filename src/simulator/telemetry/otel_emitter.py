@@ -32,6 +32,7 @@ class OtelEmitter:
         cp_resource: Resource | None = None,
         metric_exporter_control_plane: MetricExporter | None = None,
         export_metrics_interval_ms: int = 500,
+        include_metric_span_trace_ids: bool = False,
     ) -> None:
         self._metrics_emitter = (
             SemconvMetricsEmitter(
@@ -41,6 +42,7 @@ class OtelEmitter:
                 resource_data_plane=dp_resource,
                 resource_control_plane=cp_resource,
                 export_interval_ms=export_metrics_interval_ms,
+                include_span_trace_ids=include_metric_span_trace_ids,
             )
             if metric_exporter is not None
             else None
