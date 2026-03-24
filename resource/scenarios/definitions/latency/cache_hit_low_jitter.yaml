@@ -1,0 +1,224 @@
+name: cache_hit_low_jitter
+description: >
+  Four short single-turn interactions on warm in-region paths where cached lookups and
+  precomputed routing keep MCP tool execution very fast and stable.
+
+tags:
+  - latency
+  - healthy
+  - cache-hit
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.2
+trace_interval_ms: 220
+trace_interval_deviation_ms: 50
+repeat_count: 1
+
+latency_profiles:
+  cache_hit:
+    span_durations_ms:
+      request.validation: { mean: 5, deviation: 1.8 }
+      payload.validation: { mean: 3, deviation: 1.0 }
+      policy.validation: { mean: 7, deviation: 2.0 }
+      augmentation.validation: { mean: 4, deviation: 1.5 }
+      a2a.orchestrate: { mean: 2200, deviation: 260 }
+      planner: { mean: 210, deviation: 50 }
+      llm.call: { mean: 1100, deviation: 220 }
+      task.execute: { mean: 280, deviation: 70 }
+      tools.recommend: { mean: 28, deviation: 10 }
+      mcp.tool.execute: { mean: 55, deviation: 22 }
+      response.compose: { mean: 150, deviation: 40 }
+      response.validation: { mean: 8, deviation: 2.5 }
+
+default_latency_profile: cache_hit
+
+x_span_plan: &latency_demo_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: latency_cache_hit_01
+    vendor.enduser.pseudo.id: "user_lat_cache_01"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Quick check please: what is the latest status for claim PH-LAT-6001?
+        agent_response: >
+          PH-LAT-6001 is in review with an assessor assigned. You will receive a push notification once
+          the decision is posted.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 640
+        gen_ai.usage.output_tokens: 84
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-LAT-6001"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-LAT-6001"
+            status: "in_review"
+            last_updated: "2026-03-23T13:15:00Z"
+            milestones:
+              - intake_complete
+              - photos_received
+              - assessor_assigned
+        planner:
+          system_prompt: >
+            Low-latency cache-hit path for claim_status PH-LAT-6001.
+          output: >
+            PLAN: claim_status PH-LAT-6001; short response.
+        response_compose:
+          system_prompt: >
+            Keep it concise and reassuring.
+
+  - id: latency_cache_hit_02
+    vendor.enduser.pseudo.id: "user_lat_cache_02"
+    channel: web_chat
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          For PH-LAT-6002 can I see morning repair slots for April 15 to April 17?
+        agent_response: >
+          For PH-LAT-6002 the earliest morning options are Tue 09:00 and Wed 09:30. Choose one
+          and I can hold it.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 690
+        gen_ai.usage.output_tokens: 101
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "PH-LAT-6002"
+            service_type: "authorized_repair_visit"
+            date_range_start: "2026-04-15"
+            date_range_end: "2026-04-17"
+        gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "PH-LAT-6002"
+            slots:
+              - { slot_id: "SLOT-2026-04-15T09:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-04-16T09:30", duration_minutes: 120 }
+            timezone: "America/Los_Angeles"
+        planner:
+          system_prompt: >
+            Cached slot matrix lookup for PH-LAT-6002.
+          output: >
+            PLAN: get_available_slots with date range and authorized visit service type.
+        response_compose:
+          system_prompt: >
+            Offer concrete times and next action.
+
+  - id: latency_cache_hit_03
+    vendor.enduser.pseudo.id: "user_lat_cache_03"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Open document upload for claim PH-LAT-6003, I have two photos and one receipt ready now.
+        agent_response: >
+          Upload is open under batch UPL-PH-LAT-6003. Send the three files and I will mark intake complete.
+        tool_chain: [upload_documents]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 670
+        gen_ai.usage.output_tokens: 93
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          upload_documents:
+            claim_id: "PH-LAT-6003"
+            document_types: ["photo_damage", "proof_of_purchase"]
+            expected_count: 3
+        gen_ai.tool.call.result:
+          upload_documents:
+            claim_id: "PH-LAT-6003"
+            upload_batch_id: "UPL-PH-LAT-6003"
+            pending_count: 3
+            status: "pending"
+        planner:
+          system_prompt: >
+            Warm upload service path for PH-LAT-6003.
+          output: >
+            PLAN: upload_documents with three expected files.
+        response_compose:
+          system_prompt: >
+            Keep in-app wording short and practical.
+
+  - id: latency_cache_hit_04
+    vendor.enduser.pseudo.id: "user_lat_cache_04"
+    channel: voice
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Please capture the 75 euro excess for PH-LAT-6004 with my card on file.
+        agent_response: >
+          Done, EUR 75.00 has been captured for PH-LAT-6004 with payment reference PAY-PH-LAT-6004.
+        tool_chain: [pay]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 650
+        gen_ai.usage.output_tokens: 86
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          pay:
+            payment_target: "excess"
+            reference_id: "PH-LAT-6004"
+            amount: 75.0
+            currency: "EUR"
+        gen_ai.tool.call.result:
+          pay:
+            payment_id: "PAY-PH-LAT-6004"
+            reference_id: "PH-LAT-6004"
+            status: "captured"
+            amount: 75.0
+            currency: "EUR"
+        planner:
+          system_prompt: >
+            Cached payment token path for PH-LAT-6004.
+          output: >
+            PLAN: pay excess using stored payment method.
+        response_compose:
+          system_prompt: >
+            Confirm amount and payment reference clearly.

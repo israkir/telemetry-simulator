@@ -1,0 +1,262 @@
+name: cross_region_moderate_jitter
+description: >
+  Five realistic single-turn support interactions with moderate latency and visible jitter caused
+  by cross-region routing, intermittent queue depth, and mixed backend workloads.
+
+tags:
+  - latency
+  - cross-region
+  - moderate
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.5
+trace_interval_ms: 320
+trace_interval_deviation_ms: 100
+repeat_count: 1
+
+latency_profiles:
+  cross_region:
+    span_durations_ms:
+      request.validation: { mean: 9, deviation: 3.5 }
+      payload.validation: { mean: 7, deviation: 2.5 }
+      policy.validation: { mean: 15, deviation: 5 }
+      augmentation.validation: { mean: 9, deviation: 3.5 }
+      a2a.orchestrate: { mean: 5200, deviation: 780 }
+      planner: { mean: 420, deviation: 110 }
+      llm.call: { mean: 2500, deviation: 480 }
+      task.execute: { mean: 760, deviation: 190 }
+      tools.recommend: { mean: 52, deviation: 18 }
+      mcp.tool.execute: { mean: 860, deviation: 300 }
+      response.compose: { mean: 330, deviation: 90 }
+      response.validation: { mean: 12, deviation: 4 }
+
+default_latency_profile: cross_region
+
+x_span_plan: &latency_demo_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: latency_cross_region_01
+    vendor.enduser.pseudo.id: "user_lat_cross_01"
+    channel: web_chat
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          I am traveling and the app feels slower than usual. Can you check PH-LAT-7001?
+        agent_response: >
+          PH-LAT-7001 is pending_info. We still need a clearer IMEI photo before assessment can continue.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 700
+        gen_ai.usage.output_tokens: 96
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-LAT-7001"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-LAT-7001"
+            status: "pending_info"
+            last_updated: "2026-03-22T18:40:00Z"
+            milestones:
+              - intake_complete
+              - imei_photo_requested
+        planner:
+          system_prompt: >
+            Cross-region moderate-latency status check for PH-LAT-7001.
+          output: >
+            PLAN: claim_status PH-LAT-7001 and mention pending document.
+        response_compose:
+          system_prompt: >
+            Acknowledge delay and keep explanation practical.
+
+  - id: latency_cross_region_02
+    vendor.enduser.pseudo.id: "user_lat_cross_02"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Please move appointment APT-PH-7002 for claim PH-LAT-7002 to Friday afternoon.
+        agent_response: >
+          Appointment APT-PH-7002 is now scheduled for Friday 15:00 and confirmation has been pushed to your app.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 710
+        gen_ai.usage.output_tokens: 95
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-LAT-7002"
+            appointment_id: "APT-PH-7002"
+            slot_id: "SLOT-2026-04-17T15:00"
+            preferred_time_window: "afternoon"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-LAT-7002"
+            appointment_id: "APT-PH-7002"
+            status: "rescheduled"
+            scheduled_at: "2026-04-17T15:00:00Z"
+        planner:
+          system_prompt: >
+            Moderate-latency cross-region scheduling update for PH-LAT-7002.
+          output: >
+            PLAN: update_appointment with target afternoon slot.
+        response_compose:
+          system_prompt: >
+            Confirm exact local time and channel update.
+
+  - id: latency_cross_region_03
+    vendor.enduser.pseudo.id: "user_lat_cross_03"
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Open upload for PH-LAT-7003. I need to submit two damage photos from hotel Wi-Fi.
+        agent_response: >
+          Upload batch UPL-PH-LAT-7003 is open for two files. Submit both and we will continue review.
+        tool_chain: [upload_documents]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 680
+        gen_ai.usage.output_tokens: 90
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          upload_documents:
+            claim_id: "PH-LAT-7003"
+            document_types: ["photo_damage", "proof_of_purchase"]
+            expected_count: 2
+        gen_ai.tool.call.result:
+          upload_documents:
+            claim_id: "PH-LAT-7003"
+            upload_batch_id: "UPL-PH-LAT-7003"
+            pending_count: 2
+            status: "pending"
+        planner:
+          system_prompt: >
+            Cross-region upload initiation for PH-LAT-7003.
+          output: >
+            PLAN: upload_documents and set expected file count to 2.
+        response_compose:
+          system_prompt: >
+            Keep message concise for low-bandwidth users.
+
+  - id: latency_cross_region_04
+    vendor.enduser.pseudo.id: "user_lat_cross_04"
+    channel: voice
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Please take the excess payment now for claim PH-LAT-7004, it should be 99 euros.
+        agent_response: >
+          EUR 99.00 has been captured for PH-LAT-7004 under payment reference PAY-PH-LAT-7004.
+        tool_chain: [pay]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 660
+        gen_ai.usage.output_tokens: 84
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          pay:
+            payment_target: "excess"
+            reference_id: "PH-LAT-7004"
+            amount: 99.0
+            currency: "EUR"
+        gen_ai.tool.call.result:
+          pay:
+            payment_id: "PAY-PH-LAT-7004"
+            reference_id: "PH-LAT-7004"
+            status: "captured"
+            amount: 99.0
+            currency: "EUR"
+        planner:
+          system_prompt: >
+            Cross-region moderate latency payment confirmation for PH-LAT-7004.
+          output: >
+            PLAN: collect excess payment and confirm reference.
+        response_compose:
+          system_prompt: >
+            Speak clearly with amount and payment id.
+
+  - id: latency_cross_region_05
+    vendor.enduser.pseudo.id: "user_lat_cross_05"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Show available pickup windows for PH-LAT-7005 next Tuesday to Thursday.
+        agent_response: >
+          Open pickup windows for PH-LAT-7005 are Tue 10:00, Wed 14:00, and Thu 09:00.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 690
+        gen_ai.usage.output_tokens: 88
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "PH-LAT-7005"
+            service_type: "repair_collection"
+            date_range_start: "2026-04-14"
+            date_range_end: "2026-04-16"
+        gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "PH-LAT-7005"
+            slots:
+              - { slot_id: "SLOT-2026-04-14T10:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-04-15T14:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-04-16T09:00", duration_minutes: 120 }
+            timezone: "America/Los_Angeles"
+        planner:
+          system_prompt: >
+            Cross-region slot lookup for pickup planning on PH-LAT-7005.
+          output: >
+            PLAN: get_available_slots for three-day range.
+        response_compose:
+          system_prompt: >
+            Present options in priority order.

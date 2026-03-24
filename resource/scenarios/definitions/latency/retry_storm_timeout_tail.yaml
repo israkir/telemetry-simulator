@@ -1,0 +1,386 @@
+name: retry_storm_timeout_tail
+description: >
+  Eight high-pressure single-turn interactions during a sudden incident spike where MCP calls
+  suffer retry storms, timeout backoff, and hot partitions across multiple tool types.
+
+tags:
+  - latency
+  - degraded
+  - retry-storm
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.4
+trace_interval_ms: 460
+trace_interval_deviation_ms: 140
+repeat_count: 1
+
+latency_profiles:
+  retry_storm:
+    span_durations_ms:
+      request.validation: { mean: 15, deviation: 6 }
+      payload.validation: { mean: 12, deviation: 4.5 }
+      policy.validation: { mean: 24, deviation: 8 }
+      augmentation.validation: { mean: 15, deviation: 5.5 }
+      a2a.orchestrate: { mean: 14200, deviation: 2600 }
+      planner: { mean: 930, deviation: 240 }
+      llm.call: { mean: 6100, deviation: 1600 }
+      task.execute: { mean: 1800, deviation: 520 }
+      tools.recommend: { mean: 112, deviation: 38 }
+      mcp.tool.execute: { mean: 4200, deviation: 1700 }
+      response.compose: { mean: 620, deviation: 170 }
+      response.validation: { mean: 19, deviation: 7 }
+
+latency_profile_conditions:
+  - profile: retry_storm
+    higher_latency_attributes:
+      gentoro.higher_latency.condition.keys: "retry_storm,timeout_backoff,downstream_hot_partition"
+      gentoro.higher_latency.condition.retry_storm: "mcp_client_retry_budget_near_exhaustion"
+      gentoro.higher_latency.condition.timeout_backoff: "exponential_backoff_active"
+      gentoro.higher_latency.condition.downstream_hot_partition: "tool_shard_hotspots"
+
+default_latency_profile: retry_storm
+
+x_span_plan: &latency_demo_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: latency_retry_storm_01
+    vendor.enduser.pseudo.id: "user_lat_retry_01"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          The chat froze twice before replying. Please check the status of PH-LAT-9801.
+        agent_response: >
+          PH-LAT-9801 is approved for repair and the partner authorization is now visible.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 720
+        gen_ai.usage.output_tokens: 97
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-LAT-9801"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-LAT-9801"
+            status: "approved"
+            last_updated: "2026-03-22T19:10:00Z"
+            milestones:
+              - intake_complete
+              - assessor_approved
+              - partner_authorized
+        planner:
+          system_prompt: >
+            Retry-storm tail-latency path for PH-LAT-9801.
+          output: >
+            PLAN: claim_status PH-LAT-9801; concise status only.
+        response_compose:
+          system_prompt: >
+            Keep it calm and direct without technical details.
+
+  - id: latency_retry_storm_02
+    vendor.enduser.pseudo.id: "user_lat_retry_02"
+    channel: web_chat
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          I have been waiting forever, can you move appointment APT-PH-9802 to tomorrow morning for PH-LAT-9802?
+        agent_response: >
+          APT-PH-9802 is now moved to tomorrow 09:00 for PH-LAT-9802. Sorry for the delay.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 760
+        gen_ai.usage.output_tokens: 104
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-LAT-9802"
+            appointment_id: "APT-PH-9802"
+            slot_id: "SLOT-2026-04-13T09:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-LAT-9802"
+            appointment_id: "APT-PH-9802"
+            status: "rescheduled"
+            scheduled_at: "2026-04-13T09:00:00Z"
+        planner:
+          system_prompt: >
+            High-tail latency update_appointment flow for PH-LAT-9802.
+          output: >
+            PLAN: update_appointment to first available morning slot.
+        response_compose:
+          system_prompt: >
+            Confirm the new time and apologize briefly.
+
+  - id: latency_retry_storm_03
+    vendor.enduser.pseudo.id: "user_lat_retry_03"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Upload keeps spinning. Start upload for PH-LAT-9803 with receipt and two photos.
+        agent_response: >
+          Upload batch UPL-PH-LAT-9803 is ready for three files. Send them once your connection stabilizes.
+        tool_chain: [upload_documents]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 730
+        gen_ai.usage.output_tokens: 100
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          upload_documents:
+            claim_id: "PH-LAT-9803"
+            document_types: ["photo_damage", "proof_of_purchase"]
+            expected_count: 3
+        gen_ai.tool.call.result:
+          upload_documents:
+            claim_id: "PH-LAT-9803"
+            upload_batch_id: "UPL-PH-LAT-9803"
+            pending_count: 3
+            status: "pending"
+        planner:
+          system_prompt: >
+            Incident-period upload_documents call for PH-LAT-9803.
+          output: >
+            PLAN: initialize upload batch and return expected count.
+        response_compose:
+          system_prompt: >
+            Keep instructions clear under degraded conditions.
+
+  - id: latency_retry_storm_04
+    vendor.enduser.pseudo.id: "user_lat_retry_04"
+    channel: voice
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Just take the excess now for PH-LAT-9804, it is 75 euros and I need this done tonight.
+        agent_response: >
+          EUR 75.00 has now been captured for PH-LAT-9804 with payment reference PAY-PH-LAT-9804.
+        tool_chain: [pay]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 710
+        gen_ai.usage.output_tokens: 94
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          pay:
+            payment_target: "excess"
+            reference_id: "PH-LAT-9804"
+            amount: 75.0
+            currency: "EUR"
+        gen_ai.tool.call.result:
+          pay:
+            payment_id: "PAY-PH-LAT-9804"
+            reference_id: "PH-LAT-9804"
+            status: "captured"
+            amount: 75.0
+            currency: "EUR"
+        planner:
+          system_prompt: >
+            Tail-latency payment flow under retry pressure for PH-LAT-9804.
+          output: >
+            PLAN: collect excess and return payment id once confirmed.
+        response_compose:
+          system_prompt: >
+            Read amount and payment reference clearly.
+
+  - id: latency_retry_storm_05
+    vendor.enduser.pseudo.id: "user_lat_retry_05"
+    channel: web_chat
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          I only need pickup windows for PH-LAT-9805 next week, can you show anything available?
+        agent_response: >
+          Available pickup windows for PH-LAT-9805 are Mon 10:00 and Tue 14:00; both are still open.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 740
+        gen_ai.usage.output_tokens: 96
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "PH-LAT-9805"
+            service_type: "repair_collection"
+            date_range_start: "2026-04-20"
+            date_range_end: "2026-04-24"
+        gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "PH-LAT-9805"
+            slots:
+              - { slot_id: "SLOT-2026-04-20T10:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-04-21T14:00", duration_minutes: 120 }
+            timezone: "America/Los_Angeles"
+        planner:
+          system_prompt: >
+            Degraded slot retrieval for PH-LAT-9805 during regional spike.
+          output: >
+            PLAN: get_available_slots with bounded date range.
+        response_compose:
+          system_prompt: >
+            Prioritize actionable options over extra detail.
+
+  - id: latency_retry_storm_06
+    vendor.enduser.pseudo.id: "user_lat_retry_06"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Cancel duplicate claim PH-LAT-9806, I already refiled and want only the new case open.
+        agent_response: >
+          PH-LAT-9806 has been cancelled as requested. Your newer claim remains active.
+        tool_chain: [cancel_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 700
+        gen_ai.usage.output_tokens: 88
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          cancel_claim:
+            claim_id: "PH-LAT-9806"
+            reason: "duplicate_submission"
+        gen_ai.tool.call.result:
+          cancel_claim:
+            claim_id: "PH-LAT-9806"
+            status: "cancelled"
+            cancelled_at: "2026-04-12T19:48:00Z"
+        planner:
+          system_prompt: >
+            Cancellation request under retry-storm conditions.
+          output: >
+            PLAN: cancel_claim for duplicate case cleanup.
+        response_compose:
+          system_prompt: >
+            Confirm cancellation and remaining active claim state.
+
+  - id: latency_retry_storm_07
+    vendor.enduser.pseudo.id: "user_lat_retry_07"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Is PH-LAT-9807 still pending_info or did my receipt upload finally go through?
+        agent_response: >
+          PH-LAT-9807 is still pending_info. Receipt upload has not passed quality checks yet.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 730
+        gen_ai.usage.output_tokens: 91
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-LAT-9807"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-LAT-9807"
+            status: "pending_info"
+            last_updated: "2026-04-12T20:02:00Z"
+            milestones:
+              - intake_complete
+              - receipt_reupload_requested
+        planner:
+          system_prompt: >
+            High-latency claim_status call for PH-LAT-9807 with document retry context.
+          output: >
+            PLAN: claim_status PH-LAT-9807 and concise next step.
+        response_compose:
+          system_prompt: >
+            Clear pending reason without internal jargon.
+
+  - id: latency_retry_storm_08
+    vendor.enduser.pseudo.id: "user_lat_retry_08"
+    channel: voice
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          This line keeps stalling. Can you just check PH-LAT-9808 and tell me if repair is approved?
+        agent_response: >
+          PH-LAT-9808 is approved for repair and your partner booking link is active.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 740
+        gen_ai.usage.output_tokens: 90
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-LAT-9808"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-LAT-9808"
+            status: "approved"
+            last_updated: "2026-04-12T20:05:00Z"
+            milestones:
+              - intake_complete
+              - assessor_approved
+              - booking_link_sent
+        planner:
+          system_prompt: >
+            Incident-peak claim_status for PH-LAT-9808 over voice channel.
+          output: >
+            PLAN: claim_status PH-LAT-9808 and direct confirmation.
+        response_compose:
+          system_prompt: >
+            Keep voice response short and decisive.

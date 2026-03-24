@@ -1,0 +1,242 @@
+name: extreme_incident_spike_window
+description: >
+  Rare severe latency incident during a constrained weekday window, modeled as a transient
+  failover plus queue saturation event. Interactions reflect realistic urgent intents while
+  preserving successful user outcomes with extreme tail latency and jitter.
+
+tags:
+  - latency
+  - extreme
+  - incident
+  - spike
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 0.8
+trace_interval_ms: 520
+trace_interval_deviation_ms: 170
+repeat_count: 1
+
+workload_schedule:
+  incident_window:
+    timezone: "America/Los_Angeles"
+    weekdays: [2]
+    start_hour: 9
+    end_hour: 10
+
+latency_profiles:
+  extreme_incident:
+    span_durations_ms:
+      request.validation: { mean: 18, deviation: 7 }
+      payload.validation: { mean: 14, deviation: 5 }
+      policy.validation: { mean: 28, deviation: 10 }
+      augmentation.validation: { mean: 17, deviation: 6 }
+      a2a.orchestrate: { mean: 17600, deviation: 3800 }
+      planner: { mean: 1080, deviation: 320 }
+      llm.call: { mean: 7600, deviation: 2200 }
+      task.execute: { mean: 2350, deviation: 760 }
+      tools.recommend: { mean: 132, deviation: 46 }
+      mcp.tool.execute: { mean: 5200, deviation: 2100 }
+      response.compose: { mean: 720, deviation: 220 }
+      response.validation: { mean: 24, deviation: 9 }
+
+latency_profile_conditions:
+  - profile: extreme_incident
+    higher_latency_attributes:
+      gentoro.higher_latency.condition.keys: "extreme_spike,regional_failover,queue_saturation"
+      gentoro.higher_latency.condition.extreme_spike: "incident_burst_concurrency_very_high"
+      gentoro.higher_latency.condition.regional_failover: "cross_zone_traffic_shift_active"
+      gentoro.higher_latency.condition.queue_saturation: "mcp_worker_backlog_critical"
+      gentoro.higher_latency.incident_window.timezone: "America/Los_Angeles"
+      gentoro.higher_latency.incident_window.weekdays: "[2]"
+      gentoro.higher_latency.incident_window.start_hour: 9
+      gentoro.higher_latency.incident_window.end_hour: 10
+
+default_latency_profile: extreme_incident
+
+x_span_plan: &latency_demo_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: latency_extreme_spike_01
+    vendor.enduser.pseudo.id: "user_lat_extreme_01"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          App is stalling hard. Please check claim PH-LAT-9951 and tell me if review is complete.
+        agent_response: >
+          PH-LAT-9951 is still in review with the assessor assigned. We will notify you as soon as the decision posts.
+        tool_chain: [claim_status]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 760
+        gen_ai.usage.output_tokens: 104
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-LAT-9951"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-LAT-9951"
+            status: "in_review"
+            last_updated: "2026-04-14T09:22:00Z"
+            milestones:
+              - intake_complete
+              - photos_received
+              - assessor_assigned
+        planner:
+          system_prompt: >
+            Extreme-incident status check for PH-LAT-9951.
+          output: >
+            PLAN: claim_status PH-LAT-9951 with concise reassurance.
+        response_compose:
+          system_prompt: >
+            Keep message short and clear for an impatient mobile user.
+
+  - id: latency_extreme_spike_02
+    vendor.enduser.pseudo.id: "user_lat_extreme_02"
+    channel: voice
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          I need to move APT-PH-9952 to tomorrow evening on claim PH-LAT-9952.
+        agent_response: >
+          APT-PH-9952 is rescheduled to tomorrow at 18:30 for claim PH-LAT-9952.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 780
+        gen_ai.usage.output_tokens: 92
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-LAT-9952"
+            appointment_id: "APT-PH-9952"
+            slot_id: "SLOT-2026-04-15T18:30"
+            preferred_time_window: "evening"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-LAT-9952"
+            appointment_id: "APT-PH-9952"
+            status: "rescheduled"
+            scheduled_at: "2026-04-15T18:30:00Z"
+        planner:
+          system_prompt: >
+            Extreme incident reschedule flow for PH-LAT-9952.
+          output: >
+            PLAN: update_appointment to evening slot and confirm explicitly.
+        response_compose:
+          system_prompt: >
+            Read new time clearly and avoid technical detail.
+
+  - id: latency_extreme_spike_03
+    vendor.enduser.pseudo.id: "user_lat_extreme_03"
+    channel: web_chat
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Please open upload for PH-LAT-9953 with receipt and two damage photos.
+        agent_response: >
+          Upload batch UPL-PH-LAT-9953 is open for three files. Submit when ready and we will attach them.
+        tool_chain: [upload_documents]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 740
+        gen_ai.usage.output_tokens: 96
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          upload_documents:
+            claim_id: "PH-LAT-9953"
+            document_types: ["photo_damage", "proof_of_purchase"]
+            expected_count: 3
+        gen_ai.tool.call.result:
+          upload_documents:
+            claim_id: "PH-LAT-9953"
+            upload_batch_id: "UPL-PH-LAT-9953"
+            pending_count: 3
+            status: "pending"
+        planner:
+          system_prompt: >
+            Extreme-incident upload initiation for PH-LAT-9953.
+          output: >
+            PLAN: upload_documents with expected_count 3.
+        response_compose:
+          system_prompt: >
+            Keep guidance actionable and brief.
+
+  - id: latency_extreme_spike_04
+    vendor.enduser.pseudo.id: "user_lat_extreme_04"
+    channel: mobile_app
+    turns:
+      - turn_index: 1
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Show pickup windows for PH-LAT-9954 this week, earliest options first.
+        agent_response: >
+          Earliest pickup windows for PH-LAT-9954 are Tue 17:30 and Thu 18:00.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 735
+        gen_ai.usage.output_tokens: 88
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "PH-LAT-9954"
+            service_type: "repair_collection"
+            date_range_start: "2026-04-14"
+            date_range_end: "2026-04-18"
+        gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "PH-LAT-9954"
+            slots:
+              - { slot_id: "SLOT-2026-04-15T17:30", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-04-17T18:00", duration_minutes: 120 }
+            timezone: "America/Los_Angeles"
+        planner:
+          system_prompt: >
+            Extreme spike slot retrieval for PH-LAT-9954 with earliest-first ordering.
+          output: >
+            PLAN: get_available_slots over current week and rank earliest.
+        response_compose:
+          system_prompt: >
+            Return top options only.

@@ -26,7 +26,7 @@ mcp_server: phone
 
 vendor.redaction.applied: none
 
-workload_weight: 1.2
+workload_weight: 2.0
 trace_interval_ms: 210
 trace_interval_deviation_ms: 45
 
@@ -37,13 +37,13 @@ latency_profiles:
       payload.validation: { mean: 5, deviation: 2 }
       policy.validation: { mean: 12, deviation: 5 }
       augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2100, deviation: 380 }
-      planner: { mean: 480, deviation: 110 }
-      llm.call: { mean: 560, deviation: 130 }
-      task.execute: { mean: 680, deviation: 150 }
-      tools.recommend: { mean: 50, deviation: 16 }
-      mcp.tool.execute: { mean: 260, deviation: 70 }
-      response.compose: { mean: 320, deviation: 75 }
+      a2a.orchestrate: { mean: 2240, deviation: 660 }
+      planner: { mean: 505, deviation: 165 }
+      llm.call: { mean: 592, deviation: 195 }
+      task.execute: { mean: 748, deviation: 248 }
+      tools.recommend: { mean: 54, deviation: 21 }
+      mcp.tool.execute: { mean: 312, deviation: 132 }
+      response.compose: { mean: 355, deviation: 112 }
       response.validation: { mean: 10, deviation: 4 }
 
 default_latency_profile: normal

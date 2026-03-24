@@ -25,7 +25,7 @@ mcp_server: appliances
 
 vendor.redaction.applied: none
 
-workload_weight: 1.6
+workload_weight: 2.0
 trace_interval_ms: 218
 trace_interval_deviation_ms: 48
 
@@ -36,13 +36,13 @@ latency_profiles:
       payload.validation: { mean: 5, deviation: 2 }
       policy.validation: { mean: 12, deviation: 5 }
       augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 1980, deviation: 395 }
-      planner: { mean: 498, deviation: 115 }
-      llm.call: { mean: 615, deviation: 140 }
-      task.execute: { mean: 675, deviation: 155 }
-      tools.recommend: { mean: 50, deviation: 16 }
-      mcp.tool.execute: { mean: 200, deviation: 54 }
-      response.compose: { mean: 335, deviation: 80 }
+      a2a.orchestrate: { mean: 2080, deviation: 560 }
+      planner: { mean: 518, deviation: 150 }
+      llm.call: { mean: 638, deviation: 186 }
+      task.execute: { mean: 728, deviation: 238 }
+      tools.recommend: { mean: 54, deviation: 21 }
+      mcp.tool.execute: { mean: 228, deviation: 98 }
+      response.compose: { mean: 362, deviation: 111 }
       response.validation: { mean: 10, deviation: 4 }
 
 default_latency_profile: normal
