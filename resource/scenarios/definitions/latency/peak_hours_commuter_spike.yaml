@@ -30,18 +30,18 @@ workload_schedule:
 latency_profiles:
   commuter_peak:
     span_durations_ms:
-      request.validation: { mean: 12, deviation: 4.5 }
-      payload.validation: { mean: 9, deviation: 3.0 }
-      policy.validation: { mean: 18, deviation: 6.0 }
-      augmentation.validation: { mean: 11, deviation: 4.0 }
-      a2a.orchestrate: { mean: 8900, deviation: 1700 }
-      planner: { mean: 640, deviation: 170 }
-      llm.call: { mean: 4100, deviation: 980 }
-      task.execute: { mean: 1100, deviation: 300 }
-      tools.recommend: { mean: 82, deviation: 28 }
-      mcp.tool.execute: { mean: 1850, deviation: 760 }
-      response.compose: { mean: 460, deviation: 130 }
-      response.validation: { mean: 15, deviation: 5 }
+      request.validation: { mean: 13, deviation: 5.2 }
+      payload.validation: { mean: 10, deviation: 3.8 }
+      policy.validation: { mean: 20, deviation: 7.5 }
+      augmentation.validation: { mean: 12, deviation: 4.8 }
+      a2a.orchestrate: { mean: 9700, deviation: 2400 }
+      planner: { mean: 700, deviation: 250 }
+      llm.call: { mean: 4500, deviation: 1450 }
+      task.execute: { mean: 1260, deviation: 450 }
+      tools.recommend: { mean: 90, deviation: 35 }
+      mcp.tool.execute: { mean: 2180, deviation: 1080 }
+      response.compose: { mean: 520, deviation: 185 }
+      response.validation: { mean: 17, deviation: 6.5 }
 
 latency_profile_conditions:
   - profile: commuter_peak

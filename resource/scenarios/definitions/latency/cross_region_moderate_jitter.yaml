@@ -22,18 +22,18 @@ repeat_count: 1
 latency_profiles:
   cross_region:
     span_durations_ms:
-      request.validation: { mean: 9, deviation: 3.5 }
-      payload.validation: { mean: 7, deviation: 2.5 }
-      policy.validation: { mean: 15, deviation: 5 }
-      augmentation.validation: { mean: 9, deviation: 3.5 }
-      a2a.orchestrate: { mean: 5200, deviation: 780 }
-      planner: { mean: 420, deviation: 110 }
-      llm.call: { mean: 2500, deviation: 480 }
-      task.execute: { mean: 760, deviation: 190 }
-      tools.recommend: { mean: 52, deviation: 18 }
-      mcp.tool.execute: { mean: 860, deviation: 300 }
-      response.compose: { mean: 330, deviation: 90 }
-      response.validation: { mean: 12, deviation: 4 }
+      request.validation: { mean: 10, deviation: 4.0 }
+      payload.validation: { mean: 8, deviation: 3.0 }
+      policy.validation: { mean: 16, deviation: 5.8 }
+      augmentation.validation: { mean: 10, deviation: 4.2 }
+      a2a.orchestrate: { mean: 5600, deviation: 1100 }
+      planner: { mean: 455, deviation: 150 }
+      llm.call: { mean: 2740, deviation: 700 }
+      task.execute: { mean: 850, deviation: 270 }
+      tools.recommend: { mean: 58, deviation: 24 }
+      mcp.tool.execute: { mean: 980, deviation: 420 }
+      response.compose: { mean: 360, deviation: 125 }
+      response.validation: { mean: 13, deviation: 4.8 }
 
 default_latency_profile: cross_region
 

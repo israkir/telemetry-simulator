@@ -22,18 +22,18 @@ repeat_count: 1
 latency_profiles:
   retry_storm:
     span_durations_ms:
-      request.validation: { mean: 15, deviation: 6 }
-      payload.validation: { mean: 12, deviation: 4.5 }
-      policy.validation: { mean: 24, deviation: 8 }
-      augmentation.validation: { mean: 15, deviation: 5.5 }
-      a2a.orchestrate: { mean: 14200, deviation: 2600 }
-      planner: { mean: 930, deviation: 240 }
-      llm.call: { mean: 6100, deviation: 1600 }
-      task.execute: { mean: 1800, deviation: 520 }
-      tools.recommend: { mean: 112, deviation: 38 }
-      mcp.tool.execute: { mean: 4200, deviation: 1700 }
-      response.compose: { mean: 620, deviation: 170 }
-      response.validation: { mean: 19, deviation: 7 }
+      request.validation: { mean: 16, deviation: 7.2 }
+      payload.validation: { mean: 13, deviation: 5.3 }
+      policy.validation: { mean: 26, deviation: 10.2 }
+      augmentation.validation: { mean: 16, deviation: 6.8 }
+      a2a.orchestrate: { mean: 15600, deviation: 3800 }
+      planner: { mean: 1020, deviation: 340 }
+      llm.call: { mean: 6800, deviation: 2300 }
+      task.execute: { mean: 2060, deviation: 760 }
+      tools.recommend: { mean: 126, deviation: 50 }
+      mcp.tool.execute: { mean: 4850, deviation: 2350 }
+      response.compose: { mean: 700, deviation: 260 }
+      response.validation: { mean: 22, deviation: 9 }
 
 latency_profile_conditions:
   - profile: retry_storm

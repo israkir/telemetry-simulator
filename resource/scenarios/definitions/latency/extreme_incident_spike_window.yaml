@@ -31,18 +31,18 @@ workload_schedule:
 latency_profiles:
   extreme_incident:
     span_durations_ms:
-      request.validation: { mean: 18, deviation: 7 }
-      payload.validation: { mean: 14, deviation: 5 }
-      policy.validation: { mean: 28, deviation: 10 }
-      augmentation.validation: { mean: 17, deviation: 6 }
-      a2a.orchestrate: { mean: 17600, deviation: 3800 }
-      planner: { mean: 1080, deviation: 320 }
-      llm.call: { mean: 7600, deviation: 2200 }
-      task.execute: { mean: 2350, deviation: 760 }
-      tools.recommend: { mean: 132, deviation: 46 }
-      mcp.tool.execute: { mean: 5200, deviation: 2100 }
-      response.compose: { mean: 720, deviation: 220 }
-      response.validation: { mean: 24, deviation: 9 }
+      request.validation: { mean: 19, deviation: 8.5 }
+      payload.validation: { mean: 15, deviation: 6.2 }
+      policy.validation: { mean: 31, deviation: 12.5 }
+      augmentation.validation: { mean: 18, deviation: 7.5 }
+      a2a.orchestrate: { mean: 19100, deviation: 5200 }
+      planner: { mean: 1200, deviation: 430 }
+      llm.call: { mean: 8350, deviation: 2950 }
+      task.execute: { mean: 2620, deviation: 980 }
+      tools.recommend: { mean: 146, deviation: 58 }
+      mcp.tool.execute: { mean: 5900, deviation: 2800 }
+      response.compose: { mean: 810, deviation: 310 }
+      response.validation: { mean: 27, deviation: 11 }
 
 latency_profile_conditions:
   - profile: extreme_incident
