@@ -1,0 +1,189 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_phone_charge_flaky_slots_multiturn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# MCP: phone — new_claim + get_available_slots, then update_appointment
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_phone_charge_flaky_slots_multiturn
+description: >
+  Intermittent port charge: PH-9163 + slots; books Wednesday.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 2.5
+trace_interval_ms: 232
+trace_interval_deviation_ms: 52
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1980, deviation: 620 }
+      planner: { mean: 520, deviation: 165 }
+      llm.call: { mean: 655, deviation: 200 }
+      task.execute: { mean: 740, deviation: 250 }
+      tools.recommend: { mean: 54, deviation: 22 }
+      mcp.tool.execute: { mean: 245, deviation: 110 }
+      response.compose: { mean: 368, deviation: 115 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_charge_flaky_slots_multiturn
+    vendor.enduser.pseudo.id: "user_mt_ph_chg_98"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Charging cuts out unless I hold the cable just so — need a claim and a service slot.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Charging cuts out unless I hold the cable just so — need a claim and a service slot.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-9163 logged. Available: Monday 09:00 or Thursday 09:00 one-hour bays — pick one.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Charging cuts out unless I hold the cable just so — need a claim and a service slot.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Charge port intermittent.", "trigger_quote": "charging drops", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "phone", "description": "USB-C port loose; charging drops unless cable angled.", "incident_date": "2026-05-08"}}, {"tool_name": "get_available_slots", "trigger_summary": "Service center hourly windows.", "trigger_quote": "repair appointment", "missing_info": null, "confidence": 0.87, "tool_args": {"claim_id": "PH-9163", "service_type": "screen_repair_visit", "date_range_start": "2026-05-09", "date_range_end": "2026-05-15"}}]}
+        agent_response: >
+          PH-9163 logged. Available: Monday 09:00 or Thursday 09:00 one-hour bays — pick one.
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 990
+        gen_ai.usage.output_tokens: 185
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "USB-C port loose; charging drops unless cable angled."
+            incident_date: "2026-05-08"
+          get_available_slots:
+            claim_id: "PH-9163"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-05-09"
+            date_range_end: "2026-05-15"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-9163"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_physical_damage", deductible: 68 }
+            notes: "Port service."
+          get_available_slots:
+            claim_id: "PH-9163"
+            slots:
+              - { slot_id: "SLOT-2026-05-11T09:00", duration_minutes: 60 }
+              - { slot_id: "SLOT-2026-05-14T09:00", duration_minutes: 60 }
+            timezone: "Europe/Berlin"
+        planner:
+          system_prompt: >
+            Phone charge port intake.
+          output: >
+            PLAN: new_claim; get slots.
+        response_compose:
+          system_prompt: >
+            PH-9163; two mornings.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: "Monday morning."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Monday morning."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Monday 09:00 is booked on PH-9163 for port inspection.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Monday morning."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Monday 09:00 service bay.", "trigger_quote": "Monday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "PH-9163", "appointment_id": "APT-PH-9163-HOLD", "slot_id": "SLOT-2026-05-11T09:00", "preferred_time_window": "morning"}}]}
+        agent_response: >
+          Monday 09:00 is booked on PH-9163 for port inspection.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 780
+        gen_ai.usage.output_tokens: 70
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-9163"
+            appointment_id: "APT-PH-9163-HOLD"
+            slot_id: "SLOT-2026-05-11T09:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-9163"
+            appointment_id: "APT-PH-9163-01"
+            status: "scheduled"
+            scheduled_at: "2026-05-11T09:00:00Z"
+        planner:
+          system_prompt: >
+            Monday bay for PH-9163.
+          output: >
+            PLAN: update_appointment.
+        response_compose:
+          system_prompt: >
+            Minimal confirm.

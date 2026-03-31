@@ -1,0 +1,189 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_phone_battery_drain_slots_multiturn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# MCP: phone — new_claim + get_available_slots, then update_appointment
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_phone_battery_drain_slots_multiturn
+description: >
+  Rapid drain: PH-9165 + diagnostics visit slots; books later slot.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 2.52
+trace_interval_ms: 232
+trace_interval_deviation_ms: 52
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1990, deviation: 620 }
+      planner: { mean: 520, deviation: 165 }
+      llm.call: { mean: 655, deviation: 200 }
+      task.execute: { mean: 740, deviation: 250 }
+      tools.recommend: { mean: 54, deviation: 22 }
+      mcp.tool.execute: { mean: 245, deviation: 110 }
+      response.compose: { mean: 368, deviation: 115 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_battery_drain_slots_multiturn
+    vendor.enduser.pseudo.id: "user_mt_ph_batt_100"
+    channel: web_chat
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Battery tanks from full to dead in a few hours on standby — open a claim and offer diagnostic appointments.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Battery tanks from full to dead in a few hours on standby — open a claim and offer diagnostic appointments.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-9165 is recorded. Wednesday 15:30 or Saturday 15:30 this month — which afternoon?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Battery tanks from full to dead in a few hours on standby — open a claim and offer diagnostic appointments.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Abnormal battery drain.", "trigger_quote": "drains in hours", "missing_info": null, "confidence": 0.87, "tool_args": {"product_type": "phone", "description": "Battery drains in hours idle; suspected hardware fault.", "incident_date": "2026-05-10"}}, {"tool_name": "get_available_slots", "trigger_summary": "Diagnostics visit availability.", "trigger_quote": "technician slot", "missing_info": null, "confidence": 0.85, "tool_args": {"claim_id": "PH-9165", "service_type": "screen_repair_visit", "date_range_start": "2026-05-11", "date_range_end": "2026-05-18"}}]}
+        agent_response: >
+          PH-9165 is recorded. Wednesday 15:30 or Saturday 15:30 this month — which afternoon?
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1010
+        gen_ai.usage.output_tokens: 190
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Battery drains in hours idle; suspected hardware fault."
+            incident_date: "2026-05-10"
+          get_available_slots:
+            claim_id: "PH-9165"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-05-11"
+            date_range_end: "2026-05-18"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-9165"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_mechanical_breakdown", deductible: 65 }
+            notes: "Battery module check."
+          get_available_slots:
+            claim_id: "PH-9165"
+            slots:
+              - { slot_id: "SLOT-2026-05-13T15:30", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-05-16T15:30", duration_minutes: 90 }
+            timezone: "Europe/London"
+        planner:
+          system_prompt: >
+            Phone battery defect path.
+          output: >
+            PLAN: new_claim; slots Wed/Sat PM.
+        response_compose:
+          system_prompt: >
+            PH-9165; manage expectations.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: "Saturday afternoon slot."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Saturday afternoon slot."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Saturday 15:30 is booked for PH-9165 battery diagnostics.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Saturday afternoon slot."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Saturday afternoon diagnostic.", "trigger_quote": "Saturday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "PH-9165", "appointment_id": "APT-PH-9165-HOLD", "slot_id": "SLOT-2026-05-16T15:30", "preferred_time_window": "afternoon"}}]}
+        agent_response: >
+          Saturday 15:30 is booked for PH-9165 battery diagnostics.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 820
+        gen_ai.usage.output_tokens: 74
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-9165"
+            appointment_id: "APT-PH-9165-HOLD"
+            slot_id: "SLOT-2026-05-16T15:30"
+            preferred_time_window: "afternoon"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-9165"
+            appointment_id: "APT-PH-9165-01"
+            status: "scheduled"
+            scheduled_at: "2026-05-16T15:30:00Z"
+        planner:
+          system_prompt: >
+            Saturday PM for PH-9165.
+          output: >
+            PLAN: update_appointment.
+        response_compose:
+          system_prompt: >
+            Diagnostics framing.

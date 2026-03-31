@@ -1,0 +1,1275 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/single_tool_call_new_claim_1.yaml
+# Endusers: 20 | Conversation threads: 20 | Total user turns: 20 (1 per enduser)
+# Interaction model: single-turn per enduser — one user message → one agent response each
+# MCP: exactly one tool per turn (tool_chain length 1); new_claim only; mixed mcp_server
+# Data plane: shared span_plan anchor (*new_claim_span_plan) for all turns
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: single_tool_call_new_claim_1
+description: >
+  Twenty single-turn Toro flows, all new_claim intakes: seven phone, seven electronics, and six appliances.
+  Each enduser routes to the correct department MCP; default MCP server at scenario level is phone.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 3.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1200, deviation: 200 }
+      planner: { mean: 380, deviation: 90 }
+      llm.call: { mean: 320, deviation: 80 }
+      task.execute: { mean: 600, deviation: 120 }
+      tools.recommend: { mean: 45, deviation: 15 }
+      mcp.tool.execute: { mean: 180, deviation: 50 }
+      response.compose: { mean: 280, deviation: 70 }
+      response.validation: { mean: 10, deviation: 4 }
+  peak_hours:
+    span_durations_ms:
+      request.validation: { mean: 12, deviation: 5 }
+      payload.validation: { mean: 8, deviation: 3 }
+      policy.validation: { mean: 18, deviation: 6 }
+      augmentation.validation: { mean: 10, deviation: 4 }
+      a2a.orchestrate: { mean: 2200, deviation: 400 }
+      planner: { mean: 620, deviation: 140 }
+      llm.call: { mean: 520, deviation: 120 }
+      task.execute: { mean: 950, deviation: 200 }
+      tools.recommend: { mean: 70, deviation: 25 }
+      mcp.tool.execute: { mean: 320, deviation: 90 }
+      response.compose: { mean: 450, deviation: 100 }
+      response.validation: { mean: 14, deviation: 5 }
+
+default_latency_profile: normal
+
+x_new_claim_span_plan: &new_claim_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+# --- Mobile / phone MCP ---
+  - id: dept_phone_frame_charge_port
+    vendor.enduser.pseudo.id: "user_ph_nc1_01"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          I think I bent my phone when it was in my back pocket — now the frame pinches the USB-C port
+          and charging only works if I press the cable upward. Can you open a mobile damage claim on my Toro cover?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                I think I bent my phone when it was in my back pocket — now the frame pinches the USB-C port
+                and charging only works if I press the cable upward. Can you open a mobile damage claim on my Toro cover?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-8211 is open for your handset: frame deformation affecting the USB-C port with intermittent charging.
+                Please upload a close-up of the port and frame seam; we will confirm repair eligibility.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                I think I bent my phone when it was in my back pocket — now the frame pinches the USB-C port
+                and charging only works if I press the cable upward. Can you open a mobile damage claim on my Toro cover?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Back-pocket bend; misaligned USB-C; intermittent charge.", "trigger_quote": "bent my phone when it was in my back pocket", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "phone", "description": "Frame bent after back-pocket carry; USB-C port misaligned; charging only when cable angled.", "incident_date": "2026-03-18"}}]}
+        agent_response: >
+          PH-8211 is open for your handset: frame deformation affecting the USB-C port with intermittent charging.
+          Please upload a close-up of the port and frame seam; we will confirm repair eligibility.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1080
+        gen_ai.usage.output_tokens: 168
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Frame bent after back-pocket carry; USB-C port misaligned; charging only when cable angled."
+            incident_date: "2026-03-18"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8211"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_physical_damage", deductible: 75 }
+            notes: "Phone MCP; port photo emphasis."
+        planner:
+          system_prompt: >
+            Toro planner on phone MCP — new_claim for bent frame / charge port.
+          output: >
+            PLAN: new_claim on phone, product_type phone, incident_date 2026-03-18.
+        response_compose:
+          system_prompt: >
+            Professional tone; PH-8211; photo guidance for port.
+  - id: dept_phone_salt_splash
+    vendor.enduser.pseudo.id: "user_ph_nc1_02"
+    channel: voice
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Dropped my phone in shallow sea water yesterday — rinsed it, but now the speakers crackle and the
+          screen flickers when it gets warm. I need a claim under my Toro mobile policy.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Dropped my phone in shallow sea water yesterday — rinsed it, but now the speakers crackle and the
+                screen flickers when it gets warm. I need a claim under my Toro mobile policy.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I have logged PH-8212 for salt-water exposure with speaker crackle and temperature-linked display flicker.
+                Power the device off when possible; we will SMS a secure upload link for short videos.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Dropped my phone in shallow sea water yesterday — rinsed it, but now the speakers crackle and the
+                screen flickers when it gets warm. I need a claim under my Toro mobile policy.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Salt-water splash; speaker crackle; heat-related flicker.", "trigger_quote": "Dropped my phone in shallow sea water", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "phone", "description": "Salt-water ingress after beach drop; speakers distort; display flickers when warm.", "incident_date": "2026-03-28"}}]}
+        agent_response: >
+          I have logged PH-8212 for salt-water exposure with speaker crackle and temperature-linked display flicker.
+          Power the device off when possible; we will SMS a secure upload link for short videos.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 950
+        gen_ai.usage.output_tokens: 152
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Salt-water ingress after beach drop; speakers distort; display flickers when warm."
+            incident_date: "2026-03-28"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8212"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_liquid_damage", deductible: 99 }
+            notes: "Voice channel; advise power-off."
+        planner:
+          system_prompt: >
+            Phone MCP voice intake — liquid / corrosion narrative.
+          output: >
+            PLAN: new_claim; product_type phone; capture date and symptoms.
+        response_compose:
+          system_prompt: >
+            Warm, concise; PH-8212; SMS link mention.
+  - id: dept_phone_bike_mount
+    vendor.enduser.pseudo.id: "user_ph_nc1_03"
+    channel: mobile_app
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: "Phone was on a cheap handlebar mount for a 40 km ride — rear camera glass is shattered and OIS rattles. New claim please."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Phone was on a cheap handlebar mount for a 40 km ride — rear camera glass is shattered and OIS rattles. New claim please."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "PH-8213 opened — vibration / impact damage from cycling mount; shattered rear camera glass with OIS rattle. Add photos here in the app when prompted."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Phone was on a cheap handlebar mount for a 40 km ride — rear camera glass is shattered and OIS rattles. New claim please."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Handlebar mount vibration; shattered rear camera; OIS rattle.", "trigger_quote": "handlebar mount for a 40 km ride", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "phone", "description": "Long ride with bar-mounted phone; rear camera glass shattered; optical stabilization rattles.", "incident_date": "2026-03-22"}}]}
+        agent_response: "PH-8213 opened — vibration / impact damage from cycling mount; shattered rear camera glass with OIS rattle. Add photos here in the app when prompted."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 720
+        gen_ai.usage.output_tokens: 88
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Long ride with bar-mounted phone; rear camera glass shattered; optical stabilization rattles."
+            incident_date: "2026-03-22"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8213"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_accidental_damage", deductible: 75 }
+            notes: "App channel; cycling context."
+        planner:
+          system_prompt: >
+            Phone MCP in-app — mount vibration damage.
+          output: >
+            PLAN: new_claim; terse confirmation path.
+        response_compose:
+          system_prompt: >
+            Brief app reply; PH-8213.
+  - id: dept_phone_pet_cable
+    vendor.enduser.pseudo.id: "user_ph_nc1_04"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Our puppy pulled the charging cable while it was plugged into my phone — the connector snapped sideways
+          and the socket looks chipped inside. Please start a claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Our puppy pulled the charging cable while it was plugged into my phone — the connector snapped sideways
+                and the socket looks chipped inside. Please start a claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-8214 is created for accidental damage: acute angular pull on the charge port with visible socket damage.
+                Do not force a cable in; we will assess repair vs device swap.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Our puppy pulled the charging cable while it was plugged into my phone — the connector snapped sideways
+                and the socket looks chipped inside. Please start a claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Pet yanked cable; damaged charge socket.", "trigger_quote": "puppy pulled the charging cable", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "phone", "description": "Charging cable jerked by pet; USB port shell chipped; connector misaligned.", "incident_date": "2026-04-01"}}]}
+        agent_response: >
+          PH-8214 is created for accidental damage: acute angular pull on the charge port with visible socket damage.
+          Do not force a cable in; we will assess repair vs device swap.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 990
+        gen_ai.usage.output_tokens: 148
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Charging cable jerked by pet; USB port shell chipped; connector misaligned."
+            incident_date: "2026-04-01"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8214"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_physical_damage", deductible: 75 }
+            notes: "Phone MCP; safety: do not insert cable."
+        planner:
+          system_prompt: >
+            Phone MCP — pet-related port damage new_claim.
+          output: >
+            PLAN: new_claim with product_type phone.
+        response_compose:
+          system_prompt: >
+            PH-8214; clear safety guidance.
+  - id: dept_phone_thermal_throttle
+    vendor.enduser.pseudo.id: "user_ph_nc1_05"
+    channel: voice
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          After last week's OS update my phone hits thermal warnings doing basically nothing — it backs off brightness
+          and the battery drains in a few hours. I want a hardware fault claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                After last week's OS update my phone hits thermal warnings doing basically nothing — it backs off brightness
+                and the battery drains in a few hours. I want a hardware fault claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-8215 records thermal runaway symptoms post-update: rapid drain and brightness throttling under light use.
+                We will compare diagnostics logs; keep low-power mode on until the assessor reviews.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                After last week's OS update my phone hits thermal warnings doing basically nothing — it backs off brightness
+                and the battery drains in a few hours. I want a hardware fault claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Post-update overheating; rapid drain; thermal warnings.", "trigger_quote": "thermal warnings doing basically nothing", "missing_info": null, "confidence": 0.86, "tool_args": {"product_type": "phone", "description": "Severe thermal throttling and battery drain after OS update during light use.", "incident_date": "2026-03-30"}}]}
+        agent_response: >
+          PH-8215 records thermal runaway symptoms post-update: rapid drain and brightness throttling under light use.
+          We will compare diagnostics logs; keep low-power mode on until the assessor reviews.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1020
+        gen_ai.usage.output_tokens: 162
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Severe thermal throttling and battery drain after OS update during light use."
+            incident_date: "2026-03-30"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8215"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_mechanical_breakdown", deductible: 60 }
+            notes: "Phone MCP; possibly battery/module — intake only."
+        planner:
+          system_prompt: >
+            Phone MCP — post-update thermal defect intake.
+          output: >
+            PLAN: new_claim phone; note update correlation.
+        response_compose:
+          system_prompt: >
+            Reassuring; PH-8215; low-power mode.
+  - id: dept_phone_backpack_drop
+    vendor.enduser.pseudo.id: "user_ph_nc1_06"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          My phone fell out of an unzipped backpack pocket onto concrete — there is a dent on one corner and a dead
+          strip down the touchscreen where touches do not register.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                My phone fell out of an unzipped backpack pocket onto concrete — there is a dent on one corner and a dead
+                strip down the touchscreen where touches do not register.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-8216 is open: corner impact with localized digitizer dead zone.
+                Upload a screen recording showing missed touches along the strip if you can.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                My phone fell out of an unzipped backpack pocket onto concrete — there is a dent on one corner and a dead
+                strip down the touchscreen where touches do not register.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Concrete corner impact; dent; dead touch strip.", "trigger_quote": "fell out of an unzipped backpack pocket", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "phone", "description": "Drop from bag onto concrete; corner dent; vertical dead zone on touchscreen.", "incident_date": "2026-03-25"}}]}
+        agent_response: >
+          PH-8216 is open: corner impact with localized digitizer dead zone.
+          Upload a screen recording showing missed touches along the strip if you can.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1100
+        gen_ai.usage.output_tokens: 156
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Drop from bag onto concrete; corner dent; vertical dead zone on touchscreen."
+            incident_date: "2026-03-25"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8216"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_display_damage", deductible: 50 }
+            notes: "Phone MCP; digitizer fault."
+        planner:
+          system_prompt: >
+            Phone MCP — drop and partial touch failure.
+          output: >
+            PLAN: new_claim; display/digitizer damage.
+        response_compose:
+          system_prompt: >
+            PH-8216; screen record hint.
+  - id: dept_phone_cold_condensation
+    vendor.enduser.pseudo.id: "user_ph_nc1_07"
+    channel: mobile_app
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Left my phone in a freezing car overnight — now the front camera fogs permanently and Face ID fails in normal light.
+          Need a Toro claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Left my phone in a freezing car overnight — now the front camera fogs permanently and Face ID fails in normal light.
+                Need a Toro claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "PH-8217 created — cold soak then condensation trapped behind front camera; Face ID unreliable. Send any moisture indicator photos via the in-app uploader."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Left my phone in a freezing car overnight — now the front camera fogs permanently and Face ID fails in normal light.
+                Need a Toro claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Cold soak; condensation; Face ID failure.", "trigger_quote": "Left my phone in a freezing car overnight", "missing_info": null, "confidence": 0.87, "tool_args": {"product_type": "phone", "description": "Extended cold exposure; condensation in front camera module; Face ID fails under normal lighting.", "incident_date": "2026-03-19"}}]}
+        agent_response: "PH-8217 created — cold soak then condensation trapped behind front camera; Face ID unreliable. Send any moisture indicator photos via the in-app uploader."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 680
+        gen_ai.usage.output_tokens: 95
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Extended cold exposure; condensation in front camera module; Face ID fails under normal lighting."
+            incident_date: "2026-03-19"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8217"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_environmental_damage", deductible: 80 }
+            notes: "App channel; condensation pathway."
+        planner:
+          system_prompt: >
+            Phone MCP app — environmental moisture intake.
+          output: >
+            PLAN: new_claim; minimal reply.
+        response_compose:
+          system_prompt: >
+            Short; PH-8217; LCI photos if visible.
+# --- Home electronics MCP ---
+  - id: dept_el_tv_surge
+    vendor.enduser.pseudo.id: "user_el_nc1_01"
+    channel: web
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          We had a close lightning strike last night — now our 55-inch smart TV will not leave standby, no logo,
+          and the outlet smells a bit hot. I need an electronics claim through Toro.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                We had a close lightning strike last night — now our 55-inch smart TV will not leave standby, no logo,
+                and the outlet smells a bit hot. I need an electronics claim through Toro.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                EL-4311 is opened for the television: post-storm total power loss with standby failure and possible supply damage.
+                Unplug the set and do not use that socket until an electrician checks it if odour persists.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                We had a close lightning strike last night — now our 55-inch smart TV will not leave standby, no logo,
+                and the outlet smells a bit hot. I need an electronics claim through Toro.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Lightning surge; TV dead standby; hot smell.", "trigger_quote": "close lightning strike last night", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "tv", "description": "Suspected surge after storm; TV stuck standby; no logo; warm odour from outlet area.", "incident_date": "2026-03-29"}}]}
+        agent_response: >
+          EL-4311 is opened for the television: post-storm total power loss with standby failure and possible supply damage.
+          Unplug the set and do not use that socket until an electrician checks it if odour persists.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1180
+        gen_ai.usage.output_tokens: 178
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "tv"
+            description: "Suspected surge after storm; TV stuck standby; no logo; warm odour from outlet area."
+            incident_date: "2026-03-29"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4311"
+            product_type: "tv"
+            status: "opened"
+            coverage: { type: "electronics_power_surge_damage", deductible: 100 }
+            notes: "Electronics MCP; electrical safety note."
+        planner:
+          system_prompt: >
+            Electronics MCP — surge TV intake.
+          output: >
+            PLAN: new_claim on electronics; product_type tv.
+        response_compose:
+          system_prompt: >
+            EL-4311; unplug / electrician caution.
+  - id: dept_el_soundbar_channel
+    vendor.enduser.pseudo.id: "user_el_nc1_02"
+    channel: voice
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          After the soundbar auto-updated, the left channel is basically silent but the right side and sub are fine.
+          Can you file a defect claim?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                After the soundbar auto-updated, the left channel is basically silent but the right side and sub are fine.
+                Can you file a defect claim?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                EL-4312 records a post-firmware channel failure on the soundbar — asymmetric output with left channel near silent.
+                Factory reset is optional; we will capture serial from your next message if you have it handy.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                After the soundbar auto-updated, the left channel is basically silent but the right side and sub are fine.
+                Can you file a defect claim?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Firmware update; left channel silent on soundbar.", "trigger_quote": "left channel is basically silent", "missing_info": null, "confidence": 0.85, "tool_args": {"product_type": "soundbar", "description": "After firmware update left channel lost output; right channel and subwoofer normal.", "incident_date": "2026-03-26"}}]}
+        agent_response: >
+          EL-4312 records a post-firmware channel failure on the soundbar — asymmetric output with left channel near silent.
+          Factory reset is optional; we will capture serial from your next message if you have it handy.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 880
+        gen_ai.usage.output_tokens: 142
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "soundbar"
+            description: "After firmware update left channel lost output; right channel and subwoofer normal."
+            incident_date: "2026-03-26"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4312"
+            product_type: "soundbar"
+            status: "opened"
+            coverage: { type: "electronics_software_hardware_fault", deductible: 65 }
+            notes: "Electronics MCP; firmware correlation."
+        planner:
+          system_prompt: >
+            Electronics voice line — soundbar channel loss.
+          output: >
+            PLAN: new_claim product_type soundbar.
+        response_compose:
+          system_prompt: >
+            EL-4312; optional reset note.
+  - id: dept_el_console_thermal
+    vendor.enduser.pseudo.id: "user_el_nc1_03"
+    channel: web
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          My console ramps the fan to jet-engine levels after ten minutes in any game, then powers off with a thermal warning.
+          It is clean and ventilated — I need a hardware claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                My console ramps the fan to jet-engine levels after ten minutes in any game, then powers off with a thermal warning.
+                It is clean and ventilated — I need a hardware claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                EL-4313 is open for the gaming console: thermal shutdown under load despite clean vents and clear air path.
+                Leave it powered off until assessment; note any unusual fan noise in your upload notes.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                My console ramps the fan to jet-engine levels after ten minutes in any game, then powers off with a thermal warning.
+                It is clean and ventilated — I need a hardware claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Thermal shutdown under gaming load; loud fan.", "trigger_quote": "powers off with a thermal warning", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "gaming_console", "description": "Console reaches thermal limit in games; aggressive fan then forced shutdown; vents clean.", "incident_date": "2026-03-31"}}]}
+        agent_response: >
+          EL-4313 is open for the gaming console: thermal shutdown under load despite clean vents and clear air path.
+          Leave it powered off until assessment; note any unusual fan noise in your upload notes.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1050
+        gen_ai.usage.output_tokens: 158
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "gaming_console"
+            description: "Console reaches thermal limit in games; aggressive fan then forced shutdown; vents clean."
+            incident_date: "2026-03-31"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4313"
+            product_type: "gaming_console"
+            status: "opened"
+            coverage: { type: "electronics_thermal_fault", deductible: 75 }
+            notes: "Console; thermal pathway."
+        planner:
+          system_prompt: >
+            Electronics MCP — console thermal intake.
+          output: >
+            PLAN: new_claim gaming_console.
+        response_compose:
+          system_prompt: >
+            EL-4313; power-off advisory.
+  - id: dept_el_laptop_wine
+    vendor.enduser.pseudo.id: "user_el_nc1_04"
+    channel: mobile_app
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Red wine went over my laptop keyboard on a flight — I powered off fast but keys are sticky and two rows do nothing.
+          Open a claim on my electronics bundle.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Red wine went over my laptop keyboard on a flight — I powered off fast but keys are sticky and two rows do nothing.
+                Open a claim on my electronics bundle.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "EL-4314 logged for liquid ingress: wine spill on keyboard; multiple dead rows after shutdown. Use the app to attach boarding context if relevant; IMEI/serial on label photo helps."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Red wine went over my laptop keyboard on a flight — I powered off fast but keys are sticky and two rows do nothing.
+                Open a claim on my electronics bundle.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Wine spill on laptop keyboard; dead key rows.", "trigger_quote": "Red wine went over my laptop keyboard", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "laptop", "description": "Wine spill on laptop keyboard in flight; sticky keys; two rows non-functional after power-off.", "incident_date": "2026-03-27"}}]}
+        agent_response: "EL-4314 logged for liquid ingress: wine spill on keyboard; multiple dead rows after shutdown. Use the app to attach boarding context if relevant; IMEI/serial on label photo helps."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 750
+        gen_ai.usage.output_tokens: 102
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "laptop"
+            description: "Wine spill on laptop keyboard in flight; sticky keys; two rows non-functional after power-off."
+            incident_date: "2026-03-27"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4314"
+            product_type: "laptop"
+            status: "opened"
+            coverage: { type: "electronics_liquid_damage", deductible: 95 }
+            notes: "App; travel context."
+        planner:
+          system_prompt: >
+            Electronics app — laptop liquid intake.
+          output: >
+            PLAN: new_claim laptop.
+        response_compose:
+          system_prompt: >
+            Brief; EL-4314; serial hint.
+  - id: dept_el_tablet_corner
+    vendor.enduser.pseudo.id: "user_el_nc1_05"
+    channel: web
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Tablet slipped off a kitchen counter — corner glass is crushed and the stylus disconnects every few minutes even when snapped in.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Tablet slipped off a kitchen counter — corner glass is crushed and the stylus disconnects every few minutes even when snapped in.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                EL-4315 created for tablet corner impact: crushed glass near bezel with intermittent stylus pairing.
+                We will evaluate cracked-glass risk to the display stack.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Tablet slipped off a kitchen counter — corner glass is crushed and the stylus disconnects every few minutes even when snapped in."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Counter drop; crushed corner; unstable stylus pairing.", "trigger_quote": "Tablet slipped off a kitchen counter", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "tablet", "description": "Drop from counter; corner glass crushed; stylus loses pairing repeatedly in dock.", "incident_date": "2026-04-02"}}]}
+        agent_response: >
+          EL-4315 created for tablet corner impact: crushed glass near bezel with intermittent stylus pairing.
+          We will evaluate cracked-glass risk to the display stack.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 990
+        gen_ai.usage.output_tokens: 148
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "tablet"
+            description: "Drop from counter; corner glass crushed; stylus loses pairing repeatedly in dock."
+            incident_date: "2026-04-02"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4315"
+            product_type: "tablet"
+            status: "opened"
+            coverage: { type: "electronics_impact_damage", deductible: 70 }
+            notes: "Tablet + stylus."
+        planner:
+          system_prompt: >
+            Electronics MCP — tablet drop.
+          output: >
+            PLAN: new_claim tablet.
+        response_compose:
+          system_prompt: >
+            EL-4315; glass risk note.
+  - id: dept_el_earbuds_cycle
+    vendor.enduser.pseudo.id: "user_el_nc1_06"
+    channel: voice
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          I accidentally sent my wireless earbuds through a cold wash and short spin — case hinge is cracked and neither bud holds charge.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                I accidentally sent my wireless earbuds through a cold wash and short spin — case hinge is cracked and neither bud holds charge.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                EL-4316 is filed for liquid and mechanical damage: earbuds and case through washing cycle with cracked hinge and no charge hold.
+                Leave them dry in rice is fine for travel, but do not attempt USB until assessor advises.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "I accidentally sent my wireless earbuds through a cold wash and short spin — case hinge is cracked and neither bud holds charge."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Wash cycle; cracked case; earbuds won't charge.", "trigger_quote": "through a cold wash and short spin", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "earbuds", "description": "Earbuds washed in machine; charging case hinge cracked; buds do not retain charge.", "incident_date": "2026-03-24"}}]}
+        agent_response: >
+          EL-4316 is filed for liquid and mechanical damage: earbuds and case through washing cycle with cracked hinge and no charge hold.
+          Leave them dry in rice is fine for travel, but do not attempt USB until assessor advises.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 910
+        gen_ai.usage.output_tokens: 150
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "earbuds"
+            description: "Earbuds washed in machine; charging case hinge cracked; buds do not retain charge."
+            incident_date: "2026-03-24"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4316"
+            product_type: "earbuds"
+            status: "opened"
+            coverage: { type: "electronics_liquid_damage", deductible: 55 }
+            notes: "Washing machine exposure."
+        planner:
+          system_prompt: >
+            Electronics — earbuds wash damage.
+          output: >
+            PLAN: new_claim earbuds.
+        response_compose:
+          system_prompt: >
+            EL-4316; cautious charging advice.
+  - id: dept_el_streaming_overheat
+    vendor.enduser.pseudo.id: "user_el_nc1_07"
+    channel: web
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Our streaming stick melted a little around the HDMI neck after binge-watching in a closed cabinet — smells of hot plastic and now it drops HDR signal.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Our streaming stick melted a little around the HDMI neck after binge-watching in a closed cabinet — smells of hot plastic and now it drops HDR signal.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                EL-4317 logged for overheating in enclosed install: HDMI dongle housing deformation with HDR handshake drops.
+                Remove it from the closed cabinet for now and ensure ventilation in future mounting.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Our streaming stick melted a little around the HDMI neck after binge-watching in a closed cabinet — smells of hot plastic and now it drops HDR signal."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Enclosed cabinet overheat; HDMI stick housing damage; HDR drops.", "trigger_quote": "melted a little around the HDMI neck", "missing_info": null, "confidence": 0.87, "tool_args": {"product_type": "streaming_device", "description": "Streaming stick overheated in closed media cabinet; plastic deformation at HDMI; unstable HDR output.", "incident_date": "2026-03-23"}}]}
+        agent_response: >
+          EL-4317 logged for overheating in enclosed install: HDMI dongle housing deformation with HDR handshake drops.
+          Remove it from the closed cabinet for now and ensure ventilation in future mounting.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1010
+        gen_ai.usage.output_tokens: 154
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "streaming_device"
+            description: "Streaming stick overheated in closed media cabinet; plastic deformation at HDMI; unstable HDR output."
+            incident_date: "2026-03-23"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4317"
+            product_type: "streaming_device"
+            status: "opened"
+            coverage: { type: "electronics_thermal_fault", deductible: 45 }
+            notes: "Ventilation advisory."
+        planner:
+          system_prompt: >
+            Electronics — dongle thermal deform.
+          output: >
+            PLAN: new_claim streaming_device.
+        response_compose:
+          system_prompt: >
+            EL-4317; ventilation emphasis.
+# --- Home appliances MCP ---
+  - id: dept_ap_ice_maker_flood
+    vendor.enduser.pseudo.id: "user_ap_nc1_01"
+    channel: web
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Ice maker on the fridge keeps jamming and water pools in the freezer drawer overnight — floor in front is damp.
+          Toro appliances policy — please open a claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Ice maker on the fridge keeps jamming and water pools in the freezer drawer overnight — floor in front is damp.
+                Toro appliances policy — please open a claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                AP-5611 is open: ice-maker jam with water pooling in freezer and damp floor in front.
+                Shut off the ice maker at the control if possible; mop water for slip safety.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Ice maker on the fridge keeps jamming and water pools in the freezer drawer overnight — floor in front is damp.
+                Toro appliances policy — please open a claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Ice maker jam; water in freezer drawer; damp floor.", "trigger_quote": "water pools in the freezer drawer overnight", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "fridge", "description": "Ice maker fault; water accumulation in freezer drawer; leakage to floor.", "incident_date": "2026-03-21"}}]}
+        agent_response: >
+          AP-5611 is open: ice-maker jam with water pooling in freezer and damp floor in front.
+          Shut off the ice maker at the control if possible; mop water for slip safety.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1140
+        gen_ai.usage.output_tokens: 162
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "fridge"
+            description: "Ice maker fault; water accumulation in freezer drawer; leakage to floor."
+            incident_date: "2026-03-21"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5611"
+            product_type: "fridge"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 90 }
+            notes: "Water hazard."
+        planner:
+          system_prompt: >
+            Appliances MCP — fridge ice maker leak.
+          output: >
+            PLAN: new_claim fridge on appliances server.
+        response_compose:
+          system_prompt: >
+            AP-5611; ice maker off + safety.
+  - id: dept_ap_washer_bearing
+    vendor.enduser.pseudo.id: "user_ap_nc1_02"
+    channel: voice
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          On every spin the washer sounds like a train — loud grinding from the drum. It is five years old and getting worse each load.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                On every spin the washer sounds like a train — loud grinding from the drum. It is five years old and getting worse each load.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                AP-5612 records mechanical noise: suspected drum bearing wear on spin with worsening trend.
+                Reduce load sizes until service; we will arrange inspection under your cover.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "On every spin the washer sounds like a train — loud grinding from the drum. It is five years old and getting worse each load."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Spin cycle grinding; worsening drum bearing noise.", "trigger_quote": "sounds like a train", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "washer", "description": "Washer emits loud grinding on spin; bearing failure suspected; progressive over multiple loads.", "incident_date": "2026-03-30"}}]}
+        agent_response: >
+          AP-5612 records mechanical noise: suspected drum bearing wear on spin with worsening trend.
+          Reduce load sizes until service; we will arrange inspection under your cover.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 960
+        gen_ai.usage.output_tokens: 138
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "washer"
+            description: "Washer emits loud grinding on spin; bearing failure suspected; progressive over multiple loads."
+            incident_date: "2026-03-30"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5612"
+            product_type: "washer"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 85 }
+            notes: "Washer mechanical."
+        planner:
+          system_prompt: >
+            Appliances voice — washer bearing intake.
+          output: >
+            PLAN: new_claim washer.
+        response_compose:
+          system_prompt: >
+            AP-5612; load-size caution.
+  - id: dept_ap_dishwasher_cold
+    vendor.enduser.pseudo.id: "user_ap_nc1_03"
+    channel: web
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Dishwasher finishes the full cycle but everything comes out cold and greasy like the heating never ran — no error code on the panel.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Dishwasher finishes the full cycle but everything comes out cold and greasy like the heating never ran — no error code on the panel.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                AP-5613 is created: wash completes but no apparent heating; cold dishes and grease residue without fault code.
+                Avoid reusing heavily soiled pans until heating is verified.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Dishwasher finishes the full cycle but everything comes out cold and greasy like the heating never ran — no error code on the panel."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "No-heat wash; cold greasy dishes; no error.", "trigger_quote": "everything comes out cold and greasy", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "dishwasher", "description": "Dishwasher completes cycle without heating; dishes cold and oily; no panel error displayed.", "incident_date": "2026-04-03"}}]}
+        agent_response: >
+          AP-5613 is created: wash completes but no apparent heating; cold dishes and grease residue without fault code.
+          Avoid reusing heavily soiled pans until heating is verified.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1060
+        gen_ai.usage.output_tokens: 152
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "dishwasher"
+            description: "Dishwasher completes cycle without heating; dishes cold and oily; no panel error displayed."
+            incident_date: "2026-04-03"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5613"
+            product_type: "dishwasher"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 80 }
+            notes: "Heating element pathway."
+        planner:
+          system_prompt: >
+            Appliances — dishwasher no-heat.
+          output: >
+            PLAN: new_claim dishwasher.
+        response_compose:
+          system_prompt: >
+            AP-5613; food safety hint.
+  - id: dept_ap_oven_glass
+    vendor.enduser.pseudo.id: "user_ap_nc1_04"
+    channel: mobile_app
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Inner glass on the fan oven door shattered while I was gently closing it — shards inside the cavity. Need a claim and advice if it is safe.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Inner glass on the fan oven door shattered while I was gently closing it — shards inside the cavity. Need a claim and advice if it is safe.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "AP-5614 opened for oven door inner glass failure on closure; shards in cavity. Do not use the oven; we will prioritize a safety assessment on your Toro appliances cover."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Inner glass on the fan oven door shattered while I was gently closing it — shards inside the cavity. Need a claim and advice if it is safe."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Inner oven door glass shattered on close; shards in cavity.", "trigger_quote": "Inner glass on the fan oven door shattered", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "oven", "description": "Built-in oven inner door glass fractured during gentle close; glass fragments inside cavity.", "incident_date": "2026-03-28"}}]}
+        agent_response: "AP-5614 opened for oven door inner glass failure on closure; shards in cavity. Do not use the oven; we will prioritize a safety assessment on your Toro appliances cover."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 700
+        gen_ai.usage.output_tokens: 98
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "oven"
+            description: "Built-in oven inner door glass fractured during gentle close; glass fragments inside cavity."
+            incident_date: "2026-03-28"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5614"
+            product_type: "oven"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 95 }
+            notes: "Safety: do not operate."
+        planner:
+          system_prompt: >
+            Appliances app — oven door glass failure.
+          output: >
+            PLAN: new_claim oven.
+        response_compose:
+          system_prompt: >
+            Short urgent tone; AP-5614; no use.
+  - id: dept_ap_dryer_belt
+    vendor.enduser.pseudo.id: "user_ap_nc1_05"
+    channel: web
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Tumble dryer started smelling like burning rubber halfway through a cotton cycle — I stopped it and the drum is hard to turn by hand now.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Tumble dryer started smelling like burning rubber halfway through a cotton cycle — I stopped it and the drum is hard to turn by hand now.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                AP-5615 is logged: mid-cycle burning rubber odour with seized or high-friction drum rotation after stop.
+                Keep the dryer unplugged until technician review.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Tumble dryer started smelling like burning rubber halfway through a cotton cycle — I stopped it and the drum is hard to turn by hand now."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Burning rubber smell; stiff drum; mid-cycle stop.", "trigger_quote": "smelling like burning rubber halfway through", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "dryer", "description": "Dryer emitted burning rubber smell during cycle; drum difficult to rotate manually after stop.", "incident_date": "2026-03-25"}}]}
+        agent_response: >
+          AP-5615 is logged: mid-cycle burning rubber odour with seized or high-friction drum rotation after stop.
+          Keep the dryer unplugged until technician review.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1090
+        gen_ai.usage.output_tokens: 148
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "dryer"
+            description: "Dryer emitted burning rubber smell during cycle; drum difficult to rotate manually after stop."
+            incident_date: "2026-03-25"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5615"
+            product_type: "dryer"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 88 }
+            notes: "Fire-safety unplug."
+        planner:
+          system_prompt: >
+            Appliances — dryer belt / drive fault.
+          output: >
+            PLAN: new_claim dryer.
+        response_compose:
+          system_prompt: >
+            AP-5615; unplug insistence.
+  - id: dept_ap_cooktop_spill
+    vendor.enduser.pseudo.id: "user_ap_nc1_06"
+    channel: voice
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Induction hob boiled over with pasta water two days ago — front-left zone now flickers power and sometimes beeps with no pan on it.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Induction hob boiled over with pasta water two days ago — front-left zone now flickers power and sometimes beeps with no pan on it.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                AP-5616 records liquid ingress under glass after boil-over: erratic front-left zone power and phantom pan detection.
+                Use other zones only if they test cold and stable; avoid the affected area.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Induction hob boiled over with pasta water two days ago — front-left zone now flickers power and sometimes beeps with no pan on it."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Boil-over on induction; erratic zone; false pan detect.", "trigger_quote": "pasta water two days ago", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "cooktop", "description": "Induction hob after boil-over; front-left zone flickers and false pan detection beeps.", "incident_date": "2026-03-27"}}]}
+        agent_response: >
+          AP-5616 records liquid ingress under glass after boil-over: erratic front-left zone power and phantom pan detection.
+          Use other zones only if they test cold and stable; avoid the affected area.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 940
+        gen_ai.usage.output_tokens: 144
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "cooktop"
+            description: "Induction hob after boil-over; front-left zone flickers and false pan detection beeps."
+            incident_date: "2026-03-27"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5616"
+            product_type: "cooktop"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 92 }
+            notes: "Induction zone fault."
+        planner:
+          system_prompt: >
+            Appliances voice — cooktop liquid fault.
+          output: >
+            PLAN: new_claim cooktop.
+        response_compose:
+          system_prompt: >
+            AP-5616; zone isolation advice.

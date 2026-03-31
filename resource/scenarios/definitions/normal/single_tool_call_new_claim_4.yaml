@@ -1,0 +1,897 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/single_tool_call_new_claim_4.yaml
+# Endusers: 15 | Conversation threads: 15 | Total user turns: 15 (1 per enduser)
+# Interaction model: single-turn per enduser — one user message → one agent response each
+# MCP: exactly one tool per turn (tool_chain length 1); new_claim only; mixed mcp_server
+# Data plane: shared span_plan anchor (*new_claim_span_plan) for all turns
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: single_tool_call_new_claim_4
+description: >
+  Fifteen single-turn Toro flows, all new_claim intakes: five phone, five electronics, and five appliances.
+  Each enduser routes to the correct department MCP; default MCP server at scenario level is phone.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 3.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 1200, deviation: 200 }
+      planner: { mean: 380, deviation: 90 }
+      llm.call: { mean: 320, deviation: 80 }
+      task.execute: { mean: 600, deviation: 120 }
+      tools.recommend: { mean: 45, deviation: 15 }
+      mcp.tool.execute: { mean: 180, deviation: 50 }
+      response.compose: { mean: 280, deviation: 70 }
+      response.validation: { mean: 10, deviation: 4 }
+  peak_hours:
+    span_durations_ms:
+      request.validation: { mean: 12, deviation: 5 }
+      payload.validation: { mean: 8, deviation: 3 }
+      policy.validation: { mean: 18, deviation: 6 }
+      augmentation.validation: { mean: 10, deviation: 4 }
+      a2a.orchestrate: { mean: 2200, deviation: 400 }
+      planner: { mean: 620, deviation: 140 }
+      llm.call: { mean: 520, deviation: 120 }
+      task.execute: { mean: 950, deviation: 200 }
+      tools.recommend: { mean: 70, deviation: 25 }
+      mcp.tool.execute: { mean: 320, deviation: 90 }
+      response.compose: { mean: 450, deviation: 100 }
+      response.validation: { mean: 14, deviation: 5 }
+
+default_latency_profile: normal
+
+x_new_claim_span_plan: &new_claim_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+# --- Mobile / phone MCP ---
+  - id: dept_phone_oled_green_tint
+    vendor.enduser.pseudo.id: "user_ph_nc4_01"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Caught in heavy rain with the phone in my jacket — dried it quickly but the OLED now has a green-grey tint on greys and low-brightness banding that was not there before.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Caught in heavy rain with the phone in my jacket — dried it quickly but the OLED now has a green-grey tint on greys and low-brightness banding that was not there before.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "PH-8241 is open for suspected display water ingress after rain exposure: low-level green cast and vertical banding at dim levels. Power off when not needed; photos of grey test screens help the assessor."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Caught in heavy rain with the phone in my jacket — dried it quickly but the OLED now has a green-grey tint on greys and low-brightness banding that was not there before."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Rain exposure; OLED tint and dim banding.", "trigger_quote": "caught in heavy rain", "missing_info": null, "confidence": 0.87, "tool_args": {"product_type": "phone", "description": "Smartphone OLED panel shows greenish tint and banding after brief heavy rain while in pocket.", "incident_date": "2026-04-15"}}]}
+        agent_response: "PH-8241 is open for suspected display water ingress after rain exposure: low-level green cast and vertical banding at dim levels. Power off when not needed; photos of grey test screens help the assessor."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1040
+        gen_ai.usage.output_tokens: 158
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Smartphone OLED panel shows greenish tint and banding after brief heavy rain while in pocket."
+            incident_date: "2026-04-15"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8241"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_liquid_damage", deductible: 90 }
+            notes: "Display moisture pathway."
+        planner:
+          system_prompt: >
+            Phone MCP — rain + OLED defect intake.
+          output: >
+            PLAN: new_claim product_type phone.
+        response_compose:
+          system_prompt: >
+            PH-8241; power-off when idle.
+  - id: dept_phone_volume_lint
+    vendor.enduser.pseudo.id: "user_ph_nc4_02"
+    channel: voice
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Volume down is stuck pressed after yard work — lint packed around the rocker I cannot clear and it boots into safe volume mode randomly.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Volume down is stuck pressed after yard work — lint packed around the rocker I cannot clear and it boots into safe volume mode randomly.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "PH-8242 logged for physical key jam: volume-down rocker lodged with debris causing phantom presses and safe-mode prompts. Avoid alcohol without guidance; technician will clean or replace the flex."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Volume down is stuck pressed after yard work — lint packed around the rocker I cannot clear and it boots into safe volume mode randomly."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Debris jammed volume rocker; phantom down presses.", "trigger_quote": "Volume down is stuck pressed", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "phone", "description": "Volume down button physically stuck after outdoor use; lint ingress; erratic safe-volume behaviour.", "incident_date": "2026-04-16"}}]}
+        agent_response: "PH-8242 logged for physical key jam: volume-down rocker lodged with debris causing phantom presses and safe-mode prompts. Avoid alcohol without guidance; technician will clean or replace the flex."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 920
+        gen_ai.usage.output_tokens: 145
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Volume down button physically stuck after outdoor use; lint ingress; erratic safe-volume behaviour."
+            incident_date: "2026-04-16"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8242"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_physical_damage", deductible: 65 }
+            notes: "Button clean service."
+        planner:
+          system_prompt: >
+            Phone voice — stuck volume key.
+          output: >
+            PLAN: new_claim phone.
+        response_compose:
+          system_prompt: >
+            PH-8242; no DIY solvents.
+  - id: dept_phone_autofocus_hunt
+    vendor.enduser.pseudo.id: "user_ph_nc4_03"
+    channel: mobile_app
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: "Rear main camera AF hunts back and forth after a door bumped the lens glass — never locks even on bright scenes."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Rear main camera AF hunts back and forth after a door bumped the lens glass — never locks even on bright scenes."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "PH-8243 opened — impact to lens stack suspected: continuous autofocus hunting on primary camera after chassis bump. Disable macro toggles in app; upload short focus-test clip here."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Rear main camera AF hunts back and forth after a door bumped the lens glass — never locks even on bright scenes."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Bump to lens; AF never locks.", "trigger_quote": "door bumped the lens glass", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "phone", "description": "Rear camera autofocus fails to lock after minor impact near lens; hunting in all lighting.", "incident_date": "2026-04-17"}}]}
+        agent_response: "PH-8243 opened — impact to lens stack suspected: continuous autofocus hunting on primary camera after chassis bump. Disable macro toggles in app; upload short focus-test clip here."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 740
+        gen_ai.usage.output_tokens: 96
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Rear camera autofocus fails to lock after minor impact near lens; hunting in all lighting."
+            incident_date: "2026-04-17"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8243"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_accidental_damage", deductible: 75 }
+            notes: "Camera module intake."
+        planner:
+          system_prompt: >
+            Phone app — post-impact AF fault.
+          output: >
+            PLAN: new_claim terse.
+        response_compose:
+          system_prompt: >
+            Brief; PH-8243.
+  - id: dept_phone_esim_fail
+    vendor.enduser.pseudo.id: "user_ph_nc4_04"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Carrier pushed a profile refresh — eSIM shows installed but cellular never registers, endless "searching" even after full reset. Shop says antenna test flags fail.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Carrier pushed a profile refresh — eSIM shows installed but cellular never registers, endless "searching" even after full reset. Shop says antenna test flags fail.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "PH-8244 records RF path failure after profile operations: eSIM provision stuck searching with service-centre antenna fault flag. Keep SIM tray seated per policy; intake covers baseband or RF hardware."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Carrier pushed a profile refresh — eSIM shows installed but cellular never registers, endless \"searching\" even after full reset. Shop says antenna test flags fail."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Post carrier update; eSIM no service; RF fail.", "trigger_quote": "cellular never registers", "missing_info": null, "confidence": 0.83, "tool_args": {"product_type": "phone", "description": "eSIM profile present but no cellular registration after carrier refresh; RF diagnostics failed at retail.", "incident_date": "2026-04-18"}}]}
+        agent_response: "PH-8244 records RF path failure after profile operations: eSIM provision stuck searching with service-centre antenna fault flag. Keep SIM tray seated per policy; intake covers baseband or RF hardware."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1080
+        gen_ai.usage.output_tokens: 162
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "eSIM profile present but no cellular registration after carrier refresh; RF diagnostics failed at retail."
+            incident_date: "2026-04-18"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8244"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_mechanical_breakdown", deductible: 70 }
+            notes: "Baseband/RF correlation."
+        planner:
+          system_prompt: >
+            Phone MCP — eSIM + RF hardware intake.
+          output: >
+            PLAN: new_claim phone.
+        response_compose:
+          system_prompt: >
+            PH-8244; tray seating note.
+  - id: dept_phone_adhesive_yellow
+    vendor.enduser.pseudo.id: "user_ph_nc4_05"
+    channel: web
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Edges of the screen look yellow after leaving the phone on a sunny car dash for an hour — adhesive bleed per the forum, getting worse near the notch.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Edges of the screen look yellow after leaving the phone on a sunny car dash for an hour — adhesive bleed per the forum, getting worse near the notch.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "PH-8245 is filed for heat-accelerated display bond discoloration: yellowing at bezel margin after high cabin heat. Cool slowly; avoid further sun baking until repair plan is set."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Edges of the screen look yellow after leaving the phone on a sunny car dash for an hour — adhesive bleed per the forum, getting worse near the notch."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Dashboard heat; bezel yellowing.", "trigger_quote": "sunny car dash for an hour", "missing_info": null, "confidence": 0.85, "tool_args": {"product_type": "phone", "description": "Display adhesive discoloration at edges after prolonged hot dashboard exposure; progressive near notch.", "incident_date": "2026-04-19"}}]}
+        agent_response: "PH-8245 is filed for heat-accelerated display bond discoloration: yellowing at bezel margin after high cabin heat. Cool slowly; avoid further sun baking until repair plan is set."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1010
+        gen_ai.usage.output_tokens: 152
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Display adhesive discoloration at edges after prolonged hot dashboard exposure; progressive near notch."
+            incident_date: "2026-04-19"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-8245"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_environmental_damage", deductible: 72 }
+            notes: "Thermal display bond."
+        planner:
+          system_prompt: >
+            Phone MCP — heat-induced panel edge fault.
+          output: >
+            PLAN: new_claim phone.
+        response_compose:
+          system_prompt: >
+            PH-8245; avoid dash storage.
+# --- Home electronics MCP ---
+  - id: dept_el_digital_piano
+    vendor.enduser.pseudo.id: "user_el_nc4_01"
+    channel: web
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Digital piano lost a whole octave of keys after our flat move — movers tipped it once; those notes are silent or velocity-one only.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Digital piano lost a whole octave of keys after our flat move — movers tipped it once; those notes are silent or velocity-one only.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "EL-4341 opened for keybed damage post-move: contiguous octave dead zone with silenced or minimal velocity after tilt incident. Keep upright on stand; do not run self-test loops repeatedly."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Digital piano lost a whole octave of keys after our flat move — movers tipped it once; those notes are silent or velocity-one only."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Move tilt; dead octave on keybed.", "trigger_quote": "movers tipped it once", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "digital_piano", "description": "Electronic keyboard one octave non-responsive after moving damage; suspected keybed ribbon or contact fault.", "incident_date": "2026-04-15"}}]}
+        agent_response: "EL-4341 opened for keybed damage post-move: contiguous octave dead zone with silenced or minimal velocity after tilt incident. Keep upright on stand; do not run self-test loops repeatedly."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1110
+        gen_ai.usage.output_tokens: 165
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "digital_piano"
+            description: "Electronic keyboard one octave non-responsive after moving damage; suspected keybed ribbon or contact fault."
+            incident_date: "2026-04-15"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4341"
+            product_type: "digital_piano"
+            status: "opened"
+            coverage: { type: "electronics_impact_damage", deductible: 125 }
+            notes: "Furniture-move damage."
+        planner:
+          system_prompt: >
+            Electronics MCP — stage piano keybed.
+          output: >
+            PLAN: new_claim digital_piano.
+        response_compose:
+          system_prompt: >
+            EL-4341; limit self-test.
+  - id: dept_el_nas_backplane
+    vendor.enduser.pseudo.id: "user_el_nc4_02"
+    channel: voice
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          NAS bay three and four drop offline randomly after a brownout — smart UPS logged a sag. Reseating helps for a day then MDADM degrades again.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                NAS bay three and four drop offline randomly after a brownout — smart UPS logged a sag. Reseating helps for a day then MDADM degrades again.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "EL-4342 logs storage backplane instability after mains sag: intermitted drive slots with resilver loops after reseat. Mirror critical data off-box; power down bays cycling only if comfortable."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "NAS bay three and four drop offline randomly after a brownout — smart UPS logged a sag. Reseating helps for a day then MDADM degrades again."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Brownout; NAS slots flaky; reseat temporary.", "trigger_quote": "brownout", "missing_info": null, "confidence": 0.86, "tool_args": {"product_type": "nas", "description": "Network-attached storage drive bays intermittently offline after power sag; backplane or SAS expander suspect.", "incident_date": "2026-04-16"}}]}
+        agent_response: "EL-4342 logs storage backplane instability after mains sag: intermitted drive slots with resilver loops after reseat. Mirror critical data off-box; power down bays cycling only if comfortable."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 960
+        gen_ai.usage.output_tokens: 155
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "nas"
+            description: "Network-attached storage drive bays intermittently offline after power sag; backplane or SAS expander suspect."
+            incident_date: "2026-04-16"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4342"
+            product_type: "nas"
+            status: "opened"
+            coverage: { type: "electronics_power_surge_damage", deductible: 110 }
+            notes: "Data safety advisory."
+        planner:
+          system_prompt: >
+            Electronics voice — NAS hardware intake.
+          output: >
+            PLAN: new_claim nas.
+        response_compose:
+          system_prompt: >
+            EL-4342; backup urgency.
+  - id: dept_el_vr_headset
+    vendor.enduser.pseudo.id: "user_el_nc4_03"
+    channel: mobile_app
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          VR headset right eye went black after someone stepped on the link cable — left eye fine, tracking still works, smell of hot plastic briefly.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                VR headset right eye went black after someone stepped on the link cable — left eye fine, tracking still works, smell of hot plastic briefly.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "EL-4343 recorded for single-panel blackout after cable crush: partial HMD video loss with brief thermal odour. Unplug headset; inspect cable for nicks; upload vendor diagnostic capture if prompted in app."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "VR headset right eye went black after someone stepped on the link cable — left eye fine, tracking still works, smell of hot plastic briefly."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Cable crush; right panel black; hot smell.", "trigger_quote": "stepped on the link cable", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "vr_headset", "description": "PC-tethered VR headset lost right display after cable compression; left eye operational; transient burn smell.", "incident_date": "2026-04-17"}}]}
+        agent_response: "EL-4343 recorded for single-panel blackout after cable crush: partial HMD video loss with brief thermal odour. Unplug headset; inspect cable for nicks; upload vendor diagnostic capture if prompted in app."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 770
+        gen_ai.usage.output_tokens: 108
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "vr_headset"
+            description: "PC-tethered VR headset lost right display after cable compression; left eye operational; transient burn smell."
+            incident_date: "2026-04-17"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4343"
+            product_type: "vr_headset"
+            status: "opened"
+            coverage: { type: "electronics_electrical_fault", deductible: 95 }
+            notes: "HMD display path."
+        planner:
+          system_prompt: >
+            Electronics app — VR hardware fault.
+          output: >
+            PLAN: new_claim vr_headset.
+        response_compose:
+          system_prompt: >
+            Short; EL-4343; unplug.
+  - id: dept_el_portable_monitor
+    vendor.enduser.pseudo.id: "user_el_nc4_04"
+    channel: web
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Portable monitor arrived from RMA with worse backlight bleed in the corners than the unit I sent — seal looks twisted along one edge.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Portable monitor arrived from RMA with worse backlight bleed in the corners than the unit I sent — seal looks twisted along one edge.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "EL-4344 is created for panel assembly defect post-RMA: asymmetric corner bleed worse than prior unit with bezel twist. Use low brightness until swapped; keep original packaging for courier."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Portable monitor arrived from RMA with worse backlight bleed in the corners than the unit I sent — seal looks twisted along one edge."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "RMA monitor worse bleed; bezel twist.", "trigger_quote": "worse backlight bleed in the corners", "missing_info": null, "confidence": 0.84, "tool_args": {"product_type": "portable_monitor", "description": "Portable USB-C monitor shows increased backlight bleed and bezel misalignment after warranty replacement shipment.", "incident_date": "2026-04-18"}}]}
+        agent_response: "EL-4344 is created for panel assembly defect post-RMA: asymmetric corner bleed worse than prior unit with bezel twist. Use low brightness until swapped; keep original packaging for courier."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1030
+        gen_ai.usage.output_tokens: 150
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "portable_monitor"
+            description: "Portable USB-C monitor shows increased backlight bleed and bezel misalignment after warranty replacement shipment."
+            incident_date: "2026-04-18"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4344"
+            product_type: "portable_monitor"
+            status: "opened"
+            coverage: { type: "electronics_mechanical_failure", deductible: 75 }
+            notes: "RMA intake."
+        planner:
+          system_prompt: >
+            Electronics — portable LCD assembly.
+          output: >
+            PLAN: new_claim portable_monitor.
+        response_compose:
+          system_prompt: >
+            EL-4344; brightness caution.
+  - id: dept_el_action_camera
+    vendor.enduser.pseudo.id: "user_el_nc4_05"
+    channel: web
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Action camera overheats in 4K60 after two minutes on a helmet mount — shuts down; 1080p is stable. Weather was only eighteen degrees.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Action camera overheats in 4K60 after two minutes on a helmet mount — shuts down; 1080p is stable. Weather was only eighteen degrees.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "EL-4345 opened for thermal throttling on flagship video mode: 4K high frame rate shutdown while 1080p stable in mild ambient air. Remove from helmet to cool; log firmware version on ticket."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Action camera overheats in 4K60 after two minutes on a helmet mount — shuts down; 1080p is stable. Weather was only eighteen degrees."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "4K60 thermal shutdown; 1080p OK.", "trigger_quote": "overheats in 4K60 after two minutes", "missing_info": null, "confidence": 0.82, "tool_args": {"product_type": "action_camera", "description": "Helmet-mounted action camera forces shutdown in 4K60 despite cool ambient; lower resolutions sustained.", "incident_date": "2026-04-19"}}]}
+        agent_response: "EL-4345 opened for thermal throttling on flagship video mode: 4K high frame rate shutdown while 1080p stable in mild ambient air. Remove from helmet to cool; log firmware version on ticket."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 990
+        gen_ai.usage.output_tokens: 148
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "action_camera"
+            description: "Helmet-mounted action camera forces shutdown in 4K60 despite cool ambient; lower resolutions sustained."
+            incident_date: "2026-04-19"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "EL-4345"
+            product_type: "action_camera"
+            status: "opened"
+            coverage: { type: "electronics_thermal_fault", deductible: 70 }
+            notes: "Wearable thermal."
+        planner:
+          system_prompt: >
+            Electronics — action cam thermal.
+          output: >
+            PLAN: new_claim action_camera.
+        response_compose:
+          system_prompt: >
+            EL-4345; firmware note.
+# --- Home appliances MCP ---
+  - id: dept_ap_chest_freezer_frost
+    vendor.enduser.pseudo.id: "user_ap_nc4_01"
+    channel: web
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Chest freezer door seal tore when a cooler slid against it — frost bridges across the opening and the compressor runs constantly.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Chest freezer door seal tore when a cooler slid against it — frost bridges across the opening and the compressor runs constantly.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "AP-5641 filed for gasket damage: air leak with ice bridging and continuous compressor run after physical tear. Scrape loose frost gently; keep lid closed; technician replaces seal."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Chest freezer door seal tore when a cooler slid against it — frost bridges across the opening and the compressor runs constantly."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Torn gasket; frost bridge; long run times.", "trigger_quote": "door seal tore", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "chest_freezer", "description": "Chest freezer door gasket torn by impact; humid air ingress; heavy frost and non-stop cooling cycles.", "incident_date": "2026-04-15"}}]}
+        agent_response: "AP-5641 filed for gasket damage: air leak with ice bridging and continuous compressor run after physical tear. Scrape loose frost gently; keep lid closed; technician replaces seal."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1140
+        gen_ai.usage.output_tokens: 160
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "chest_freezer"
+            description: "Chest freezer door gasket torn by impact; humid air ingress; heavy frost and non-stop cooling cycles."
+            incident_date: "2026-04-15"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5641"
+            product_type: "chest_freezer"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 86 }
+            notes: "Energy + food risk."
+        planner:
+          system_prompt: >
+            Appliances — chest freezer seal.
+          output: >
+            PLAN: new_claim chest_freezer.
+        response_compose:
+          system_prompt: >
+            AP-5641; lid closed.
+  - id: dept_ap_disposal_hum
+    vendor.enduser.pseudo.id: "user_ap_nc4_02"
+    channel: voice
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Garbage disposal hums but the impeller does not spin — reset button pops out, allen hex on the bottom turns a little then jams again.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Garbage disposal hums but the impeller does not spin — reset button pops out, allen hex on the bottom turns a little then jams again.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "AP-5642 records seized disposer motor/hub: hum without rotation after reset attempts. Keep switch off; no hands in hopper; book engineered clearance under Toro kitchen cover."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Garbage disposal hums but the impeller does not spin — reset button pops out, allen hex on the bottom turns a little then jams again."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Disposer hum; no spin; reset trips.", "trigger_quote": "hums but the impeller does not spin", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "garbage_disposal", "description": "Kitchen waste disposer motor energizes but shaft does not rotate; manual crank frees briefly then binds.", "incident_date": "2026-04-16"}}]}
+        agent_response: "AP-5642 records seized disposer motor/hub: hum without rotation after reset attempts. Keep switch off; no hands in hopper; book engineered clearance under Toro kitchen cover."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 970
+        gen_ai.usage.output_tokens: 152
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "garbage_disposal"
+            description: "Kitchen waste disposer motor energizes but shaft does not rotate; manual crank frees briefly then binds."
+            incident_date: "2026-04-16"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5642"
+            product_type: "garbage_disposal"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 78 }
+            notes: "Safety: no hands inside."
+        planner:
+          system_prompt: >
+            Appliances voice — disposer seize.
+          output: >
+            PLAN: new_claim garbage_disposal.
+        response_compose:
+          system_prompt: >
+            AP-5642; switch off.
+  - id: dept_ap_kettle_boildry
+    vendor.enduser.pseudo.id: "user_ap_nc4_03"
+    channel: web
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Electric kettle no longer cuts off at boil — steam everywhere and it boils dry if I walk away for thirty seconds.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Electric kettle no longer cuts off at boil — steam everywhere and it boils dry if I walk away for thirty seconds.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "AP-5643 opened for failed auto shutoff: kettle over-boils with excess steam; dry-boil risk if unattended. Unplug when not in use; descale only per manual before service judgment."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Electric kettle no longer cuts off at boil — steam everywhere and it boils dry if I walk away for thirty seconds."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Kettle no auto-off; boil-dry risk.", "trigger_quote": "no longer cuts off at boil", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "electric_kettle", "description": "Cordless electric kettle thermostat or steam cut-out failed; continuous boiling without automatic switch-off.", "incident_date": "2026-04-17"}}]}
+        agent_response: "AP-5643 opened for failed auto shutoff: kettle over-boils with excess steam; dry-boil risk if unattended. Unplug when not in use; descale only per manual before service judgment."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1020
+        gen_ai.usage.output_tokens: 155
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "electric_kettle"
+            description: "Cordless electric kettle thermostat or steam cut-out failed; continuous boiling without automatic switch-off."
+            incident_date: "2026-04-17"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5643"
+            product_type: "electric_kettle"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 58 }
+            notes: "Scald safety."
+        planner:
+          system_prompt: >
+            Appliances — kettle safety cut-out.
+          output: >
+            PLAN: new_claim electric_kettle.
+        response_compose:
+          system_prompt: >
+            AP-5643; unplug habit.
+  - id: dept_ap_air_fryer_door
+    vendor.enduser.pseudo.id: "user_ap_nc4_04"
+    channel: mobile_app
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Air fryer door hinge went sloppy mid-cycle — now it stops with door-open errors unless I lift the handle while it runs.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Air fryer door hinge went sloppy mid-cycle — now it stops with door-open errors unless I lift the handle while it runs.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "AP-5644 logged for interlock fault: door hinge play causing false open sensor during cook. Stop using until inspected; do not bypass interlock tabs."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Air fryer door hinge went sloppy mid-cycle — now it stops with door-open errors unless I lift the handle while it runs."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Sloppy hinge; false door-open faults.", "trigger_quote": "hinge went sloppy mid-cycle", "missing_info": null, "confidence": 0.87, "tool_args": {"product_type": "air_fryer", "description": "Basket-style air fryer door hinge loose; safety interlock interrupts cycle unless door manually supported.", "incident_date": "2026-04-18"}}]}
+        agent_response: "AP-5644 logged for interlock fault: door hinge play causing false open sensor during cook. Stop using until inspected; do not bypass interlock tabs."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 700
+        gen_ai.usage.output_tokens: 100
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "air_fryer"
+            description: "Basket-style air fryer door hinge loose; safety interlock interrupts cycle unless door manually supported."
+            incident_date: "2026-04-18"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5644"
+            product_type: "air_fryer"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 68 }
+            notes: "Interlock safety."
+        planner:
+          system_prompt: >
+            Appliances app — air fryer door.
+          output: >
+            PLAN: new_claim air_fryer.
+        response_compose:
+          system_prompt: >
+            Urgent brief; AP-5644; no bypass.
+  - id: dept_ap_dehumidifier_sensor
+    vendor.enduser.pseudo.id: "user_ap_nc4_05"
+    channel: web
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Dehumidifier thinks the bucket is full when it is empty — beeps every minute and the float looks clean; basement humidity is back up.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Dehumidifier thinks the bucket is full when it is empty — beeps every minute and the float looks clean; basement humidity is back up.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "AP-5645 is created for false full-bucket sensing: empty tank flagged persistent with clean float. Verify drain hose not kinked; power cycle once; service replaces switch or sensor if recurrent."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Dehumidifier thinks the bucket is full when it is empty — beeps every minute and the float looks clean; basement humidity is back up."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "False full tank; humidity rises.", "trigger_quote": "thinks the bucket is full when it is empty", "missing_info": null, "confidence": 0.86, "tool_args": {"product_type": "dehumidifier", "description": "Residential dehumidifier reports full water tank erroneously; sensor or float fault; unit will not collect moisture.", "incident_date": "2026-04-19"}}]}
+        agent_response: "AP-5645 is created for false full-bucket sensing: empty tank flagged persistent with clean float. Verify drain hose not kinked; power cycle once; service replaces switch or sensor if recurrent."
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1060
+        gen_ai.usage.output_tokens: 158
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "dehumidifier"
+            description: "Residential dehumidifier reports full water tank erroneously; sensor or float fault; unit will not collect moisture."
+            incident_date: "2026-04-19"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "AP-5645"
+            product_type: "dehumidifier"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 64 }
+            notes: "Sensor intake."
+        planner:
+          system_prompt: >
+            Appliances — dehumidifier float fault.
+          output: >
+            PLAN: new_claim dehumidifier.
+        response_compose:
+          system_prompt: >
+            AP-5645; hose check.

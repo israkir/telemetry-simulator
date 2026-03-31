@@ -1,0 +1,189 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_appliances_dryer_no_heat_slots_multiturn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# MCP: appliances — new_claim + get_available_slots, then update_appointment
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_appliances_dryer_no_heat_slots_multiturn
+description: >
+  Dryer cold cycles: HA-9153 + Mon/Wed slots; books Monday.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 3.05
+trace_interval_ms: 232
+trace_interval_deviation_ms: 52
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 2240, deviation: 620 }
+      planner: { mean: 520, deviation: 165 }
+      llm.call: { mean: 655, deviation: 200 }
+      task.execute: { mean: 740, deviation: 250 }
+      tools.recommend: { mean: 54, deviation: 22 }
+      mcp.tool.execute: { mean: 245, deviation: 110 }
+      response.compose: { mean: 368, deviation: 115 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_appliances_dryer_no_heat_slots_multiturn
+    vendor.enduser.pseudo.id: "user_mt_ap_dry_heat_93"
+    channel: voice
+    mcp_server: appliances
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Dryer runs forever but the load is ice cold — need a claim and the earliest service visits you have.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Dryer runs forever but the load is ice cold — need a claim and the earliest service visits you have.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                HA-9153 is live for the no-heat dryer. Monday 10:00–14:00 or Wednesday 10:00–14:00 — say which you want.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Dryer runs forever but the load is ice cold — need a claim and the earliest service visits you have.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Dryer no-heat fault.", "trigger_quote": "no heat", "missing_info": null, "confidence": 0.94, "tool_args": {"product_type": "dryer", "description": "Tumble dryer completes with no heat; laundry stays damp.", "incident_date": "2026-05-03"}}, {"tool_name": "get_available_slots", "trigger_summary": "Next-week morning technician windows.", "trigger_quote": "send someone out", "missing_info": null, "confidence": 0.91, "tool_args": {"claim_id": "HA-9153", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-05", "date_range_end": "2026-05-08"}}]}
+        agent_response: >
+          HA-9153 is live for the no-heat dryer. Monday 10:00–14:00 or Wednesday 10:00–14:00 — say which you want.
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 980
+        gen_ai.usage.output_tokens: 188
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "dryer"
+            description: "Tumble dryer completes with no heat; laundry stays damp."
+            incident_date: "2026-05-03"
+          get_available_slots:
+            claim_id: "HA-9153"
+            service_type: "authorized_repair_visit"
+            date_range_start: "2026-05-05"
+            date_range_end: "2026-05-08"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "HA-9153"
+            product_type: "dryer"
+            status: "opened"
+            coverage: { type: "appliance_mechanical_breakdown", deductible: 79 }
+            notes: "Voice channel IVR closure."
+          get_available_slots:
+            claim_id: "HA-9153"
+            slots:
+              - { slot_id: "SLOT-2026-05-05T10:00", duration_minutes: 240 }
+              - { slot_id: "SLOT-2026-05-07T10:00", duration_minutes: 240 }
+            timezone: "America/Chicago"
+        planner:
+          system_prompt: >
+            Appliances voice: dryer heating intake.
+          output: >
+            PLAN: new_claim HA-9153; slots Mon/Wed morning.
+        response_compose:
+          system_prompt: >
+            Voice-simple; spell HA-9153; two windows.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: "Monday morning works."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Monday morning works."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Monday 10:00–14:00 is booked on HA-9153. We’ll text the technician name when assigned.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Monday morning works."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Book Monday morning window.", "trigger_quote": "Monday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "HA-9153", "appointment_id": "APT-HA-9153-HOLD", "slot_id": "SLOT-2026-05-05T10:00", "preferred_time_window": "morning"}}]}
+        agent_response: >
+          Monday 10:00–14:00 is booked on HA-9153. We’ll text the technician name when assigned.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 760
+        gen_ai.usage.output_tokens: 72
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "HA-9153"
+            appointment_id: "APT-HA-9153-HOLD"
+            slot_id: "SLOT-2026-05-05T10:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "HA-9153"
+            appointment_id: "APT-HA-9153-01"
+            status: "scheduled"
+            scheduled_at: "2026-05-05T10:00:00Z"
+        planner:
+          system_prompt: >
+            Caller chose Monday for HA-9153.
+          output: >
+            PLAN: update_appointment Monday 10:00.
+        response_compose:
+          system_prompt: >
+            Warm brief confirm.

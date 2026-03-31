@@ -1,0 +1,189 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_phone_mic_speaker_slots_multiturn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# MCP: phone — new_claim + get_available_slots, then update_appointment
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_phone_mic_speaker_slots_multiturn
+description: >
+  Liquid mic/speaker: PH-9162 + slots; picks earlier slot.
+
+tags:
+  - normal
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 2.55
+trace_interval_ms: 232
+trace_interval_deviation_ms: 52
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 2050, deviation: 620 }
+      planner: { mean: 520, deviation: 165 }
+      llm.call: { mean: 655, deviation: 200 }
+      task.execute: { mean: 740, deviation: 250 }
+      tools.recommend: { mean: 54, deviation: 22 }
+      mcp.tool.execute: { mean: 245, deviation: 110 }
+      response.compose: { mean: 368, deviation: 115 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_mic_speaker_slots_multiturn
+    vendor.enduser.pseudo.id: "user_mt_ph_liquid_97"
+    channel: app_chat
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Coffee splashed into my phone — callers can barely hear me. Start a claim and list repair times.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Coffee splashed into my phone — callers can barely hear me. Start a claim and list repair times.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-9162 is active. I have Saturday 14:00 or Wednesday 16:00 — which works?
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Coffee splashed into my phone — callers can barely hear me. Start a claim and list repair times.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Liquid damage to audio path.", "trigger_quote": "coffee on the phone", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "phone", "description": "Coffee splash; earpiece and mic muffled.", "incident_date": "2026-05-07"}}, {"tool_name": "get_available_slots", "trigger_summary": "Post-liquid repair availability.", "trigger_quote": "get it fixed", "missing_info": null, "confidence": 0.88, "tool_args": {"claim_id": "PH-9162", "service_type": "screen_repair_visit", "date_range_start": "2026-05-08", "date_range_end": "2026-05-14"}}]}
+        agent_response: >
+          PH-9162 is active. I have Saturday 14:00 or Wednesday 16:00 — which works?
+        tool_chain: [new_claim, get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1040
+        gen_ai.usage.output_tokens: 192
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: "phone"
+            description: "Coffee splash; earpiece and mic muffled."
+            incident_date: "2026-05-07"
+          get_available_slots:
+            claim_id: "PH-9162"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-05-08"
+            date_range_end: "2026-05-14"
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "PH-9162"
+            product_type: "phone"
+            status: "opened"
+            coverage: { type: "phone_liquid_damage", deductible: 85 }
+            notes: "Liquid path."
+          get_available_slots:
+            claim_id: "PH-9162"
+            slots:
+              - { slot_id: "SLOT-2026-05-09T14:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-05-13T16:00", duration_minutes: 90 }
+            timezone: "America/Los_Angeles"
+        planner:
+          system_prompt: >
+            Phone: liquid audio + slots.
+          output: >
+            PLAN: new_claim; screen_repair_visit window.
+        response_compose:
+          system_prompt: >
+            PH-9162; power-off tip.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: "Saturday afternoon."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Saturday afternoon."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Saturday 14:00 is set for PH-9162. Keep the device powered off until drop-off if possible.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Saturday afternoon."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Saturday afternoon repair.", "trigger_quote": "Saturday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "PH-9162", "appointment_id": "APT-PH-9162-HOLD", "slot_id": "SLOT-2026-05-09T14:00", "preferred_time_window": "afternoon"}}]}
+        agent_response: >
+          Saturday 14:00 is set for PH-9162. Keep the device powered off until drop-off if possible.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 830
+        gen_ai.usage.output_tokens: 76
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-9162"
+            appointment_id: "APT-PH-9162-HOLD"
+            slot_id: "SLOT-2026-05-09T14:00"
+            preferred_time_window: "afternoon"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "PH-9162"
+            appointment_id: "APT-PH-9162-01"
+            status: "scheduled"
+            scheduled_at: "2026-05-09T14:00:00Z"
+        planner:
+          system_prompt: >
+            Saturday 14:00 chosen.
+          output: >
+            PLAN: update_appointment.
+        response_compose:
+          system_prompt: >
+            Drop-off reminder.
