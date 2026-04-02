@@ -372,12 +372,33 @@ def test_mcp_tool_retries_scenario_emits_attempt_indices_and_retry_counts() -> N
     ctx = _resolve_ctx()
     latency_model = LatencyModel.from_scenario(scenario)
     enduser = scenario.endusers[0]
-    turn = enduser.turns[0]
+    prefix = sim_config.ATTR_PREFIX
+
+    graph_slots = compile_turn(
+        scenario,
+        enduser,
+        enduser.turns[0],
+        resolved_ctx=ctx,
+        latency_model=latency_model,
+        config=config,
+    )
+    validate_trace_graph(graph_slots)
+    dp_slots = graph_slots.data_plane.spans
+    mcp_slots = [s for s in dp_slots if s.attributes.get(f"{prefix}.span.class") == "mcp.tool.execute"]
+    assert len(mcp_slots) == 1
+    assert mcp_slots[0].attributes["gen_ai.tool.name"] == "get_available_slots"
+    assert mcp_slots[0].attributes[f"{prefix}.retry.count"] == 0
+    slot_attempts_only = [
+        s
+        for s in dp_slots
+        if s.attributes.get(f"{prefix}.span.class") == "mcp.tool.execute.attempt"
+    ]
+    assert len(slot_attempts_only) == 1
 
     graph = compile_turn(
         scenario,
         enduser,
-        turn,
+        enduser.turns[1],
         resolved_ctx=ctx,
         latency_model=latency_model,
         config=config,
@@ -385,31 +406,15 @@ def test_mcp_tool_retries_scenario_emits_attempt_indices_and_retry_counts() -> N
     validate_trace_graph(graph)
 
     dp = graph.data_plane.spans
-    prefix = sim_config.ATTR_PREFIX
     mcp_parents = [s for s in dp if s.attributes.get(f"{prefix}.span.class") == "mcp.tool.execute"]
-    assert len(mcp_parents) == 2
-    assert mcp_parents[0].attributes["gen_ai.tool.name"] == "get_available_slots"
-    assert mcp_parents[0].attributes[f"{prefix}.retry.count"] == 0
-    assert mcp_parents[0].attributes[f"{prefix}.retry.policy"] == "none"
+    assert len(mcp_parents) == 1
+    assert mcp_parents[0].attributes["gen_ai.tool.name"] == "update_appointment"
+    assert mcp_parents[0].attributes[f"{prefix}.retry.count"] == 2
+    assert mcp_parents[0].attributes[f"{prefix}.retry.policy"] == "exponential_jitter"
     assert mcp_parents[0].attributes.get(f"{prefix}.llm.tool.execution.count") == 1
 
-    assert mcp_parents[1].attributes["gen_ai.tool.name"] == "update_appointment"
-    assert mcp_parents[1].attributes[f"{prefix}.retry.count"] == 2
-    assert mcp_parents[1].attributes[f"{prefix}.retry.policy"] == "exponential_jitter"
-    assert mcp_parents[1].attributes.get(f"{prefix}.llm.tool.execution.count") == 2
-
     attempts = [s for s in dp if s.attributes.get(f"{prefix}.span.class") == "mcp.tool.execute.attempt"]
-    assert len(attempts) == 4
-
-    slot_attempts = [
-        s
-        for s in attempts
-        if s.attributes.get("gen_ai.tool.name") == "get_available_slots"
-    ]
-    assert len(slot_attempts) == 1
-    assert slot_attempts[0].attributes[f"{prefix}.mcp.attempt.index"] == 1
-    assert slot_attempts[0].attributes[f"{prefix}.mcp.attempt.outcome"] == "success"
-    assert slot_attempts[0].status_code == "UNSET"
+    assert len(attempts) == 3
 
     book_attempts = [
         s
@@ -440,7 +445,7 @@ def test_mcp_tool_retries_exhausted_all_attempts_fail() -> None:
     ctx = _resolve_ctx()
     latency_model = LatencyModel.from_scenario(scenario)
     enduser = scenario.endusers[0]
-    turn = enduser.turns[0]
+    turn = enduser.turns[1]
 
     graph = compile_turn(
         scenario,
@@ -455,6 +460,7 @@ def test_mcp_tool_retries_exhausted_all_attempts_fail() -> None:
     prefix = sim_config.ATTR_PREFIX
     dp = graph.data_plane.spans
     mcp_parents = [s for s in dp if s.attributes.get(f"{prefix}.span.class") == "mcp.tool.execute"]
+    assert len(mcp_parents) == 1
     pay_parent = next(s for s in mcp_parents if s.attributes.get("gen_ai.tool.name") == "pay")
     assert pay_parent.attributes[f"{prefix}.step.outcome"] == "fail"
     assert pay_parent.attributes[f"{prefix}.retry.count"] == 2

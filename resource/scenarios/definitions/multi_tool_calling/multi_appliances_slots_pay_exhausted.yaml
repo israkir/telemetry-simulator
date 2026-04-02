@@ -2,9 +2,10 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_appliances_slots_pay_exhausted.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
-# Interaction model: one user message → three MCP tools; pay exhausts retries (all attempts fail)
-# MCP: appliances — claim_status → get_available_slots → pay (3× fail; exponential_jitter)
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Interaction model: multi-turn — confirm excess and list engineer slots first; user retries
+#   payment in a follow-up message; pay exhausts retries (all attempts fail).
+# MCP: appliances — claim_status → get_available_slots, then pay (3× fail; exponential_jitter)
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -12,9 +13,8 @@
 
 name: multi_appliances_slots_pay_exhausted
 description: >
-  Oven breakdown claim in one turn: confirm excess is due, list authorized home-visit slots, then
-  charge the sixty-euro excess — the payment path retries through service blips and ends without a
-  capture while slots remain valid for the customer to choose.
+  Oven claim AP-OV-4418 in two turns: verify €60 excess is outstanding and show Tuesday–Wednesday
+  engineer slots, then attempt card payment that fails after retries while slots stay valid.
 
 tags:
   - normal
@@ -25,7 +25,7 @@ mcp_server: phone
 
 vendor.redaction.applied: none
 
-workload_weight: 2.2
+workload_weight: 2.4
 trace_interval_ms: 218
 trace_interval_deviation_ms: 52
 
@@ -78,58 +78,41 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          Oven claim AP-OV-4418 — the letter says sixty euros excess before you book the engineer.
-          Is that showing on your side? I need visit options Tuesday or Wednesday next week, and I’d
-          like to pay the excess now if the card on file still works.
+          Oven claim AP-OV-4418 — my letter says sixty euros excess before an engineer visit. Does that
+          match what you see? I’ll need visit options Tuesday or Wednesday next week.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Oven claim AP-OV-4418 — the letter says sixty euros excess before you book the engineer.
-                Is that showing on your side? I need visit options Tuesday or Wednesday next week, and I’d
-                like to pay the excess now if the card on file still works.
+                Oven claim AP-OV-4418 — my letter says sixty euros excess before an engineer visit. Does that
+                match what you see? I’ll need visit options Tuesday or Wednesday next week.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                AP-OV-4418 shows the sixty-euro excess outstanding. Tuesday and Wednesday engineer slots
-                are listed for you; the card charge didn’t complete just now — please retry payment in
-                the portal when convenient, then pick a slot.
+                AP-OV-4418 shows the €60 excess still due before we lock a visit. Here are Tuesday and
+                Wednesday engineer windows — once payment clears you can confirm a slot, or tell me if you’d
+                like to try the card charge now.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Oven claim AP-OV-4418 — the letter says sixty euros excess before you book the engineer.
-                Is that showing on your side? I need visit options Tuesday or Wednesday next week, and I’d
-                like to pay the excess now if the card on file still works.
+                Oven claim AP-OV-4418 — my letter says sixty euros excess before an engineer visit. Does that
+                match what you see? I’ll need visit options Tuesday or Wednesday next week.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm excess due on oven claim.","trigger_quote":"AP-OV-4418","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"AP-OV-4418"}},{"tool_name":"get_available_slots","trigger_summary":"Engineer visits Tue–Wed next week.","trigger_quote":"Tuesday or Wednesday next week","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"AP-OV-4418","service_type":"authorized_repair_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-25"}},{"tool_name":"pay","trigger_summary":"Charge sixty EUR excess to card on file.","trigger_quote":"pay the excess now","missing_info":null,"confidence":0.85,"tool_args":{"payment_target":"excess","reference_id":"AP-OV-4418","amount":60.0,"currency":"EUR"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm excess due on oven claim.","trigger_quote":"AP-OV-4418","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"AP-OV-4418"}},{"tool_name":"get_available_slots","trigger_summary":"Engineer visits Tue–Wed next week.","trigger_quote":"Tuesday or Wednesday next week","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"AP-OV-4418","service_type":"authorized_repair_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-25"}}]}
         agent_response: >
-          AP-OV-4418 shows the sixty-euro excess outstanding. Tuesday and Wednesday engineer slots
-          are listed for you; the card charge didn’t complete just now — please retry payment in
-          the portal when convenient, then pick a slot.
-        tool_chain: [claim_status, get_available_slots, pay]
-        mcp_tool_retries:
-          pay:
-            policy: exponential_jitter
-            attempts:
-              - outcome: fail
-                error.type: unavailable
-              - outcome: fail
-                error.type: rate_limited
-                gentoro.retry.reason: rate_limited
-                gentoro.retry.backoff.ms: 340
-              - outcome: fail
-                error.type: tool_error
-                gentoro.retry.reason: transient_error
-                gentoro.retry.backoff.ms: 720
+          AP-OV-4418 shows the €60 excess still due before we lock a visit. Here are Tuesday and
+          Wednesday engineer windows — once payment clears you can confirm a slot, or tell me if you’d
+          like to try the card charge now.
+        tool_chain: [claim_status, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1380
-        gen_ai.usage.output_tokens: 480
+        gen_ai.usage.input_tokens: 1280
+        gen_ai.usage.output_tokens: 265
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 3
+        gentoro.llm.turn.count: 2
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -140,11 +123,6 @@ endusers:
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-24"
             date_range_end: "2026-03-25"
-          pay:
-            payment_target: "excess"
-            reference_id: "AP-OV-4418"
-            amount: 60.0
-            currency: "EUR"
         gen_ai.tool.call.result:
           claim_status:
             claim_id: "AP-OV-4418"
@@ -161,6 +139,71 @@ endusers:
               - { slot_id: "SLOT-2026-03-24T13:00", duration_minutes: 180 }
               - { slot_id: "SLOT-2026-03-25T09:00", duration_minutes: 180 }
             timezone: "Europe/Berlin"
+        planner:
+          system_prompt: >
+            Toro appliances planner: status then slots; payment deferred to next customer message.
+          output: >
+            PLAN: claim_status AP-OV-4418; get_available_slots Tue–Wed; invite payment attempt.
+        response_compose:
+          system_prompt: >
+            Balanced tone: confirm excess, list slots, optional pay CTA.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Okay — please try charging the sixty euro excess to the Visa on my profile now.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Okay — please try charging the sixty euro excess to the Visa on my profile now.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I ran the €60 charge but it didn’t complete — the visit slots from a moment ago are still
+                listed for you. Please retry payment in the portal when you can, then pick a time.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Okay — please try charging the sixty euro excess to the Visa on my profile now.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Charge sixty EUR excess to card on file after customer confirms.","trigger_quote":"sixty euro excess","missing_info":null,"confidence":0.89,"tool_args":{"payment_target":"excess","reference_id":"AP-OV-4418","amount":60.0,"currency":"EUR"}}]}
+        agent_response: >
+          I ran the €60 charge but it didn’t complete — the visit slots from a moment ago are still
+          listed for you. Please retry payment in the portal when you can, then pick a time.
+        tool_chain: [pay]
+        mcp_tool_retries:
+          pay:
+            policy: exponential_jitter
+            attempts:
+              - outcome: fail
+                error.type: unavailable
+              - outcome: fail
+                error.type: rate_limited
+                gentoro.retry.reason: rate_limited
+                gentoro.retry.backoff.ms: 340
+              - outcome: fail
+                error.type: tool_error
+                gentoro.retry.reason: transient_error
+                gentoro.retry.backoff.ms: 720
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1180
+        gen_ai.usage.output_tokens: 195
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          pay:
+            payment_target: "excess"
+            reference_id: "AP-OV-4418"
+            amount: 60.0
+            currency: "EUR"
+        gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-AP-4418-PEND"
             reference_id: "AP-OV-4418"
@@ -169,10 +212,9 @@ endusers:
             currency: "EUR"
         planner:
           system_prompt: >
-            Toro appliances planner: status, slots, then excess payment; payment may fail after retries.
+            Second turn: customer authorizes excess payment; retries may all fail.
           output: >
-            PLAN: claim_status AP-OV-4418; get_available_slots Tue–Wed; pay 60 EUR excess; customer keeps
-            slot choice if pay fails.
+            PLAN: pay 60 EUR excess AP-OV-4418; if not_captured, keep slots valid.
         response_compose:
           system_prompt: >
-            Balanced tone: slots succeeded, payment did not; no jargon about tools or HTTP.
+            Balanced tone: payment failed after retries; no jargon about tools or HTTP.

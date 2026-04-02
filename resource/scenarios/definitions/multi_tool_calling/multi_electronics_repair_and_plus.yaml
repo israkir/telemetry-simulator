@@ -2,21 +2,21 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_electronics_repair_and_plus.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
-# Interaction model: one user message → one orchestrated turn (7-tool chain)
-# MCP: electronics — repair path through excess payment and purchased add-on coverage
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 4
+# Interaction model: multi-turn — confirm assessor outcome and docs, book engineer visit,
+#   pay excess, then quote and buy add-on coverage.
+# MCP: electronics — seven MCP tools across four user messages
 # Data plane: full span_plan (planner → llm.call → tools.recommend → mcp… → compose)
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
 # =============================================================================
-#
-# Split from former normal/multi_tool_calling.yaml (7-tool electronics path).
 
 name: multi_electronics_repair_and_plus
 description: >
-  Soundbar claim in one turn: verify assessor outcome, attach photos, book engineer visit, pay excess,
-  quote and buy Toro Premium for living-room AV (seven MCP tools on electronics).
+  Soundbar claim EL-HT-7707 across four turns: verify assessor notes match what the customer heard,
+  register new packaging photos, book a Thursday engineer window, pay excess, then activate Toro
+  Premium for living-room AV.
 
 tags:
   - normal
@@ -27,9 +27,9 @@ mcp_server: phone
 
 vendor.redaction.applied: none
 
-workload_weight: 1.5
-trace_interval_ms: 220
-trace_interval_deviation_ms: 55
+workload_weight: 2.8
+trace_interval_ms: 225
+trace_interval_deviation_ms: 54
 
 latency_profiles:
   normal:
@@ -38,13 +38,13 @@ latency_profiles:
       payload.validation: { mean: 5, deviation: 2 }
       policy.validation: { mean: 12, deviation: 5 }
       augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2400, deviation: 450 }
-      planner: { mean: 520, deviation: 120 }
-      llm.call: { mean: 680, deviation: 150 }
-      task.execute: { mean: 720, deviation: 160 }
-      tools.recommend: { mean: 55, deviation: 18 }
-      mcp.tool.execute: { mean: 200, deviation: 55 }
-      response.compose: { mean: 380, deviation: 90 }
+      a2a.orchestrate: { mean: 1980, deviation: 390 }
+      planner: { mean: 495, deviation: 112 }
+      llm.call: { mean: 610, deviation: 138 }
+      task.execute: { mean: 670, deviation: 152 }
+      tools.recommend: { mean: 50, deviation: 16 }
+      mcp.tool.execute: { mean: 198, deviation: 54 }
+      response.compose: { mean: 330, deviation: 80 }
       response.validation: { mean: 10, deviation: 4 }
 
 default_latency_profile: normal
@@ -80,54 +80,41 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          Soundbar claim EL-HT-7707 — the assessor said the HDMI board is dead. Confirm that's what's on
-          the file, register the carton photos I uploaded, list engineer home-visit slots in East-2 next
-          week, put me Thursday 9–12, charge the €75 excess to my card on file, then quote Toro Premium
-          for living-room AV and buy it at the monthly you quoted in the last email if it's still valid.
+          I’m following up on soundbar claim EL-HT-7707. The assessor told me the HDMI board is dead —
+          does your file actually say that? I also uploaded carton photos in the portal just now.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Soundbar claim EL-HT-7707 — the assessor said the HDMI board is dead. Confirm that's what's on
-                the file, register the carton photos I uploaded, list engineer home-visit slots in East-2 next
-                week, put me Thursday 9–12, charge the €75 excess to my card on file, then quote Toro Premium
-                for living-room AV and buy it at the monthly you quoted in the last email if it's still valid.
+                I’m following up on soundbar claim EL-HT-7707. The assessor told me the HDMI board is dead —
+                does your file actually say that? I also uploaded carton photos in the portal just now.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-HT-7707 shows assessor conclusion "HDMI mainboard failure — replace unit path." Carton
-                photos are on the claim. Thursday 09:00–12:00 visit is booked; €75 excess captured. Toro
-                Premium for living-room AV is active on policy POL-EL-PRM-7707 from quote QT-EL-7707.
+                Yes — EL-HT-7707 shows the assessor conclusion as HDMI mainboard failure. Your new carton
+                photos are attached. Next step is scheduling an engineer; say when you’d like me to look at
+                home-visit slots in East-2.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Soundbar claim EL-HT-7707 — the assessor said the HDMI board is dead. Confirm that's what's on
-                the file, register the carton photos I uploaded, list engineer home-visit slots in East-2 next
-                week, put me Thursday 9–12, charge the €75 excess to my card on file, then quote Toro Premium
-                for living-room AV and buy it at the monthly you quoted in the last email if it's still valid.
+                I’m following up on soundbar claim EL-HT-7707. The assessor told me the HDMI board is dead —
+                does your file actually say that? I also uploaded carton photos in the portal just now.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Verify assessor outcome on file.","trigger_quote":"HDMI board is dead","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"EL-HT-7707"}},{"tool_name":"upload_documents","trigger_summary":"Attach carton / packaging photos.","trigger_quote":"carton photos I uploaded","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"EL-HT-7707","document_types":["photo_packaging","assessor_report_pdf"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Engineer visits East-2 next week.","trigger_quote":"slots in East-2 next week","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"EL-HT-7707","service_type":"engineer_home_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}},{"tool_name":"update_appointment","trigger_summary":"Thursday morning window.","trigger_quote":"Thursday 9–12","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"EL-HT-7707","appointment_id":"APT-EL-7707-HOLD","slot_id":"SLOT-2026-03-26T09:00","preferred_time_window":"morning"}},{"tool_name":"pay","trigger_summary":"Collect policy excess.","trigger_quote":"charge the €75 excess","missing_info":null,"confidence":0.92,"tool_args":{"payment_target":"excess","reference_id":"EL-HT-7707","amount":75.0,"currency":"EUR"}},{"tool_name":"choose_insurance","trigger_summary":"Premium bundle for living-room AV.","trigger_quote":"Toro Premium for living-room AV","missing_info":null,"confidence":0.86,"tool_args":{"product_category":"living_room_av","coverage_tier":"premium","region":"East-2"}},{"tool_name":"buy_insurance","trigger_summary":"Purchase quoted Premium plan.","trigger_quote":"buy it at the monthly you quoted","missing_info":null,"confidence":0.84,"tool_args":{"quote_id":"QT-EL-7707","payment_method":"card_on_file","holder_reference":"user_mt_el_soundbar_72"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Verify assessor outcome matches customer understanding.","trigger_quote":"EL-HT-7707","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"EL-HT-7707"}},{"tool_name":"upload_documents","trigger_summary":"Register newly uploaded packaging photos.","trigger_quote":"uploaded carton photos","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"EL-HT-7707","document_types":["photo_packaging","assessor_report_pdf"],"expected_count":3}}]}
         agent_response: >
-          EL-HT-7707 shows assessor conclusion "HDMI mainboard failure — replace unit path." Carton
-          photos are on the claim. Thursday 09:00–12:00 visit is booked; €75 excess captured. Toro
-          Premium for living-room AV is active on policy POL-EL-PRM-7707 from quote QT-EL-7707.
-        tool_chain:
-          - claim_status
-          - upload_documents
-          - get_available_slots
-          - update_appointment
-          - pay
-          - choose_insurance
-          - buy_insurance
+          Yes — EL-HT-7707 shows the assessor conclusion as HDMI mainboard failure. Your new carton
+          photos are attached. Next step is scheduling an engineer; say when you’d like me to look at
+          home-visit slots in East-2.
+        tool_chain: [claim_status, upload_documents]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1980
-        gen_ai.usage.output_tokens: 910
+        gen_ai.usage.input_tokens: 1180
+        gen_ai.usage.output_tokens: 248
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 7
+        gentoro.llm.turn.count: 2
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -137,29 +124,6 @@ endusers:
             claim_id: "EL-HT-7707"
             document_types: ["photo_packaging", "assessor_report_pdf"]
             expected_count: 3
-          get_available_slots:
-            claim_id: "EL-HT-7707"
-            service_type: "engineer_home_visit"
-            date_range_start: "2026-03-24"
-            date_range_end: "2026-03-28"
-          update_appointment:
-            claim_id: "EL-HT-7707"
-            appointment_id: "APT-EL-7707-HOLD"
-            slot_id: "SLOT-2026-03-26T09:00"
-            preferred_time_window: "morning"
-          pay:
-            payment_target: "excess"
-            reference_id: "EL-HT-7707"
-            amount: 75.0
-            currency: "EUR"
-          choose_insurance:
-            product_category: "living_room_av"
-            coverage_tier: "premium"
-            region: "East-2"
-          buy_insurance:
-            quote_id: "QT-EL-7707"
-            payment_method: "card_on_file"
-            holder_reference: "user_mt_el_soundbar_72"
         gen_ai.tool.call.result:
           claim_status:
             claim_id: "EL-HT-7707"
@@ -173,6 +137,65 @@ endusers:
             upload_batch_id: "UPL-EL-7707-02"
             pending_count: 0
             status: "received"
+        planner:
+          system_prompt: >
+            Electronics MCP: confirm claim narrative and ingest packaging evidence.
+          output: >
+            PLAN: claim_status EL-HT-7707; upload_documents packaging + assessor pdf refs.
+        response_compose:
+          system_prompt: >
+            Echo assessor wording accurately; warm handoff to scheduling.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Please check engineer home visits in East-2 next week. Thursday morning, roughly 9 to 12, is
+          best for me.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Please check engineer home visits in East-2 next week. Thursday morning, roughly 9 to 12, is
+                best for me.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                There’s availability that matches a Thursday 09:00 start in East-2 — I’ve booked EL-HT-7707
+                into that window. You’ll get the two-hour arrival details by SMS.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Please check engineer home visits in East-2 next week. Thursday morning, roughly 9 to 12, is
+                best for me.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Engineer visits East-2 next week.","trigger_quote":"East-2 next week","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"EL-HT-7707","service_type":"engineer_home_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}},{"tool_name":"update_appointment","trigger_summary":"Thursday 09:00–12:00 morning window.","trigger_quote":"Thursday morning, roughly 9 to 12","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"EL-HT-7707","appointment_id":"APT-EL-7707-HOLD","slot_id":"SLOT-2026-03-26T09:00","preferred_time_window":"morning"}}]}
+        agent_response: >
+          There’s availability that matches a Thursday 09:00 start in East-2 — I’ve booked EL-HT-7707
+          into that window. You’ll get the two-hour arrival details by SMS.
+        tool_chain: [get_available_slots, update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1120
+        gen_ai.usage.output_tokens: 210
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "EL-HT-7707"
+            service_type: "engineer_home_visit"
+            date_range_start: "2026-03-24"
+            date_range_end: "2026-03-28"
+          update_appointment:
+            claim_id: "EL-HT-7707"
+            appointment_id: "APT-EL-7707-HOLD"
+            slot_id: "SLOT-2026-03-26T09:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
           get_available_slots:
             claim_id: "EL-HT-7707"
             slots:
@@ -184,12 +207,120 @@ endusers:
             appointment_id: "APT-EL-7707-VISIT"
             status: "scheduled"
             scheduled_at: "2026-03-26T09:00:00Z"
+        planner:
+          system_prompt: >
+            Electronics MCP: list engineer slots then book Thursday morning East-2.
+          output: >
+            PLAN: get_available_slots Thu window; update_appointment SLOT-2026-03-26T09:00.
+        response_compose:
+          system_prompt: >
+            Confirm visit booking; mention SMS logistics not internal tools.
+
+      - turn_index: 3
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Great — please charge the €75 excess for EL-HT-7707 to the card you have on file.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Great — please charge the €75 excess for EL-HT-7707 to the card you have on file.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                The €75 excess is captured for EL-HT-7707. Nothing else is needed on payment before the
+                engineer arrives.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Great — please charge the €75 excess for EL-HT-7707 to the card you have on file.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Collect claim excess on stored card.","trigger_quote":"€75 excess","missing_info":null,"confidence":0.92,"tool_args":{"payment_target":"excess","reference_id":"EL-HT-7707","amount":75.0,"currency":"EUR"}}]}
+        agent_response: >
+          The €75 excess is captured for EL-HT-7707. Nothing else is needed on payment before the
+          engineer arrives.
+        tool_chain: [pay]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 760
+        gen_ai.usage.output_tokens: 92
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          pay:
+            payment_target: "excess"
+            reference_id: "EL-HT-7707"
+            amount: 75.0
+            currency: "EUR"
+        gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-EL-7707-EX"
             reference_id: "EL-HT-7707"
             status: "captured"
             amount: 75.0
             currency: "EUR"
+        planner:
+          system_prompt: >
+            Electronics MCP: take excess after visit is booked.
+          output: >
+            PLAN: pay 75 EUR excess EL-HT-7707 card_on_file.
+        response_compose:
+          system_prompt: >
+            Brief payment confirmation.
+
+      - turn_index: 4
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Last thing — quote me Toro Premium for our living-room AV stack. If the monthly matches the
+          figure from your last email (€14.90), go ahead and buy it on the same card.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Last thing — quote me Toro Premium for our living-room AV stack. If the monthly matches the
+                figure from your last email (€14.90), go ahead and buy it on the same card.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Premium for living-room AV is still €14.90/month on quote QT-EL-7707 — I’ve activated policy
+                POL-EL-PRM-7707 on your card on file. You’ll see the policy docs in your inbox.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Last thing — quote me Toro Premium for our living-room AV stack. If the monthly matches the
+                figure from your last email (€14.90), go ahead and buy it on the same card.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"choose_insurance","trigger_summary":"Premium bundle quote living-room AV East-2.","trigger_quote":"Toro Premium for our living-room AV","missing_info":null,"confidence":0.87,"tool_args":{"product_category":"living_room_av","coverage_tier":"premium","region":"East-2"}},{"tool_name":"buy_insurance","trigger_summary":"Purchase when quote matches emailed €14.90.","trigger_quote":"€14.90","missing_info":null,"confidence":0.85,"tool_args":{"quote_id":"QT-EL-7707","payment_method":"card_on_file","holder_reference":"user_mt_el_soundbar_72"}}]}
+        agent_response: >
+          Premium for living-room AV is still €14.90/month on quote QT-EL-7707 — I’ve activated policy
+          POL-EL-PRM-7707 on your card on file. You’ll see the policy docs in your inbox.
+        tool_chain: [choose_insurance, buy_insurance]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1020
+        gen_ai.usage.output_tokens: 215
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          choose_insurance:
+            product_category: "living_room_av"
+            coverage_tier: "premium"
+            region: "East-2"
+          buy_insurance:
+            quote_id: "QT-EL-7707"
+            payment_method: "card_on_file"
+            holder_reference: "user_mt_el_soundbar_72"
+        gen_ai.tool.call.result:
           choose_insurance:
             quote_id: "QT-EL-7707"
             premium_monthly: 14.9
@@ -202,10 +333,9 @@ endusers:
             status: "active"
         planner:
           system_prompt: >
-            Electronics MCP: seven-step orchestration ending in purchased Premium coverage.
+            Electronics MCP: quote premium living_room_av then buy if price unchanged.
           output: >
-            PLAN: claim_status; upload_documents; get_available_slots; update_appointment Thursday morning;
-            pay excess; choose_insurance premium living_room_av; buy_insurance with QT-EL-7707.
+            PLAN: choose_insurance premium; buy_insurance QT-EL-7707.
         response_compose:
           system_prompt: >
-            Chat tone; cite assessor wording; confirm visit window and new policy id.
+            Chat tone; cite quote id and new policy id.

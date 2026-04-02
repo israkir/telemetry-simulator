@@ -1,0 +1,192 @@
+# =============================================================================
+# SCENARIO MANIFEST
+# =============================================================================
+# File: normal/multi_tool_calling/multi_phone_five_tool_visit_oneturn.yaml
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: one message — approved glass claim: verify status, register new photos, list collection
+#   slots, book Tuesday afternoon drop-off, collect excess.
+# MCP: phone — five tools in one orchestrated turn (repair logistics only)
+#
+# --- LLM / MAINTAINER ---
+# Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
+# =============================================================================
+
+name: multi_phone_five_tool_visit_oneturn
+description: >
+  Single mobile-app message on PH-5522 after assessor approval: confirm file shows ready-to-book glass work,
+  attach IMEI and damage photos the customer just added, show repair-collection slots Mon–Wed, book
+  Tuesday 14:00, charge £50 excess to Visa on file.
+
+tags:
+  - normal
+  - multi_tool_calling
+
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+
+vendor.redaction.applied: none
+
+workload_weight: 1.85
+trace_interval_ms: 225
+trace_interval_deviation_ms: 55
+
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: { mean: 8, deviation: 3 }
+      payload.validation: { mean: 5, deviation: 2 }
+      policy.validation: { mean: 12, deviation: 5 }
+      augmentation.validation: { mean: 6, deviation: 2 }
+      a2a.orchestrate: { mean: 2200, deviation: 440 }
+      planner: { mean: 520, deviation: 120 }
+      llm.call: { mean: 680, deviation: 150 }
+      task.execute: { mean: 720, deviation: 165 }
+      tools.recommend: { mean: 56, deviation: 18 }
+      mcp.tool.execute: { mean: 205, deviation: 56 }
+      response.compose: { mean: 380, deviation: 90 }
+      response.validation: { mean: 10, deviation: 4 }
+
+default_latency_profile: normal
+
+x_phone_span_plan: &phone_span_plan
+  cp_request:
+    root: request.validation
+    children:
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
+  cp_response:
+    root: response.validation
+    children:
+      - policy.validation
+
+endusers:
+  - id: multi_phone_five_tool_visit_oneturn
+    vendor.enduser.pseudo.id: "user_mt_ph_seven_31"
+    channel: mobile_app
+    mcp_server: phone
+    turns:
+      - turn_index: 1
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          PH-5522 glass repair is approved on my side — please confirm your system shows ready to schedule,
+          pull in the IMEI strip and crack photos I just uploaded, show collection repair slots Monday to
+          Wednesday next week, book Tuesday at 2pm if that slot exists, and charge the £50 excess to my Visa
+          on file.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                PH-5522 glass repair is approved on my side — please confirm your system shows ready to schedule,
+                pull in the IMEI strip and crack photos I just uploaded, show collection repair slots Monday to
+                Wednesday next week, book Tuesday at 2pm if that slot exists, and charge the £50 excess to my Visa
+                on file.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-5522 shows approved glass work and your photos are linked. Tuesday 14:00 collection is
+                booked and the £50 excess has been charged to your card on file — you’ll get the usual
+                confirmation shortly.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                PH-5522 glass repair is approved on my side — please confirm your system shows ready to schedule,
+                pull in the IMEI strip and crack photos I just uploaded, show collection repair slots Monday to
+                Wednesday next week, book Tuesday at 2pm if that slot exists, and charge the £50 excess to my Visa
+                on file.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm PH-5522 approved for glass scheduling.","trigger_quote":"PH-5522","missing_info":null,"confidence":0.96,"tool_args":{"claim_id":"PH-5522"}},{"tool_name":"upload_documents","trigger_summary":"Register IMEI and crack photos from app upload.","trigger_quote":"IMEI strip and crack photos","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-5522","document_types":["photo_imei","photo_damage"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Repair collection Mon–Wed next week.","trigger_quote":"Monday to Wednesday next week","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"PH-5522","service_type":"repair_collection","date_range_start":"2026-03-23","date_range_end":"2026-03-25"}},{"tool_name":"update_appointment","trigger_summary":"Book Tuesday 14:00 collection if available.","trigger_quote":"Tuesday at 2pm","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-5522","appointment_id":"APT-PH-5522-HOLD","slot_id":"SLOT-2026-03-24T14:00","preferred_time_window":"afternoon"}},{"tool_name":"pay","trigger_summary":"Collect £50 glass excess on saved Visa.","trigger_quote":"£50 excess","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"PH-5522","amount":50.0,"currency":"GBP"}}]}
+        agent_response: >
+          PH-5522 shows approved glass work and your photos are linked. Tuesday 14:00 collection is
+          booked and the £50 excess has been charged to your card on file — you’ll get the usual
+          confirmation shortly.
+        tool_chain:
+          - claim_status
+          - upload_documents
+          - get_available_slots
+          - update_appointment
+          - pay
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1780
+        gen_ai.usage.output_tokens: 720
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 5
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-5522"
+          upload_documents:
+            claim_id: "PH-5522"
+            document_types: ["photo_imei", "photo_damage"]
+            expected_count: 3
+          get_available_slots:
+            claim_id: "PH-5522"
+            service_type: "repair_collection"
+            date_range_start: "2026-03-23"
+            date_range_end: "2026-03-25"
+          update_appointment:
+            claim_id: "PH-5522"
+            appointment_id: "APT-PH-5522-HOLD"
+            slot_id: "SLOT-2026-03-24T14:00"
+            preferred_time_window: "afternoon"
+          pay:
+            payment_target: "excess"
+            reference_id: "PH-5522"
+            amount: 50.0
+            currency: "GBP"
+        gen_ai.tool.call.result:
+          claim_status:
+            claim_id: "PH-5522"
+            status: "approved_booking"
+            last_updated: "2026-03-22T11:30:00Z"
+            milestones:
+              - assessor_approved
+              - awaiting_customer_slot
+          upload_documents:
+            claim_id: "PH-5522"
+            upload_batch_id: "UPL-PH-5522-02"
+            pending_count: 0
+            status: "received"
+          get_available_slots:
+            claim_id: "PH-5522"
+            slots:
+              - { slot_id: "SLOT-2026-03-23T10:00", duration_minutes: 60 }
+              - { slot_id: "SLOT-2026-03-24T14:00", duration_minutes: 60 }
+              - { slot_id: "SLOT-2026-03-25T09:30", duration_minutes: 60 }
+            timezone: "Europe/London"
+          update_appointment:
+            claim_id: "PH-5522"
+            appointment_id: "APT-PH-5522-DROP"
+            status: "scheduled"
+            scheduled_at: "2026-03-24T14:00:00Z"
+          pay:
+            payment_id: "PAY-PH-5522-EX"
+            reference_id: "PH-5522"
+            status: "captured"
+            amount: 50.0
+            currency: "GBP"
+        planner:
+          system_prompt: >
+            Phone MCP: single message bundles repair readiness, evidence, collection booking, and excess on PH-5522.
+          output: >
+            PLAN: claim_status; upload_documents; get_available_slots repair_collection;
+            update_appointment Tue 14:00; pay 50 GBP excess.
+        response_compose:
+          system_prompt: >
+            Mobile push style: claim id, slot, payment — plain language only.

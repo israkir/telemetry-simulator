@@ -2,9 +2,10 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/mcp_tool_retries_booking.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
-# Interaction model: one user message → two MCP tools; second tool uses retries (2 fails, then success)
-# MCP: phone — get_available_slots (1 attempt) → update_appointment (3 attempts; exponential_jitter)
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Interaction model: multi-turn — list reschedule options first; customer picks a slot;
+#   second MCP tool uses retries (2 fails, then success)
+# MCP: phone — get_available_slots (turn 1) → update_appointment (turn 2; 3 attempts; exponential_jitter)
 # Data plane: mcp_tool_retries drives gentoro.retry.count, attempt indices 1..N, and per-attempt outcomes
 #
 # --- LLM / MAINTAINER ---
@@ -13,9 +14,9 @@
 
 name: mcp_tool_retries_booking
 description: >
-  Customer reschedules a phone repair: list open slots, then book a new time. The booking MCP call
-  hits a short upstream blip (unavailable) and a timeout on the first two tries before succeeding
-  on the third, with backoff and retry metadata on attempt spans.
+  Customer reschedules a phone repair in two messages: first asks what is open near Holborn later
+  in the week, then locks Thursday 16:00. The booking MCP call hits blips before succeeding on the
+  third try, with backoff and retry metadata on attempt spans.
 
 tags:
   - normal
@@ -26,7 +27,7 @@ mcp_server: phone
 
 vendor.redaction.applied: none
 
-workload_weight: 2.0
+workload_weight: 2.2
 trace_interval_ms: 210
 trace_interval_deviation_ms: 45
 
@@ -80,32 +81,90 @@ endusers:
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
           For claim PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
-          What’s open later this week around Holborn, and please lock Thursday four p.m. if it’s free.
+          What’s open later this week around Holborn?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
                 For claim PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
-                What’s open later this week around Holborn, and please lock Thursday four p.m. if it’s free.
+                What’s open later this week around Holborn?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve pulled later-week slots near Holborn for PH-4412 and moved your booking to Thursday
-                sixteen hundred; you’ll get an updated SMS with the arrival window.
+                I’ve pulled later-week screen-repair times near Holborn for PH-4412 — including Thursday
+                sixteen hundred. Tell me which one you want and I’ll move your booking.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 For claim PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
-                What’s open later this week around Holborn, and please lock Thursday four p.m. if it’s free.
+                What’s open later this week around Holborn?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Find repair slots later this week near Holborn.","trigger_quote":"open later this week around Holborn","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-4412","service_type":"screen_repair_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}},{"tool_name":"update_appointment","trigger_summary":"Book Thursday 16:00 if available.","trigger_quote":"Thursday four p.m.","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"PH-4412","appointment_id":"APT-PH-4412-01","slot_id":"SLOT-2026-03-27T16:00","preferred_time_window":"late_afternoon"}}]}
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Find repair slots later this week near Holborn for reschedule.","trigger_quote":"open later this week around Holborn","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"PH-4412","service_type":"screen_repair_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}}]}
         agent_response: >
-          I’ve pulled later-week slots near Holborn for PH-4412 and moved your booking to Thursday
-          sixteen hundred; you’ll get an updated SMS with the arrival window.
-        tool_chain: [get_available_slots, update_appointment]
+          I’ve pulled later-week screen-repair times near Holborn for PH-4412 — including Thursday
+          sixteen hundred. Tell me which one you want and I’ll move your booking.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1020
+        gen_ai.usage.output_tokens: 198
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "PH-4412"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-03-24"
+            date_range_end: "2026-03-28"
+        gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "PH-4412"
+            slots:
+              - { slot_id: "SLOT-2026-03-26T11:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-27T16:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-03-28T09:30", duration_minutes: 90 }
+            timezone: "America/Los_Angeles"
+        planner:
+          system_prompt: >
+            Toro phone planner: list slots for PH-4412 late week Holborn area; defer booking to next turn.
+          output: >
+            PLAN: get_available_slots PH-4412 24–28 Mar; offer Thursday 16:00 among options.
+        response_compose:
+          system_prompt: >
+            Voice-friendly; summarize options; ask which slot to book.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Lock Thursday four p.m. for PH-4412 — that’s the one I need.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Lock Thursday four p.m. for PH-4412 — that’s the one I need.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I’ve moved your booking to Thursday sixteen hundred; you’ll get an updated SMS with the
+                arrival window.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Lock Thursday four p.m. for PH-4412 — that’s the one I need.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule to Thursday 16:00 slot from prior listing.","trigger_quote":"Thursday four p.m.","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-4412","appointment_id":"APT-PH-4412-01","slot_id":"SLOT-2026-03-27T16:00","preferred_time_window":"late_afternoon"}}]}
+        agent_response: >
+          I’ve moved your booking to Thursday sixteen hundred; you’ll get an updated SMS with the
+          arrival window.
+        tool_chain: [update_appointment]
         mcp_tool_retries:
           update_appointment:
             policy: exponential_jitter
@@ -120,31 +179,19 @@ endusers:
                 gentoro.retry.backoff.ms: 620
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1280
-        gen_ai.usage.output_tokens: 410
+        gen_ai.usage.input_tokens: 980
+        gen_ai.usage.output_tokens: 168
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 1
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
-          get_available_slots:
-            claim_id: "PH-4412"
-            service_type: "screen_repair_visit"
-            date_range_start: "2026-03-24"
-            date_range_end: "2026-03-28"
           update_appointment:
             claim_id: "PH-4412"
             appointment_id: "APT-PH-4412-01"
             slot_id: "SLOT-2026-03-27T16:00"
             preferred_time_window: "late_afternoon"
         gen_ai.tool.call.result:
-          get_available_slots:
-            claim_id: "PH-4412"
-            slots:
-              - { slot_id: "SLOT-2026-03-26T11:00", duration_minutes: 90 }
-              - { slot_id: "SLOT-2026-03-27T16:00", duration_minutes: 90 }
-              - { slot_id: "SLOT-2026-03-28T09:30", duration_minutes: 90 }
-            timezone: "America/Los_Angeles"
           update_appointment:
             claim_id: "PH-4412"
             appointment_id: "APT-PH-4412-02"
@@ -152,10 +199,9 @@ endusers:
             scheduled_at: "2026-03-27T16:00:00Z"
         planner:
           system_prompt: >
-            Toro phone planner: list slots for PH-4412 then reschedule to Thursday 16:00 Holborn area.
+            Customer confirms SLOT-2026-03-27T16:00; booking may retry before success.
           output: >
-            PLAN: get_available_slots for PH-4412 late week; update_appointment to SLOT-2026-03-27T16:00;
-            confirm SMS and arrival window.
+            PLAN: update_appointment PH-4412 Thursday 16:00; confirm SMS.
         response_compose:
           system_prompt: >
             Voice-friendly confirmation; no internal error or retry wording.

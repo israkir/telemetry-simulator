@@ -2,21 +2,21 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_phone_full_lifecycle_cleanup.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
-# Interaction model: one user message → one orchestrated turn (10-tool chain)
-# MCP: phone — every distinct tool name once, including duplicate-claim cleanup
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 8
+# Interaction model: multi-turn chat — cancel duplicate draft first, then claim intake
+#   through documents, repair booking, excess, add-on coverage, redundant policy removal.
+# MCP: phone — same ten distinct tools overall, realistic turn boundaries
 # Data plane: full span_plan (planner → llm.call → tools.recommend → mcp… → compose)
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
 # =============================================================================
-#
-# Split from former normal/multi_tool_calling.yaml (10-tool phone path).
 
 name: multi_phone_full_lifecycle_cleanup
 description: >
-  Liquid-damage phone claim in one turn: open claim through documents, slots, appointment, excess,
-  Toro Plus purchase, cancel duplicate policy, void double-submit draft (ten MCP tools on phone).
+  Liquid-damage phone journey across eight user turns: withdraw a mistaken duplicate draft,
+  open a fresh claim, confirm evidence, book Citypoint drop-off, pay excess, add Toro Plus,
+  and cancel an overlapping screen micro-policy.
 
 tags:
   - normal
@@ -27,9 +27,9 @@ mcp_server: phone
 
 vendor.redaction.applied: none
 
-workload_weight: 1.5
-trace_interval_ms: 220
-trace_interval_deviation_ms: 55
+workload_weight: 3.2
+trace_interval_ms: 230
+trace_interval_deviation_ms: 58
 
 latency_profiles:
   normal:
@@ -38,13 +38,13 @@ latency_profiles:
       payload.validation: { mean: 5, deviation: 2 }
       policy.validation: { mean: 12, deviation: 5 }
       augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2400, deviation: 450 }
-      planner: { mean: 520, deviation: 120 }
-      llm.call: { mean: 680, deviation: 150 }
-      task.execute: { mean: 720, deviation: 160 }
-      tools.recommend: { mean: 55, deviation: 18 }
-      mcp.tool.execute: { mean: 200, deviation: 55 }
-      response.compose: { mean: 380, deviation: 90 }
+      a2a.orchestrate: { mean: 1980, deviation: 390 }
+      planner: { mean: 495, deviation: 112 }
+      llm.call: { mean: 610, deviation: 138 }
+      task.execute: { mean: 670, deviation: 152 }
+      tools.recommend: { mean: 50, deviation: 16 }
+      mcp.tool.execute: { mean: 198, deviation: 54 }
+      response.compose: { mean: 330, deviation: 80 }
       response.validation: { mean: 10, deviation: 4 }
 
 default_latency_profile: normal
@@ -80,60 +80,95 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          Water splash on my phone at the gym today — open the claim, then confirm it's on file, attach
-          locker photos and the drying-kit receipt, show drop-off repair slots next week, book Wednesday 4pm
-          at Citypoint, bill the €75 excess to my saved Visa, email a Toro Plus quote for this handset and
-          buy it if it's under €17/month, cancel the duplicate screen-only micro-policy POL-SCR-8801 from my
-          carrier bundle, and void draft claim PH-MTC-0998 from when the submit button double-fired.
+          Hi — the submit button fired twice and I think it created an extra draft. Can you cancel
+          draft claim PH-MTC-0998? I'll file properly in a minute.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Water splash on my phone at the gym today — open the claim, then confirm it's on file, attach
-                locker photos and the drying-kit receipt, show drop-off repair slots next week, book Wednesday 4pm
-                at Citypoint, bill the €75 excess to my saved Visa, email a Toro Plus quote for this handset and
-                buy it if it's under €17/month, cancel the duplicate screen-only micro-policy POL-SCR-8801 from my
-                carrier bundle, and void draft claim PH-MTC-0998 from when the submit button double-fired.
+                Hi — the submit button fired twice and I think it created an extra draft. Can you cancel
+                draft claim PH-MTC-0998? I'll file properly in a minute.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Claim PH-MTC-1001 is open for liquid exposure; photos and receipt are logged. Wednesday 16:00
-                Citypoint drop-off is confirmed and excess paid. Toro Plus is active (POL-PH-PLUS-1001).
-                POL-SCR-8801 is cancelled pending refund, and duplicate draft PH-MTC-0998 is withdrawn.
+                Done — draft PH-MTC-0998 is withdrawn, so you have a clean slate. When you’re ready,
+                tell me what happened to the phone and we’ll open a new claim.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Water splash on my phone at the gym today — open the claim, then confirm it's on file, attach
-                locker photos and the drying-kit receipt, show drop-off repair slots next week, book Wednesday 4pm
-                at Citypoint, bill the €75 excess to my saved Visa, email a Toro Plus quote for this handset and
-                buy it if it's under €17/month, cancel the duplicate screen-only micro-policy POL-SCR-8801 from my
-                carrier bundle, and void draft claim PH-MTC-0998 from when the submit button double-fired.
+                Hi — the submit button fired twice and I think it created an extra draft. Can you cancel
+                draft claim PH-MTC-0998? I'll file properly in a minute.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Liquid damage at gym today.","trigger_quote":"Water splash on my phone at the gym today","missing_info":null,"confidence":0.95,"tool_args":{"product_type":"phone","description":"Gym locker splash; drying kit used same day.","incident_date":"2026-03-22"}},{"tool_name":"claim_status","trigger_summary":"Confirm new claim recorded.","trigger_quote":"confirm it's on file","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-MTC-1001"}},{"tool_name":"upload_documents","trigger_summary":"Locker photos and kit receipt.","trigger_quote":"locker photos and the drying-kit receipt","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"PH-MTC-1001","document_types":["photo_locker","receipt_drying_kit"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Repair drop-off next week.","trigger_quote":"drop-off repair slots next week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-1001","service_type":"repair_collection","date_range_start":"2026-03-24","date_range_end":"2026-03-30"}},{"tool_name":"update_appointment","trigger_summary":"Wednesday 4pm Citypoint.","trigger_quote":"Wednesday 4pm at Citypoint","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"PH-MTC-1001","appointment_id":"APT-PH-NEW","slot_id":"SLOT-2026-03-26T16:00","preferred_time_window":"late_afternoon"}},{"tool_name":"pay","trigger_summary":"€75 excess on saved Visa.","trigger_quote":"€75 excess to my saved Visa","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"PH-MTC-1001","amount":75.0,"currency":"EUR"}},{"tool_name":"choose_insurance","trigger_summary":"Toro Plus quote for handset.","trigger_quote":"Toro Plus quote for this handset","missing_info":null,"confidence":0.87,"tool_args":{"product_category":"phone","coverage_tier":"plus","region":"NO-01"}},{"tool_name":"buy_insurance","trigger_summary":"Purchase if under €17/mo.","trigger_quote":"buy it if it's under €17/month","missing_info":null,"confidence":0.85,"tool_args":{"quote_id":"QT-PH-PLUS-1001","payment_method":"card_on_file","holder_reference":"user_mt_ph_bus_93"}},{"tool_name":"cancel_product","trigger_summary":"Remove carrier screen micro-policy.","trigger_quote":"cancel the duplicate screen-only micro-policy POL-SCR-8801","missing_info":null,"confidence":0.88,"tool_args":{"policy_id":"POL-SCR-8801","reason":"duplicate_coverage"}},{"tool_name":"cancel_claim","trigger_summary":"Withdraw accidental double-submit draft.","trigger_quote":"void draft claim PH-MTC-0998","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-0998","reason":"duplicate_customer_submit"}}]}
+                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"Withdraw duplicate draft from double submit.","trigger_quote":"cancel draft claim PH-MTC-0998","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"PH-MTC-0998","reason":"duplicate_customer_submit"}}]}
         agent_response: >
-          Claim PH-MTC-1001 is open for liquid exposure; photos and receipt are logged. Wednesday 16:00
-          Citypoint drop-off is confirmed and excess paid. Toro Plus is active (POL-PH-PLUS-1001).
-          POL-SCR-8801 is cancelled pending refund, and duplicate draft PH-MTC-0998 is withdrawn.
-        tool_chain:
-          - new_claim
-          - claim_status
-          - upload_documents
-          - get_available_slots
-          - update_appointment
-          - pay
-          - choose_insurance
-          - buy_insurance
-          - cancel_product
-          - cancel_claim
+          Done — draft PH-MTC-0998 is withdrawn, so you have a clean slate. When you’re ready,
+          tell me what happened to the phone and we’ll open a new claim.
+        tool_chain: [cancel_claim]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 2650
-        gen_ai.usage.output_tokens: 1480
+        gen_ai.usage.input_tokens: 720
+        gen_ai.usage.output_tokens: 118
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 10
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          cancel_claim:
+            claim_id: "PH-MTC-0998"
+            reason: "duplicate_customer_submit"
+        gen_ai.tool.call.result:
+          cancel_claim:
+            claim_id: "PH-MTC-0998"
+            status: "cancelled"
+            cancelled_at: "2026-03-22T15:05:00Z"
+        planner:
+          system_prompt: >
+            Phone MCP: customer only wants duplicate draft removed before a fresh intake.
+          output: >
+            PLAN: cancel_claim PH-MTC-0998 duplicate_customer_submit; invite next message for new incident.
+        response_compose:
+          system_prompt: >
+            Short mobile confirmation; no jargon; hint they can continue with a new claim.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Thanks. Earlier today my phone got splashed in the gym locker — touch is glitchy. I used a
+          drying kit. Please open a new liquid-damage claim.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Thanks. Earlier today my phone got splashed in the gym locker — touch is glitchy. I used a
+                drying kit. Please open a new liquid-damage claim.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                I’ve opened claim PH-MTC-1001 for the locker splash and drying kit. Next, upload or confirm
+                any photos and receipts in the app — I can verify they’re on file once you’ve added them.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Thanks. Earlier today my phone got splashed in the gym locker — touch is glitchy. I used a
+                drying kit. Please open a new liquid-damage claim.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Gym locker splash; drying kit used same day.","trigger_quote":"splashed in the gym locker","missing_info":null,"confidence":0.95,"tool_args":{"product_type":"phone","description":"Gym locker splash; drying kit used same day.","incident_date":"2026-03-22"}}]}
+        agent_response: >
+          I’ve opened claim PH-MTC-1001 for the locker splash and drying kit. Next, upload or confirm
+          any photos and receipts in the app — I can verify they’re on file once you’ve added them.
+        tool_chain: [new_claim]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 840
+        gen_ai.usage.output_tokens: 132
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -141,41 +176,6 @@ endusers:
             product_type: "phone"
             description: "Gym locker splash; customer used drying kit same day; touch intermittent."
             incident_date: "2026-03-22"
-          claim_status:
-            claim_id: "PH-MTC-1001"
-          upload_documents:
-            claim_id: "PH-MTC-1001"
-            document_types: ["photo_locker", "receipt_drying_kit"]
-            expected_count: 3
-          get_available_slots:
-            claim_id: "PH-MTC-1001"
-            service_type: "repair_collection"
-            date_range_start: "2026-03-24"
-            date_range_end: "2026-03-30"
-          update_appointment:
-            claim_id: "PH-MTC-1001"
-            appointment_id: "APT-PH-NEW"
-            slot_id: "SLOT-2026-03-26T16:00"
-            preferred_time_window: "late_afternoon"
-          pay:
-            payment_target: "excess"
-            reference_id: "PH-MTC-1001"
-            amount: 75.0
-            currency: "EUR"
-          choose_insurance:
-            product_category: "phone"
-            coverage_tier: "plus"
-            region: "NO-01"
-          buy_insurance:
-            quote_id: "QT-PH-PLUS-1001"
-            payment_method: "card_on_file"
-            holder_reference: "user_mt_ph_bus_93"
-          cancel_product:
-            policy_id: "POL-SCR-8801"
-            reason: "duplicate_coverage"
-          cancel_claim:
-            claim_id: "PH-MTC-0998"
-            reason: "duplicate_customer_submit"
         gen_ai.tool.call.result:
           new_claim:
             claim_id: "PH-MTC-1001"
@@ -183,6 +183,61 @@ endusers:
             status: "opened"
             coverage: { type: "phone_liquid_damage", deductible: 75 }
             notes: "Intake photos and receipt requested; gym incident detail captured."
+        planner:
+          system_prompt: >
+            Phone MCP: fresh claim after duplicate withdrawal; capture liquid incident narrative.
+          output: >
+            PLAN: new_claim phone liquid gym locker 2026-03-22 → PH-MTC-1001.
+        response_compose:
+          system_prompt: >
+            State new claim id and prompt evidence step.
+
+      - turn_index: 3
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm PH-MTC-1001
+          shows them and that the claim looks right on your side?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm PH-MTC-1001
+                shows them and that the claim looks right on your side?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                PH-MTC-1001 is active and your locker photos and receipt are now on the file. Status is
+                pending photo review — I can pull repair drop-off times for next week when you’re ready.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm PH-MTC-1001
+                shows them and that the claim looks right on your side?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim recorded after customer upload.","trigger_quote":"confirm PH-MTC-1001","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-MTC-1001"}},{"tool_name":"upload_documents","trigger_summary":"Register locker photos and kit receipt batch.","trigger_quote":"locker photos plus the drying-kit receipt","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"PH-MTC-1001","document_types":["photo_locker","receipt_drying_kit"],"expected_count":3}}]}
+        agent_response: >
+          PH-MTC-1001 is active and your locker photos and receipt are now on the file. Status is
+          pending photo review — I can pull repair drop-off times for next week when you’re ready.
+        tool_chain: [claim_status, upload_documents]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 980
+        gen_ai.usage.output_tokens: 195
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          claim_status:
+            claim_id: "PH-MTC-1001"
+          upload_documents:
+            claim_id: "PH-MTC-1001"
+            document_types: ["photo_locker", "receipt_drying_kit"]
+            expected_count: 3
+        gen_ai.tool.call.result:
           claim_status:
             claim_id: "PH-MTC-1001"
             status: "pending_info"
@@ -195,23 +250,230 @@ endusers:
             upload_batch_id: "UPL-PH-1001-01"
             pending_count: 0
             status: "received"
+        planner:
+          system_prompt: >
+            Phone MCP: verify claim state then attach customer-uploaded evidence.
+          output: >
+            PLAN: claim_status PH-MTC-1001; upload_documents photo_locker + receipt_drying_kit.
+        response_compose:
+          system_prompt: >
+            Reassure docs landed; optional bridge to scheduling.
+
+      - turn_index: 4
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          What Citypoint drop-off slots do you have next week? I’m usually free late afternoon.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                What Citypoint drop-off slots do you have next week? I’m usually free late afternoon.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Here are drop-off repair windows for PH-MTC-1001 through next week, including a Wednesday
+                late-afternoon option at Citypoint. Tell me which slot you want and I’ll hold it.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                What Citypoint drop-off slots do you have next week? I’m usually free late afternoon.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Repair collection next week; Citypoint preference.","trigger_quote":"Citypoint drop-off slots next week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-1001","service_type":"repair_collection","date_range_start":"2026-03-24","date_range_end":"2026-03-30"}}]}
+        agent_response: >
+          Here are drop-off repair windows for PH-MTC-1001 through next week, including a Wednesday
+          late-afternoon option at Citypoint. Tell me which slot you want and I’ll hold it.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 910
+        gen_ai.usage.output_tokens: 165
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "PH-MTC-1001"
+            service_type: "repair_collection"
+            date_range_start: "2026-03-24"
+            date_range_end: "2026-03-30"
+        gen_ai.tool.call.result:
           get_available_slots:
             claim_id: "PH-MTC-1001"
             slots:
               - { slot_id: "SLOT-2026-03-26T16:00", duration_minutes: 90 }
               - { slot_id: "SLOT-2026-03-27T11:00", duration_minutes: 90 }
             timezone: "Europe/Oslo"
+        planner:
+          system_prompt: >
+            Phone MCP: list repair_collection slots for liquid claim PH-MTC-1001.
+          output: >
+            PLAN: get_available_slots Wed-Fri window; emphasize late afternoon Citypoint.
+        response_compose:
+          system_prompt: >
+            Present options conversationally; invite explicit booking choice.
+
+      - turn_index: 5
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: "Wednesday 4pm at Citypoint works — please book that."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Wednesday 4pm at Citypoint works — please book that."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Booked — Wednesday 16:00 Citypoint drop-off is confirmed on PH-MTC-1001. I’ll send the
+                usual confirmation push.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Wednesday 4pm at Citypoint works — please book that."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Wednesday 16:00 Citypoint drop-off.","trigger_quote":"Wednesday 4pm at Citypoint","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-1001","appointment_id":"APT-PH-NEW","slot_id":"SLOT-2026-03-26T16:00","preferred_time_window":"late_afternoon"}}]}
+        agent_response: >
+          Booked — Wednesday 16:00 Citypoint drop-off is confirmed on PH-MTC-1001. I’ll send the
+          usual confirmation push.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 820
+        gen_ai.usage.output_tokens: 102
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "PH-MTC-1001"
+            appointment_id: "APT-PH-NEW"
+            slot_id: "SLOT-2026-03-26T16:00"
+            preferred_time_window: "late_afternoon"
+        gen_ai.tool.call.result:
           update_appointment:
             claim_id: "PH-MTC-1001"
             appointment_id: "APT-PH-CITY-1001"
             status: "scheduled"
             scheduled_at: "2026-03-26T16:00:00Z"
+        planner:
+          system_prompt: >
+            Customer picks SLOT-2026-03-26T16:00 for PH-MTC-1001.
+          output: >
+            PLAN: update_appointment Citypoint Wed 16:00.
+        response_compose:
+          system_prompt: >
+            Brief booking confirmation with claim id.
+
+      - turn_index: 6
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Go ahead and charge the €75 excess to my saved Visa for PH-MTC-1001.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Go ahead and charge the €75 excess to my saved Visa for PH-MTC-1001.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                The €75 excess for PH-MTC-1001 went through on your card on file. You’re all set ahead
+                of Wednesday’s drop-off.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Go ahead and charge the €75 excess to my saved Visa for PH-MTC-1001.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Collect liquid claim excess on file card.","trigger_quote":"€75 excess to my saved Visa","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"PH-MTC-1001","amount":75.0,"currency":"EUR"}}]}
+        agent_response: >
+          The €75 excess for PH-MTC-1001 went through on your card on file. You’re all set ahead
+          of Wednesday’s drop-off.
+        tool_chain: [pay]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 780
+        gen_ai.usage.output_tokens: 98
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          pay:
+            payment_target: "excess"
+            reference_id: "PH-MTC-1001"
+            amount: 75.0
+            currency: "EUR"
+        gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-PH-1001-EX"
             reference_id: "PH-MTC-1001"
             status: "captured"
             amount: 75.0
             currency: "EUR"
+        planner:
+          system_prompt: >
+            Phone MCP: capture €75 excess for PH-MTC-1001.
+          output: >
+            PLAN: pay excess reference PH-MTC-1001.
+        response_compose:
+          system_prompt: >
+            Payment confirmation in plain language.
+
+      - turn_index: 7
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          While we’re at it — email me Toro Plus pricing for this handset. If it’s under €17 a month,
+          I want to buy it on the card you just used.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                While we’re at it — email me Toro Plus pricing for this handset. If it’s under €17 a month,
+                I want to buy it on the card you just used.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Toro Plus for your phone is €15.50/month — under your threshold — and I’ve activated it on
+                policy POL-PH-PLUS-1001. You’ll get the quote summary by email as usual.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                While we’re at it — email me Toro Plus pricing for this handset. If it’s under €17 a month,
+                I want to buy it on the card you just used.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"choose_insurance","trigger_summary":"Quote Toro Plus for current handset.","trigger_quote":"Toro Plus pricing for this handset","missing_info":null,"confidence":0.88,"tool_args":{"product_category":"phone","coverage_tier":"plus","region":"NO-01"}},{"tool_name":"buy_insurance","trigger_summary":"Purchase when premium below €17/mo.","trigger_quote":"under €17 a month","missing_info":null,"confidence":0.86,"tool_args":{"quote_id":"QT-PH-PLUS-1001","payment_method":"card_on_file","holder_reference":"user_mt_ph_bus_93"}}]}
+        agent_response: >
+          Toro Plus for your phone is €15.50/month — under your threshold — and I’ve activated it on
+          policy POL-PH-PLUS-1001. You’ll get the quote summary by email as usual.
+        tool_chain: [choose_insurance, buy_insurance]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1050
+        gen_ai.usage.output_tokens: 220
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 2
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          choose_insurance:
+            product_category: "phone"
+            coverage_tier: "plus"
+            region: "NO-01"
+          buy_insurance:
+            quote_id: "QT-PH-PLUS-1001"
+            payment_method: "card_on_file"
+            holder_reference: "user_mt_ph_bus_93"
+        gen_ai.tool.call.result:
           choose_insurance:
             quote_id: "QT-PH-PLUS-1001"
             premium_monthly: 15.5
@@ -222,22 +484,68 @@ endusers:
             quote_id: "QT-PH-PLUS-1001"
             effective_date: "2026-03-23"
             status: "active"
+        planner:
+          system_prompt: >
+            Phone MCP: quote plus tier then purchase if under customer budget.
+          output: >
+            PLAN: choose_insurance phone plus; buy_insurance QT-PH-PLUS-1001 card_on_file.
+        response_compose:
+          system_prompt: >
+            State monthly price, policy id, email follow-up implied.
+
+      - turn_index: 8
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          One more thing — I have a redundant screen-only micro-policy POL-SCR-8801 on my carrier bundle.
+          Can you cancel that so I’m not double-covered?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                One more thing — I have a redundant screen-only micro-policy POL-SCR-8801 on my carrier bundle.
+                Can you cancel that so I’m not double-covered?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                POL-SCR-8801 is cancelled pending refund — Toro Plus on POL-PH-PLUS-1001 now covers this
+                handset without overlap.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                One more thing — I have a redundant screen-only micro-policy POL-SCR-8801 on my carrier bundle.
+                Can you cancel that so I’m not double-covered?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"cancel_product","trigger_summary":"Remove overlapping screen micro-policy.","trigger_quote":"cancel POL-SCR-8801","missing_info":null,"confidence":0.9,"tool_args":{"policy_id":"POL-SCR-8801","reason":"duplicate_coverage"}}]}
+        agent_response: >
+          POL-SCR-8801 is cancelled pending refund — Toro Plus on POL-PH-PLUS-1001 now covers this
+          handset without overlap.
+        tool_chain: [cancel_product]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 800
+        gen_ai.usage.output_tokens: 112
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          cancel_product:
+            policy_id: "POL-SCR-8801"
+            reason: "duplicate_coverage"
+        gen_ai.tool.call.result:
           cancel_product:
             policy_id: "POL-SCR-8801"
             status: "cancelled_pending_refund"
             refund_estimate: 4.5
             currency: "EUR"
-          cancel_claim:
-            claim_id: "PH-MTC-0998"
-            status: "cancelled"
-            cancelled_at: "2026-03-22T15:22:00Z"
         planner:
           system_prompt: >
-            Phone MCP: ten-step agentic plan — new intake through policy cleanup and duplicate withdrawal.
+            Phone MCP: cancel redundant carrier screen rider after Plus purchase.
           output: >
-            PLAN: new_claim; claim_status PH-MTC-1001; upload_documents; get_available_slots;
-            update_appointment Citypoint Wed 16:00; pay excess; choose_insurance plus; buy_insurance;
-            cancel_product POL-SCR-8801; cancel_claim PH-MTC-0998.
+            PLAN: cancel_product POL-SCR-8801 duplicate_coverage.
         response_compose:
           system_prompt: >
-            Mobile app push style: one paragraph outcome with ids PH-MTC-1001, POL-PH-PLUS-1001, PH-MTC-0998.
+            Confirm cancellation and tie to active Toro Plus policy.

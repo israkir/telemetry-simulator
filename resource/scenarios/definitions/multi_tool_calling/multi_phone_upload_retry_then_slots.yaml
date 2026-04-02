@@ -2,9 +2,10 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_phone_upload_retry_then_slots.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
-# Interaction model: one user message → three MCP tools; upload_documents retries once then succeeds
-# MCP: phone — claim_status → upload_documents (2 attempts) → get_available_slots
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Interaction model: multi-turn — confirm claim gate and register photos (upload retries once),
+#   then customer asks for pickup-repair availability in a separate message.
+# MCP: phone — claim_status → upload_documents (2 attempts), then get_available_slots
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -12,9 +13,8 @@
 
 name: multi_phone_upload_retry_then_slots
 description: >
-  Phone glass claim follow-up in one turn: confirm the file shows “awaiting photos,” register new
-  damage images (first upload attempt times out, second succeeds), then list repair-collection slots
-  for the rest of the week.
+  Phone glass claim PH-GL-9903: first message confirms “awaiting photos” and ingests new damage and
+  IMEI images after one failed upload attempt; second message lists pickup-repair slots through Sunday.
 
 tags:
   - normal
@@ -25,7 +25,7 @@ mcp_server: phone
 
 vendor.redaction.applied: none
 
-workload_weight: 2.0
+workload_weight: 2.3
 trace_interval_ms: 215
 trace_interval_deviation_ms: 50
 
@@ -78,36 +78,33 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          PH-GL-9903 — the app still says waiting on pictures. I just added three new shots of the
-          cracked lens and the IMEI screen. Can you confirm they’re on the claim and show pickup-repair
-          slots from tomorrow through Sunday?
+          PH-GL-9903 still says waiting on pictures in my app. I just added three shots — cracked lens,
+          IMEI screen, and the back glass angle. Can you make sure they’re actually on the claim?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                PH-GL-9903 — the app still says waiting on pictures. I just added three new shots of the
-                cracked lens and the IMEI screen. Can you confirm they’re on the claim and show pickup-repair
-                slots from tomorrow through Sunday?
+                PH-GL-9903 still says waiting on pictures in my app. I just added three shots — cracked lens,
+                IMEI screen, and the back glass angle. Can you make sure they’re actually on the claim?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-GL-9903 is updated with your new photos and IMEI capture. Here are authorized
-                pickup-repair windows through Sunday — pick one in the app or tell me which you prefer.
+                PH-GL-9903 was still in “awaiting photos,” but your new damage and IMEI images are received
+                now after a quick retry on our side. Want me to pull pickup-repair times next?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                PH-GL-9903 — the app still says waiting on pictures. I just added three new shots of the
-                cracked lens and the IMEI screen. Can you confirm they’re on the claim and show pickup-repair
-                slots from tomorrow through Sunday?
+                PH-GL-9903 still says waiting on pictures in my app. I just added three shots — cracked lens,
+                IMEI screen, and the back glass angle. Can you make sure they’re actually on the claim?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim state vs photo gate.","trigger_quote":"PH-GL-9903","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"PH-GL-9903"}},{"tool_name":"upload_documents","trigger_summary":"Register new damage and IMEI photos.","trigger_quote":"three new shots","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"PH-GL-9903","document_types":["photo_damage","photo_imei_screen"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Pickup-repair availability through Sunday.","trigger_quote":"from tomorrow through Sunday","missing_info":null,"confidence":0.87,"tool_args":{"claim_id":"PH-GL-9903","service_type":"repair_collection","date_range_start":"2026-03-23","date_range_end":"2026-03-29"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim vs photo gate before ingest.","trigger_quote":"PH-GL-9903","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"PH-GL-9903"}},{"tool_name":"upload_documents","trigger_summary":"Register new damage and IMEI captures.","trigger_quote":"three shots","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"PH-GL-9903","document_types":["photo_damage","photo_imei_screen"],"expected_count":3}}]}
         agent_response: >
-          PH-GL-9903 is updated with your new photos and IMEI capture. Here are authorized
-          pickup-repair windows through Sunday — pick one in the app or tell me which you prefer.
-        tool_chain: [claim_status, upload_documents, get_available_slots]
+          PH-GL-9903 was still in “awaiting photos,” but your new damage and IMEI images are received
+          now after a quick retry on our side. Want me to pull pickup-repair times next?
+        tool_chain: [claim_status, upload_documents]
         mcp_tool_retries:
           upload_documents:
             policy: exponential_jitter
@@ -118,10 +115,10 @@ endusers:
                 gentoro.retry.backoff.ms: 280
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1310
-        gen_ai.usage.output_tokens: 455
+        gen_ai.usage.input_tokens: 1320
+        gen_ai.usage.output_tokens: 285
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 3
+        gentoro.llm.turn.count: 2
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -131,11 +128,6 @@ endusers:
             claim_id: "PH-GL-9903"
             document_types: ["photo_damage", "photo_imei_screen"]
             expected_count: 3
-          get_available_slots:
-            claim_id: "PH-GL-9903"
-            service_type: "repair_collection"
-            date_range_start: "2026-03-23"
-            date_range_end: "2026-03-29"
         gen_ai.tool.call.result:
           claim_status:
             claim_id: "PH-GL-9903"
@@ -149,6 +141,57 @@ endusers:
             upload_batch_id: "UPL-PH-9903-07"
             pending_count: 0
             status: "received"
+        planner:
+          system_prompt: >
+            Toro phone planner: status then upload_documents with possible transient retry.
+          output: >
+            PLAN: claim_status PH-GL-9903; upload_documents damage + IMEI; offer slots on follow-up.
+        response_compose:
+          system_prompt: >
+            Short app-chat tone; reassure uploads landed without internal error codes.
+
+      - turn_index: 2
+        span_plan: *phone_span_plan
+        vendor.enduser.request.raw: >
+          Yes — show pickup-repair slots from tomorrow through Sunday, whatever’s left this week.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Yes — show pickup-repair slots from tomorrow through Sunday, whatever’s left this week.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Here are authorized pickup-repair windows for PH-GL-9903 through Sunday — pick one in the app
+                or tell me which you prefer and I’ll hold it.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Yes — show pickup-repair slots from tomorrow through Sunday, whatever’s left this week.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Collection repair availability after photos cleared.","trigger_quote":"tomorrow through Sunday","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-GL-9903","service_type":"repair_collection","date_range_start":"2026-03-23","date_range_end":"2026-03-29"}}]}
+        agent_response: >
+          Here are authorized pickup-repair windows for PH-GL-9903 through Sunday — pick one in the app
+          or tell me which you prefer and I’ll hold it.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 1020
+        gen_ai.usage.output_tokens: 178
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "PH-GL-9903"
+            service_type: "repair_collection"
+            date_range_start: "2026-03-23"
+            date_range_end: "2026-03-29"
+        gen_ai.tool.call.result:
           get_available_slots:
             claim_id: "PH-GL-9903"
             slots:
@@ -158,10 +201,9 @@ endusers:
             timezone: "Europe/London"
         planner:
           system_prompt: >
-            Toro phone planner: three tools — status, document upload with possible retry, then slots.
+            Customer wants repair_collection slots Wed–Sun window for PH-GL-9903.
           output: >
-            PLAN: claim_status PH-GL-9903; upload_documents for damage + IMEI; get_available_slots
-            repair_collection 23–29 Mar; confirm photos cleared the gate.
+            PLAN: get_available_slots 23–29 Mar; list concrete times.
         response_compose:
           system_prompt: >
-            Short app-chat tone; reassure photos landed and list slot count without internal errors.
+            List slot options; invite explicit selection.
