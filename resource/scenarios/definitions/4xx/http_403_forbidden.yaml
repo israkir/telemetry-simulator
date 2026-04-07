@@ -63,8 +63,7 @@ endusers:
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Open a screen crack claim for my phone — our integration test client is calling
-                toro-customer-assistant-001 but only has read-only scope.
+                Open a screen crack claim for my phone.
           - target_span_class: request.validation
             name: gentoro.request.blocked
             attributes:
@@ -88,5 +87,4 @@ endusers:
               vendor.policy.reason: insufficient_client_scope
               vendor.policy.severity: medium
         vendor.enduser.request.raw: >
-          Open a screen crack claim for my phone — our integration test client is calling
-          toro-customer-assistant-001 but only has read-only scope.
+          Open a screen crack claim for my phone.

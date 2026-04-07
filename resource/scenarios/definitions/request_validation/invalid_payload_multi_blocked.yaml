@@ -57,7 +57,7 @@ endusers:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: "Start a claim for my phone. The request has multiple payload format issues."
+              vendor.enduser.request.raw: "Start a claim for my phone."
           - target_span_class: request.validation
             name: gentoro.request.blocked
             attributes:
@@ -86,4 +86,4 @@ endusers:
               vendor.validation.error.path: "$.messages[0].role"
               vendor.validation.error.rule: enum
               vendor.validation.error.code: invalid_enum
-        vendor.enduser.request.raw: "Start a claim for my phone. The request has multiple payload format issues."
+        vendor.enduser.request.raw: "Start a claim for my phone."

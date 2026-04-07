@@ -56,7 +56,7 @@ endusers:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: "Request blocked by policy validation."
+              vendor.enduser.request.raw: "Please open a phone damage claim for me."
           - target_span_class: request.validation
             name: gentoro.request.blocked
             attributes:
@@ -76,4 +76,4 @@ endusers:
               vendor.policy.rule.id: dlp_013
               vendor.policy.reason: sensitive_data_detected
               vendor.policy.severity: high
-        vendor.enduser.request.raw: "Request blocked by policy validation."
+        vendor.enduser.request.raw: "Please open a phone damage claim for me."

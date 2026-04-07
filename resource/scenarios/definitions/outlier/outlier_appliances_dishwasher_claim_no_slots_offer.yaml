@@ -152,7 +152,7 @@ endusers:
       - span_plan: *appliances_span_plan
         turn_index: 1
         vendor.enduser.request.raw: "My dishwasher is overflowing with water. Please
-          start a claim and send someone out.\n\nWednesday morning for claim CLAIM-HA-9941
+          start a claim and send someone out.\n\nWednesday morning is urgent
           — urgent."
         span_events:
           - target_span_class: request.validation

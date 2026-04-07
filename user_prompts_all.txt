@@ -64,149 +64,148 @@
 ## insurance (2 unique prompt(s))
 1. I accept quote QT-AP-6601 for appliance cover — charge my card on file, holder ref kitchen-77.
 2. I am moving to Norway — quote me Toro Plus cover for my OLED TV and soundbar bundle.
-## insurance + new_claim + scheduling (1 unique prompt(s))
-1. I cracked my phone screen. Can you start a claim for a repair? No TV. I did not ask for insurance — open a repair claim for this cracked screen now and show me the earliest slots. Monday 10:00 for claim CLAIM-PH-8821 works.
 ## new_claim (97 unique prompt(s))
-1. AV receiver shuts down twenty minutes into Atmos with protect flashing — top case is too hot to touch and I have full ventilation clearance.
-2. Action camera overheats in 4K60 after two minutes on a helmet mount — shuts down; 1080p is stable. Weather was only eighteen degrees.
+1. AV receiver shuts down twenty minutes into Atmos with protect flashing — top case is too hot to touch and I have full ventilation clearance. Please start a claim for this issue.
+2. Action camera overheats in 4K60 after two minutes on a helmet mount — shuts down; 1080p is stable. Weather was only eighteen degrees. Kindly open a damage claim for me.
 3. After last week's OS update my phone hits thermal warnings doing basically nothing — it backs off brightness and the battery drains in a few hours. I want a hardware fault claim.
-4. After swapping SIMs back from a work trip the tray goes in crooked and the pins look scraped — dual SIM only reads one slot now.
+4. After swapping SIMs back from a work trip the tray goes in crooked and the pins look scraped — dual SIM only reads one slot now. I need to file a new claim for this.
 5. After the soundbar auto-updated, the left channel is basically silent but the right side and sub are fine. Can you file a defect claim?
-6. After-market wireless CarPlay dongle melted the USB-A pigtail in the centre console — plastic fused and phone no longer negotiates data in the car.
-7. Air fryer door hinge went sloppy mid-cycle — now it stops with door-open errors unless I lift the handle while it runs.
-8. Bean-to-cup espresso machine stuck in descale loop with an error that never clears — and there is a slow leak from the drip tray area onto the counter.
-9. Bench soldering station hunts between two ten-degree bands — tips oxidise super fast and LED readout jitters even after factory calibration steps.
-10. Camera drone gimbal jitters on yaw after a near-miss with a branch — no crash but horizon is crooked in every clip now.
-11. Carrier pushed a profile refresh — eSIM shows installed but cellular never registers, endless "searching" even after full reset. Shop says antenna test flags fail.
-12. Caught in heavy rain with the phone in my jacket — dried it quickly but the OLED now has a green-grey tint on greys and low-brightness banding that was not there before.
-13. Charging cable jacket split at the phone plug — saw a tiny spark once and now the port only fast-charges if I wiggle downward.
-14. Chest freezer door seal tore when a cooler slid against it — frost bridges across the opening and the compressor runs constantly.
-15. Countertop card reader fell off the stand — chip insert still works but contactless never wakes anymore on any phone or watch.
-16. Countertop ice maker leaks from the drain plug area even when tightened — puddle under the unit every overnight run.
-17. Dehumidifier thinks the bucket is full when it is empty — beeps every minute and the float looks clean; basement humidity is back up.
-18. Desktop USB DAC snaps, pops, then goes silent until I reseat the cable — tried three cables and two computers, same pattern roughly hourly.
-19. Digital piano lost a whole octave of keys after our flat move — movers tipped it once; those notes are silent or velocity-one only.
+6. After-market wireless CarPlay dongle melted the USB-A pigtail in the centre console — plastic fused and phone no longer negotiates data in the car. Please register this as a claim.
+7. Air fryer door hinge went sloppy mid-cycle — now it stops with door-open errors unless I lift the handle while it runs. I want to submit a claim for this damage.
+8. Bean-to-cup espresso machine stuck in descale loop with an error that never clears — and there is a slow leak from the drip tray area onto the counter. I need to file a new claim for this.
+9. Bench soldering station hunts between two ten-degree bands — tips oxidise super fast and LED readout jitters even after factory calibration steps. Kindly open a damage claim for me.
+10. Camera drone gimbal jitters on yaw after a near-miss with a branch — no crash but horizon is crooked in every clip now. Kindly open a damage claim for me.
+11. Carrier pushed a profile refresh — eSIM shows installed but cellular never registers, endless "searching" even after full reset. Shop says antenna test flags fail. Kindly open a damage claim for me.
+12. Caught in heavy rain with the phone in my jacket — dried it quickly but the OLED now has a green-grey tint on greys and low-brightness banding that was not there before. Can you open a claim for this problem?
+13. Charging cable jacket split at the phone plug — saw a tiny spark once and now the port only fast-charges if I wiggle downward. I need to file a new claim for this.
+14. Chest freezer door seal tore when a cooler slid against it — frost bridges across the opening and the compressor runs constantly. I need to file a new claim for this.
+15. Countertop card reader fell off the stand — chip insert still works but contactless never wakes anymore on any phone or watch. Please register this as a claim.
+16. Countertop ice maker leaks from the drain plug area even when tightened — puddle under the unit every overnight run. I need to file a new claim for this.
+17. Dehumidifier thinks the bucket is full when it is empty — beeps every minute and the float looks clean; basement humidity is back up. Please start a claim for this issue.
+18. Desktop USB DAC snaps, pops, then goes silent until I reseat the cable — tried three cables and two computers, same pattern roughly hourly. Can you open a claim for this problem?
+19. Digital piano lost a whole octave of keys after our flat move — movers tipped it once; those notes are silent or velocity-one only. Please register this as a claim.
 20. Dishwasher door will not latch — cycle starts then stops with door error. Can you start a claim?
-21. Dishwasher finishes the full cycle but everything comes out cold and greasy like the heating never ran — no error code on the panel.
+21. Dishwasher finishes the full cycle but everything comes out cold and greasy like the heating never ran — no error code on the panel. I want to submit a claim for this damage.
 22. Dropped my phone in shallow sea water yesterday — rinsed it, but now the speakers crackle and the screen flickers when it gets warm. I need a claim under my Toro mobile policy.
-23. E-reader developed thick horizontal lines across the e-ink after I left it in a hot car — refresh does not clear them.
-24. Edges of the screen look yellow after leaving the phone on a sunny car dash for an hour — adhesive bleed per the forum, getting worse near the notch.
-25. Electric kettle no longer cuts off at boil — steam everywhere and it boils dry if I walk away for thirty seconds.
-26. Electric pressure cooker steam vent seal split — hisses during pressurise and never reaches high pressure anymore.
+23. E-reader developed thick horizontal lines across the e-ink after I left it in a hot car — refresh does not clear them. Kindly open a damage claim for me.
+24. Edges of the screen look yellow after leaving the phone on a sunny car dash for an hour — adhesive bleed per the forum, getting worse near the notch. I need to file a new claim for this.
+25. Electric kettle no longer cuts off at boil — steam everywhere and it boils dry if I walk away for thirty seconds. Can you open a claim for this problem?
+26. Electric pressure cooker steam vent seal split — hisses during pressurise and never reaches high pressure anymore. Please start a claim for this issue.
 27. Face ID stopped working after a little rain got on my phone — can you open a damage claim?
-28. Foldable inner display has a bright pink line along the crease that grows when I open past 120 degrees — hinge still feels tight.
+28. Foldable inner display has a bright pink line along the crease that grows when I open past 120 degrees — hinge still feels tight. I want to submit a claim for this damage.
 29. Fridge is pooling water under the crispers every morning and the compressor runs non-stop. Policy is Toro appliances — please file a breakdown claim.
-30. Front-right gas hob burner clicks forever, smell gas, tiny flame only when I hold the knob past ignite — other burners fine.
-31. Garbage disposal hums but the impeller does not spin — reset button pops out, allen hex on the bottom turns a little then jams again.
-32. Home cinema projector lamp blew with a pop during a film — loud crack, burning smell, and the unit will not power on at all now.
-33. I accidentally sent my wireless earbuds through a cold wash and short spin — case hinge is cracked and neither bud holds charge.
+30. Front-right gas hob burner clicks forever, smell gas, tiny flame only when I hold the knob past ignite — other burners fine. Please start a claim for this issue.
+31. Garbage disposal hums but the impeller does not spin — reset button pops out, allen hex on the bottom turns a little then jams again. Please register this as a claim.
+32. Home cinema projector lamp blew with a pop during a film — loud crack, burning smell, and the unit will not power on at all now. I want to submit a claim for this damage.
+33. I accidentally sent my wireless earbuds through a cold wash and short spin — case hinge is cracked and neither bud holds charge. I need to file a new claim for this.
 34. I dropped my phone on the platform this morning — cracked glass and it reboots in a loop. Please open a claim under my Toro mobile cover and book the repair visit for the afternoon (any time is fine).
 35. I spilled coffee on my work laptop keyboard — several keys are dead and it smells burnt. Start a claim.
 36. I think I bent my phone when it was in my back pocket — now the frame pinches the USB-C port and charging only works if I press the cable upward. Can you open a mobile damage claim on my Toro cover?
 37. Ice maker on the fridge keeps jamming and water pools in the freezer drawer overnight — floor in front is damp. Toro appliances policy — please open a claim.
-38. Immersion circulator wand trips the kitchen RCD when the heating element kicks — worked fine for two years until yesterday evening.
-39. Induction hob boiled over with pasta water two days ago — front-left zone now flickers power and sometimes beeps with no pan on it.
+38. Immersion circulator wand trips the kitchen RCD when the heating element kicks — worked fine for two years until yesterday evening. I need to file a new claim for this.
+39. Induction hob boiled over with pasta water two days ago — front-left zone now flickers power and sometimes beeps with no pan on it. Kindly open a damage claim for me.
 40. Inner glass on the fan oven door shattered while I was gently closing it — shards inside the cavity. Need a claim and advice if it is safe.
-41. Jeweller ran my watch and phone through an ultrasonic bath to clean the bracelet — mic and earpiece are worthless now.
-42. LED ring light flickers in sync with mains frequency — camera footage shows rolling bands now even at high shutter, was fine on DC battery before.
-43. LTE and 5G drop to SOS-only in places my partner's phone on the same network is fine — started after I leaned on it armrest-style on a flight.
+41. Jeweller ran my watch and phone through an ultrasonic bath to clean the bracelet — mic and earpiece are worthless now. Can you open a claim for this problem?
+42. LED ring light flickers in sync with mains frequency — camera footage shows rolling bands now even at high shutter, was fine on DC battery before. Can you open a claim for this problem?
+43. LTE and 5G drop to SOS-only in places my partner's phone on the same network is fine — started after I leaned on it armrest-style on a flight. Please register this as a claim.
 44. Left my phone in a freezing car overnight — now the front camera fogs permanently and Face ID fails in normal light. Need a Toro claim.
 45. MagSafe wallet slid against the bare glass in my jacket — circular micro-scratches where NFC tries to read and tap-to-pay fails at shop terminals outdoors.
-46. Mesh satellite node bricked after vendor firmware push — solid amber, no reset combo works, ethernet handoff is dead on that unit alone.
+46. Mesh satellite node bricked after vendor firmware push — solid amber, no reset combo works, ethernet handoff is dead on that unit alone. Please register this as a claim.
 47. My console ramps the fan to jet-engine levels after ten minutes in any game, then powers off with a thermal warning. It is clean and ventilated — I need a hardware claim.
 48. My dishwasher is overflowing with water. Please start a claim and send someone out.
-49. My mirrorless camera shutter jams closed on fast bursts — error E-* on the rear screen and the banding shows in every photo.
+49. My mirrorless camera shutter jams closed on fast bursts — error E-* on the rear screen and the banding shows in every photo. Please start a claim for this issue.
 50. My mobile was in my bag with my keys — now the screen has scratches and dead stripes. I need a claim.
-51. My phone fell out of an unzipped backpack pocket onto concrete — there is a dent on one corner and a dead strip down the touchscreen where touches do not register.
+51. My phone fell out of an unzipped backpack pocket onto concrete — there is a dent on one corner and a dead strip down the touchscreen where touches do not register. Please start a claim for this issue.
 52. My wireless earbuds went through the washing machine — case is cracked and neither side pairs. New claim please.
-53. NAS bay three and four drop offline randomly after a brownout — smart UPS logged a sag. Reseating helps for a day then MDADM degrades again.
-54. On every spin the washer sounds like a train — loud grinding from the drum. It is five years old and getting worse each load.
+53. NAS bay three and four drop offline randomly after a brownout — smart UPS logged a sag. Reseating helps for a day then MDADM degrades again. Can you open a claim for this problem?
+54. On every spin the washer sounds like a train — loud grinding from the drum. It is five years old and getting worse each load. Can you open a claim for this problem?
 55. Our 65-inch OLED was being remounted — it slipped against the bracket and now there is a bright vertical band on the left third. Start a claim and book assessment in the afternoon, any time is fine.
 56. Our puppy pulled the charging cable while it was plugged into my phone — the connector snapped sideways and the socket looks chipped inside. Please start a claim.
-57. Our streaming stick melted a little around the HDMI neck after binge-watching in a closed cabinet — smells of hot plastic and now it drops HDR signal.
+57. Our streaming stick melted a little around the HDMI neck after binge-watching in a closed cabinet — smells of hot plastic and now it drops HDR signal. Please register this as a claim.
 58. PS5 fell off the TV unit — HDMI port looks bent, no signal on any cable. Need a claim for the console.
 59. Party last night — drink tipped onto the soundbar. It powers on but smells burnt and cuts out when volume goes past 30%. Open a claim and send someone in the morning, whenever works.
 60. Phone reboots three or four times a day with a kernel panic screen I can barely snap — started right after a security patch. No new case drops. I need a Toro hardware claim.
-61. Phone stuck in a boot loop since I tried moving everything to a new handset with the cable transfer — recovery mode won't stay connected to my laptop.
+61. Phone stuck in a boot loop since I tried moving everything to a new handset with the cable transfer — recovery mode won't stay connected to my laptop. Please register this as a claim.
 62. Phone was on a cheap handlebar mount for a 40 km ride — rear camera glass is shattered and OIS rattles. New claim please.
 63. Please file this on my policy — My phone camera stopped focusing and I need to get it fixed under my cover.
 64. Please open a Toro claim — The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
-65. Portable Bluetooth speaker made a loud pop at half volume during a playlist — both drivers are dead silent now even though it pairs fine.
-66. Portable monitor arrived from RMA with worse backlight bleed in the corners than the unit I sent — seal looks twisted along one edge.
-67. Portrait mode fails-blur on every subject — diagnostics show depth sensor offline; nothing except a light scuff near the camera bump last week.
-68. Range hood fan started grinding like metal on metal at low speed — gets worse when I slide the glass panel open.
-69. Rear main camera AF hunts back and forth after a door bumped the lens glass — never locks even on bright scenes.
+65. Portable Bluetooth speaker made a loud pop at half volume during a playlist — both drivers are dead silent now even though it pairs fine. I need to file a new claim for this.
+66. Portable monitor arrived from RMA with worse backlight bleed in the corners than the unit I sent — seal looks twisted along one edge. Please start a claim for this issue.
+67. Portrait mode fails-blur on every subject — diagnostics show depth sensor offline; nothing except a light scuff near the camera bump last week. I want to submit a claim for this damage.
+68. Range hood fan started grinding like metal on metal at low speed — gets worse when I slide the glass panel open. I want to submit a claim for this damage.
+69. Rear main camera AF hunts back and forth after a door bumped the lens glass — never locks even on bright scenes. Please start a claim for this issue.
 70. Red wine went over my laptop keyboard on a flight — I powered off fast but keys are sticky and two rows do nothing. Open a claim on my electronics bundle.
-71. Removed a glass protector after it bubbled in the sun — digitizer ghost-taps the top centimetre randomly in portrait.
-72. Side button sporadically triggers emergency countdown sitting on my desk — no case, latest OS, service desk said power flex might be flaky.
-73. Slow cooker LCD scrambled after a kitchen breaker flicker — segments are garbage but the element still feels warm on low.
+71. Removed a glass protector after it bubbled in the sun — digitizer ghost-taps the top centimetre randomly in portrait. Please register this as a claim.
+72. Side button sporadically triggers emergency countdown sitting on my desk — no case, latest OS, service desk said power flex might be flaky. Can you open a claim for this problem?
+73. Slow cooker LCD scrambled after a kitchen breaker flicker — segments are garbage but the element still feels warm on low. Kindly open a damage claim for me.
 74. Small knock on the corner of my phone — the glass looks fine but the screen is lifting along the bezel and dust is getting under it. Please raise a claim on my Toro mobile plan.
-75. Smart TRV on the bedroom radiator grinds when closing and never reaches zero flow — room overheats while the app says closed.
-76. Smartwatch altimeter and barometer read nonsense after snorkelling in shallow water — case is dry inside but sensors drift hundreds of metres.
+75. Smart TRV on the bedroom radiator grinds when closing and never reaches zero flow — room overheats while the app says closed. Please register this as a claim.
+76. Smartwatch altimeter and barometer read nonsense after snorkelling in shallow water — case is dry inside but sensors drift hundreds of metres. I need to file a new claim for this.
 77. Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls — need tech in the morning, any slot.
-78. Steam combi oven fills with mist but never reaches the set steam percent — food stays dry and error E04 flickers then clears.
-79. Stick vacuum battery pack is swollen — the pack will not slide out clean and the case plastic is bowed. I stopped charging it.
+78. Steam combi oven fills with mist but never reaches the set steam percent — food stays dry and error E04 flickers then clears. I want to submit a claim for this damage.
+79. Stick vacuum battery pack is swollen — the pack will not slide out clean and the case plastic is bowed. I stopped charging it. Kindly open a damage claim for me.
 80. Subject: Built-in oven overheating The fan oven hits 250C when set to 180 and the outer glass is too hot to touch. Model is six years old. Please register a Toro appliances claim under policy holder ref 88-KL-09.
-81. Tablet slipped off a kitchen counter — corner glass is crushed and the stylus disconnects every few minutes even when snapped in.
-82. The vibration motor started buzzing constantly after a drop in the garage — I had to power it off because it was heating up.
-83. Thermal label printer started scorching the left edge of every roll — labels jam and the head smells hot after fifty prints.
+81. Tablet slipped off a kitchen counter — corner glass is crushed and the stylus disconnects every few minutes even when snapped in. Kindly open a damage claim for me.
+82. The vibration motor started buzzing constantly after a drop in the garage — I had to power it off because it was heating up. Can you open a claim for this problem?
+83. Thermal label printer started scorching the left edge of every roll — labels jam and the head smells hot after fifty prints. I need to file a new claim for this.
 84. Third-party wireless charger left a brown heat ring on the back glass and NFC tap-to-pay fails half the time now.
 85. Tumble dryer runs full cycles but clothes stay cold and damp — no error on the panel. Open a breakdown claim.
-86. Tumble dryer started smelling like burning rubber halfway through a cotton cycle — I stopped it and the drum is hard to turn by hand now.
-87. Turntable developed pitch wow after moving house — belt looks seated but platter speed hunts visibly under strobe dots.
-88. Two-slice toaster always chars the left slot on medium while the right is barely tan — swapped bread brands, same thing.
-89. Ultrasonic humidifier buzzes loud and throws white dust on furniture even with distilled water — output looks weak for weeks.
-90. Upright freezer alarm has been sounding two days — digital display reads minus five but ice cream is soft and meat surface feels wrong.
-91. Used the phone briefly underwater in a hotel pool deeper than the rated depth — microphones gurgle, wireless charging is dead, and the under-glass fingerprint reader errors every time.
-92. VR headset right eye went black after someone stepped on the link cable — left eye fine, tracking still works, smell of hot plastic briefly.
-93. Volume down is stuck pressed after yard work — lint packed around the rocker I cannot clear and it boots into safe volume mode randomly.
+86. Tumble dryer started smelling like burning rubber halfway through a cotton cycle — I stopped it and the drum is hard to turn by hand now. Please start a claim for this issue.
+87. Turntable developed pitch wow after moving house — belt looks seated but platter speed hunts visibly under strobe dots. Please start a claim for this issue.
+88. Two-slice toaster always chars the left slot on medium while the right is barely tan — swapped bread brands, same thing. I want to submit a claim for this damage.
+89. Ultrasonic humidifier buzzes loud and throws white dust on furniture even with distilled water — output looks weak for weeks. Kindly open a damage claim for me.
+90. Upright freezer alarm has been sounding two days — digital display reads minus five but ice cream is soft and meat surface feels wrong. Can you open a claim for this problem?
+91. Used the phone briefly underwater in a hotel pool deeper than the rated depth — microphones gurgle, wireless charging is dead, and the under-glass fingerprint reader errors every time. Kindly open a damage claim for me.
+92. VR headset right eye went black after someone stepped on the link cable — left eye fine, tracking still works, smell of hot plastic briefly. I want to submit a claim for this damage.
+93. Volume down is stuck pressed after yard work — lint packed around the rocker I cannot clear and it boots into safe volume mode randomly. I want to submit a claim for this damage.
 94. Washing machine shows E18 and will not drain. It is three years old. I want a claim number please.
 95. We had a close lightning strike last night — now our 55-inch smart TV will not leave standby, no logo, and the outlet smells a bit hot. I need an electronics claim through Toro.
-96. Whole-home water softener stuck mid-regen — brine line weeping at the clip and hardness test strips show no improvement for a week.
-97. Wine fridge compressor kicks every two minutes, room is humming, and bottles feel warmer than the set twelve degrees.
-## new_claim + scheduling (31 unique prompt(s))
+96. Whole-home water softener stuck mid-regen — brine line weeping at the clip and hardness test strips show no improvement for a week. Please register this as a claim.
+97. Wine fridge compressor kicks every two minutes, room is humming, and bottles feel warmer than the set twelve degrees. Please start a claim for this issue.
+## new_claim + scheduling (32 unique prompt(s))
 1. Battery tanks from full to dead in a few hours on standby — open a claim and offer diagnostic appointments. Saturday afternoon slot.
 2. Can someone come tomorrow morning for my cracked phone screen and start a claim for it? 11:30, please.
 3. Charging cuts out unless I hold the cable just so — need a claim and a service slot. Monday morning.
 4. Coffee splashed into my phone — callers can barely hear me. Start a claim and list repair times. Saturday afternoon.
 5. Dryer runs forever but the load is ice cold — need a claim and the earliest service visits you have. Monday morning works.
 6. Fridge door sweats non-stop and the seal feels warped — start a claim and give me two visit windows later this week. Friday morning slot.
-7. I cracked my phone screen. Can you start a claim for a repair? Tuesday 11:00 for claim CLAIM-PH-7701 please.
-8. I cracked the back glass on my phone. Open a claim and show me repair appointments for next week. Tuesday at eleven, please.
-9. I dropped my phone on the pavement and the screen shattered. Can you start a claim and get me an evening repair slot? Friday 18:30 works.
-10. I need to make a claim for my TV — the picture is flickering. Can you get me a visit this week? Let’s try Wednesday at 2.
-11. Laptop fan screams when I compile code — feels hotter than normal. File a claim and book service. Tuesday afternoon.
-12. Microwave sparked inside the cavity with a burning smell — unplugged it. Open a claim and line up repair visits. Saturday morning is better.
-13. My TV fell over and the screen smashed. I need to make a new claim. Thursday 09:00 for claim CLAIM-EV-6602.
-14. My TV screen went black but I can still hear sound. Can you open a claim and get me something next Monday? 16:00.
-15. My TV won’t power on at all. Please start a claim and book the earliest possible visit. Yes, book that.
-16. My dishwasher is leaking all over the floor. Please open a claim and get me the earliest morning slot. Yes, book Thursday morning.
-17. My dishwasher is overflowing with water. Please start a claim and send someone out. Wednesday morning for claim CLAIM-HA-9941 — urgent.
-18. My dishwasher stopped draining. Can somebody come on Saturday? I also need to start a claim. 9 to 1 works best.
-19. My fridge isn’t staying cold. Can you start a claim and set up a visit? Thursday 12–4, please.
-20. My fridge stopped cooling. Please start a claim and arrange someone to come out. Tuesday morning for claim CLAIM-HA-9155.
-21. My phone fell in water and won’t turn on. Please start a claim. Let’s do Wednesday at 3.
-22. My phone screen flickers when brightness is low ever since I dropped it. File a claim and find afternoon repairs. Wednesday noon slot.
-23. My washing machine won’t spin. Is there any chance of a same-day visit, and can you open a claim for it? Today 4–8 is fine.
-24. New TV has a block of dead pixels centre screen. Start a claim and book engineer visits to the house. Thursday morning visit.
-25. Our washer sounds like grinding metal on every spin cycle. Please open a claim and find the earliest morning technician visits this week. Wednesday morning is good.
-26. Policy claim — My washing machine is making a loud banging noise. Can you get someone to look at it? Monday morning for claim CLAIM-HA-6610 please.
-27. Reporting accidental damage — Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times. This Thursday morning.
-28. Soundbar keeps dropping eARC audio randomly. Open a claim and show me engineer slots next week. Monday afternoon.
-29. Starting a claim — My phone camera stopped focusing and I need to get it fixed under my cover. Thursday 10:00 for claim CLAIM-PH-8890 works.
-30. Tablet corner hit tile — part of the touchscreen is dead. Open a claim and reserve repair times. Monday morning please.
-31. The fan oven makes a rattling roar when the cooling fan runs. Start a Toro claim and give me afternoon engineer options. Thursday afternoon, please.
+7. I cracked my phone screen. Can you start a claim for a repair? Please open a repair claim for this cracked screen and show me the earliest slots. Monday 10:00 works.
+8. I cracked my phone screen. Can you start a claim for a repair? Tuesday 11:00 works.
+9. I cracked the back glass on my phone. Open a claim and show me repair appointments for next week. Tuesday at eleven, please.
+10. I dropped my phone on the pavement and the screen shattered. Can you start a claim and get me an evening repair slot? Friday 18:30 works.
+11. I need to make a claim for my TV — the picture is flickering. Can you get me a visit this week? Let’s try Wednesday at 2.
+12. Laptop fan screams when I compile code — feels hotter than normal. File a claim and book service. Tuesday afternoon.
+13. Microwave sparked inside the cavity with a burning smell — unplugged it. Open a claim and line up repair visits. Saturday morning is better.
+14. My TV fell over and the screen smashed. I need to make a new claim. Thursday 09:00 works.
+15. My TV screen went black but I can still hear sound. Can you open a claim and get me something next Monday? 16:00.
+16. My TV won’t power on at all. Please start a claim and book the earliest possible visit. Yes, book that.
+17. My dishwasher is leaking all over the floor. Please open a claim and get me the earliest morning slot. Yes, book Thursday morning.
+18. My dishwasher is overflowing with water. Please start a claim and send someone out. Wednesday morning is urgent — urgent.
+19. My dishwasher stopped draining. Can somebody come on Saturday? I also need to start a claim. 9 to 1 works best.
+20. My fridge isn’t staying cold. Can you start a claim and set up a visit? Thursday 12–4, please.
+21. My fridge stopped cooling. Please start a claim and arrange someone to come out. Tuesday morning works.
+22. My phone fell in water and won’t turn on. Please start a claim. Let’s do Wednesday at 3.
+23. My phone screen flickers when brightness is low ever since I dropped it. File a claim and find afternoon repairs. Wednesday noon slot.
+24. My washing machine won’t spin. Is there any chance of a same-day visit, and can you open a claim for it? Today 4–8 is fine.
+25. New TV has a block of dead pixels centre screen. Start a claim and book engineer visits to the house. Thursday morning visit.
+26. Our washer sounds like grinding metal on every spin cycle. Please open a claim and find the earliest morning technician visits this week. Wednesday morning is good.
+27. Policy claim — My washing machine is making a loud banging noise. Can you get someone to look at it? Monday morning please.
+28. Reporting accidental damage — Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times. This Thursday morning.
+29. Soundbar keeps dropping eARC audio randomly. Open a claim and show me engineer slots next week. Monday afternoon.
+30. Starting a claim — My phone camera stopped focusing and I need to get it fixed under my cover. Thursday 10:00 works.
+31. Tablet corner hit tile — part of the touchscreen is dead. Open a claim and reserve repair times. Monday morning please.
+32. The fan oven makes a rattling roar when the cooling fan runs. Start a Toro claim and give me afternoon engineer options. Thursday afternoon, please.
 ## no_tool (10 unique prompt(s))
 1. I need a claim number — My washing machine is making a loud banging noise. Can you get someone to look at it?
 2. I need to file a phone damage claim.
 3. I need to open a phone damage claim after my device stopped working.
 4. I need to report phone damage and open a claim.
-5. Open a screen crack claim for my phone — our integration test client is calling toro-customer-assistant-001 but only has read-only scope.
-6. Please start a phone damage claim for me.
-7. Request blocked by policy validation.
+5. Open a screen crack claim for my phone.
+6. Please open a phone damage claim for me.
+7. Please start a phone damage claim for me.
 8. Start a claim for my damaged phone. I retried this request several times.
-9. Start a claim for my dropped phone. The request body is missing the message content field.
-10. Start a claim for my phone. The request has multiple payload format issues.
+9. Start a claim for my dropped phone.
+10. Start a claim for my phone.
 ## payment (7 unique prompt(s))
 1. I want to submit payment of 75 euros for claim CLAIM-PH-LAT-6004 with my card on file.
 2. I want to submit payment of 75 euros for claim CLAIM-PH-LAT-9305 right now.

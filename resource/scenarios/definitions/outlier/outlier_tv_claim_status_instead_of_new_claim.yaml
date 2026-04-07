@@ -148,13 +148,13 @@ endusers:
       - span_plan: *electronics_span_plan
         turn_index: 1
         vendor.enduser.request.raw: "My TV fell over and the screen smashed. I need
-          to make a new claim.\n\nThursday 09:00 for claim CLAIM-EV-6602."
+          to make a new claim.\n\nThursday 09:00 works."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: "My TV fell over and the screen smashed.
-                I need to make a new claim.\n\nThursday 09:00 for claim CLAIM-EV-6602."
+                I need to make a new claim.\n\nThursday 09:00 works."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
@@ -165,7 +165,7 @@ endusers:
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "My TV fell over and the screen
-                smashed. I need to make a new claim.\n\nThursday 09:00 for claim CLAIM-EV-6602.\n"
+                smashed. I need to make a new claim.\n\nThursday 09:00 works.\n"
               vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
                 :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
                 TV tipped; panel smashed; new intake.\",\"trigger_quote\":\"I want

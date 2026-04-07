@@ -153,8 +153,7 @@ endusers:
       - span_plan: *span_plan
         turn_index: 1
         vendor.enduser.request.raw: "Starting a claim — My phone camera stopped focusing
-          and I need to get it fixed under my cover.\n\nThursday 10:00 for claim CLAIM-PH-8890
-          works."
+          and I need to get it fixed under my cover.\n\nThursday 10:00 works."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
@@ -173,7 +172,7 @@ endusers:
             attributes:
               vendor.agent.tool_selection.input.raw: "Starting a claim — My phone
                 camera stopped focusing and I need to get it fixed under my cover.\n\
-                \nThursday 10:00 for claim CLAIM-PH-8890 works.\n"
+                \nThursday 10:00 works.\n"
               vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
                 :\"new_claim\",\"trigger_summary\":\"Handset camera autofocus fault
                 under mobile cover.\",\"trigger_quote\":\"phone camera stopped focusing\"\

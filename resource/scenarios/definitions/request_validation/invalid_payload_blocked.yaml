@@ -67,7 +67,7 @@ endusers:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: "Start a claim for my dropped phone. The request body is missing the message content field."
+              vendor.enduser.request.raw: "Start a claim for my dropped phone."
           - target_span_class: request.validation
             name: gentoro.request.blocked
             attributes:
@@ -85,4 +85,4 @@ endusers:
               vendor.validation.error.severity: error
               vendor.validation.schema: a2a.request.v1
               vendor.validation.result: invalid
-        vendor.enduser.request.raw: "Start a claim for my dropped phone. The request body is missing the message content field."
+        vendor.enduser.request.raw: "Start a claim for my dropped phone."

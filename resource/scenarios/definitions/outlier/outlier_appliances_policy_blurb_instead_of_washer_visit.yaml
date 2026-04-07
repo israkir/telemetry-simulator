@@ -142,14 +142,14 @@ endusers:
         turn_index: 1
         vendor.enduser.request.raw: "Policy claim — My washing machine is making a
           loud banging noise. Can you get someone to look at it?\n\nMonday morning
-          for claim CLAIM-HA-6610 please."
+          please."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: "Policy claim — My washing machine is making
                 a loud banging noise. Can you get someone to look at it?\n\nMonday
-                morning for claim CLAIM-HA-6610 please."
+                morning please."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
@@ -161,7 +161,7 @@ endusers:
             attributes:
               vendor.agent.tool_selection.input.raw: "Policy claim — My washing machine
                 is making a loud banging noise. Can you get someone to look at it?\n\
-                \nMonday morning for claim CLAIM-HA-6610 please.\n"
+                \nMonday morning please.\n"
               vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
                 :\"new_claim\",\"trigger_summary\":\"Washer loud banging; customer
                 wants inspection.\",\"trigger_quote\":\"loud banging noise\",\"missing_info\"\

@@ -153,7 +153,7 @@ endusers:
       - span_plan: *appliances_span_plan
         turn_index: 1
         vendor.enduser.request.raw: "My fridge stopped cooling. Please start a claim
-          and arrange someone to come out.\n\nTuesday morning for claim CLAIM-HA-9155."
+          and arrange someone to come out.\n\nTuesday morning works."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
