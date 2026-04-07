@@ -11,7 +11,7 @@
 
 name: multi_electronics_laptop_fan_slots_multiturn
 description: >
-  Laptop fan bearing whine: EL-9174 + bench slots; customer picks Friday.
+  Laptop fan bearing whine: CLAIM-EL-9174 + bench slots; customer picks Friday.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-9174 logged. Friday 13:00 or Tuesday 13:00 repair sessions available.
+                CLAIM-EL-9174 logged. Friday 13:00 or Tuesday 13:00 repair sessions available.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Laptop fan screams when I compile code — feels hotter than normal. File a claim and book service.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Laptop cooling fan mechanical noise.", "trigger_quote": "fan whine", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "laptop", "description": "Fan bearing whine under load; rising temps.", "incident_date": "2026-05-14"}}, {"tool_name": "get_available_slots", "trigger_summary": "Workshop afternoon slots.", "trigger_quote": "service appointment", "missing_info": null, "confidence": 0.86, "tool_args": {"claim_id": "EL-9174", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-15", "date_range_end": "2026-05-22"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Laptop cooling fan mechanical noise.", "trigger_quote": "I want to file a claim — fan whine", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "laptop", "description": "Fan bearing whine under load; rising temps.", "incident_date": "2026-05-14"}}, {"tool_name": "get_available_slots", "trigger_summary": "Workshop afternoon slots.", "trigger_quote": "service appointment", "missing_info": null, "confidence": 0.86, "tool_args": {"claim_id": "CLAIM-EL-9174", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-15", "date_range_end": "2026-05-22"}}]}
         agent_response: >
-          EL-9174 logged. Friday 13:00 or Tuesday 13:00 repair sessions available.
+          CLAIM-EL-9174 logged. Friday 13:00 or Tuesday 13:00 repair sessions available.
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Fan bearing whine under load; rising temps."
             incident_date: "2026-05-14"
           get_available_slots:
-            claim_id: "EL-9174"
+            claim_id: "CLAIM-EL-9174"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-15"
             date_range_end: "2026-05-22"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-9174"
+            claim_id: "CLAIM-EL-9174"
             product_type: "laptop"
             status: "opened"
             coverage: { type: "electronics_mechanical_failure", deductible: 92 }
             notes: "Thermal safety."
           get_available_slots:
-            claim_id: "EL-9174"
+            claim_id: "CLAIM-EL-9174"
             slots:
               - { slot_id: "SLOT-2026-05-15T13:00", duration_minutes: 150 }
               - { slot_id: "SLOT-2026-05-19T13:00", duration_minutes: 150 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; afternoon bays.
         response_compose:
           system_prompt: >
-            EL-9174; thermal caution.
+            CLAIM-EL-9174; thermal caution.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Tuesday 13:00 service is booked for EL-9174 — limit heavy loads until then.
+                Tuesday 13:00 service is booked for CLAIM-EL-9174 — limit heavy loads until then.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Tuesday afternoon."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Tuesday PM workshop.", "trigger_quote": "Tuesday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "EL-9174", "appointment_id": "APT-EL-9174-HOLD", "slot_id": "SLOT-2026-05-19T13:00", "preferred_time_window": "afternoon"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Tuesday PM workshop.", "trigger_quote":"Tuesday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-EL-9174", "appointment_id": "APT-EL-9174-HOLD", "slot_id": "SLOT-2026-05-19T13:00", "preferred_time_window": "afternoon"}}]}
         agent_response: >
-          Tuesday 13:00 service is booked for EL-9174 — limit heavy loads until then.
+          Tuesday 13:00 service is booked for CLAIM-EL-9174 — limit heavy loads until then.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "EL-9174"
+            claim_id: "CLAIM-EL-9174"
             appointment_id: "APT-EL-9174-HOLD"
             slot_id: "SLOT-2026-05-19T13:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "EL-9174"
+            claim_id: "CLAIM-EL-9174"
             appointment_id: "APT-EL-9174-01"
             status: "scheduled"
             scheduled_at: "2026-05-19T13:00:00Z"
         planner:
           system_prompt: >
-            Tuesday PM for EL-9174.
+            Tuesday PM for CLAIM-EL-9174.
           output: >
             PLAN: update_appointment.
         response_compose:

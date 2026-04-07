@@ -85,27 +85,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Where is my phone claim PH-LAT-5001 — has anyone looked at the photos yet?
+          Where is my phone CLAIM-PH-LAT-5001 — has anyone looked at the photos yet?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Where is my phone claim PH-LAT-5001 — has anyone looked at the photos yet?
+                Where is my phone CLAIM-PH-LAT-5001 — has anyone looked at the photos yet?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-LAT-5001 is in review: photos are on file and an assessor is assigned; you will get an SMS when the decision is posted.
+                CLAIM-PH-LAT-5001 is in review: photos are on file and an assessor is assigned; you will get an SMS when the decision is posted.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Where is my phone claim PH-LAT-5001 — has anyone looked at the photos yet?
+                Where is my phone CLAIM-PH-LAT-5001 — has anyone looked at the photos yet?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for claim PH-LAT-5001.","trigger_quote":"Where is my phone claim PH-LAT-5001","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"PH-LAT-5001"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for CLAIM-PH-LAT-5001.","trigger_quote":"Where is my phone CLAIM-PH-LAT-5001","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"CLAIM-PH-LAT-5001"}}]}
         agent_response: >
-          PH-LAT-5001 is in review: photos are on file and an assessor is assigned; you will get an SMS when the decision is posted.
+          CLAIM-PH-LAT-5001 is in review: photos are on file and an assessor is assigned; you will get an SMS when the decision is posted.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -117,10 +117,10 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
-            claim_id: "PH-LAT-5001"
+            claim_id: "CLAIM-PH-LAT-5001"
         gen_ai.tool.call.result:
           claim_status:
-            claim_id: "PH-LAT-5001"
+            claim_id: "CLAIM-PH-LAT-5001"
             status: "in_review"
             last_updated: "2026-03-21T14:22:00Z"
             milestones:
@@ -129,9 +129,9 @@ endusers:
               - assessor_assigned
         planner:
           system_prompt: >
-            Latency demo: single claim_status for PH-LAT-5001.
+            Latency demo: single claim_status for CLAIM-PH-LAT-5001.
           output: >
-            PLAN: claim_status PH-LAT-5001; summarize milestones.
+            PLAN: claim_status CLAIM-PH-LAT-5001; summarize milestones.
         response_compose:
           system_prompt: >
             Short reassurance; mention SMS when decision is ready.

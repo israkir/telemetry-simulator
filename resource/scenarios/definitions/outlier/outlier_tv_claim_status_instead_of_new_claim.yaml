@@ -3,7 +3,7 @@
 # =============================================================================
 # File: outlier/outlier_tv_claim_status_instead_of_new_claim.yaml
 # Endusers: 2 | Conversation threads: 2 | Total user turns: 2
-# MCP: electronics — (1) outlier: claim_status only on old EV-2291; (2) correct: new_claim + slots for new smash
+# MCP: electronics — (1) outlier: claim_status only on old CLAIM-EV-2291; (2) correct: new_claim + slots for new smash
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -12,7 +12,7 @@
 name: outlier_tv_claim_status_instead_of_new_claim
 description: >
   Paired flows for the same user wording (new TV damage claim). Outlier: assistant only runs claim_status
-  on completed EV-2291. Correct counterpart: new_claim for the fall / smashed screen plus
+  on completed CLAIM-EV-2291. Correct counterpart: new_claim for the fall / smashed screen plus
   get_available_slots for engineer visits.
 
 tags:
@@ -89,7 +89,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve checked your existing records and found claim EV-2291, which is already completed. The
+                I’ve checked your existing records and found CLAIM-EV-2291, which is already completed. The
                 technician visit is closed and no further action is pending. Is there anything else you want
                 to know about that claim?
           - target_span_class: tools.recommend
@@ -98,9 +98,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My TV fell over and the screen smashed. I need to make a new claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Lookup prior TV claim on file instead of new intake.","trigger_quote":"make a new claim","missing_info":null,"confidence":0.81,"tool_args":{"claim_id":"EV-2291"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Lookup prior TV claim on file instead of new intake.","trigger_quote":"make a new claim","missing_info":null,"confidence":0.81,"tool_args":{"claim_id":"CLAIM-EV-2291"}}]}
         agent_response: >
-          I’ve checked your existing records and found claim EV-2291, which is already completed. The
+          I’ve checked your existing records and found CLAIM-EV-2291, which is already completed. The
           technician visit is closed and no further action is pending. Is there anything else you want
           to know about that claim?
         tool_chain: [claim_status]
@@ -114,10 +114,10 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
-            claim_id: "EV-2291"
+            claim_id: "CLAIM-EV-2291"
         gen_ai.tool.call.result:
           claim_status:
-            claim_id: "EV-2291"
+            claim_id: "CLAIM-EV-2291"
             status: "closed"
             last_updated: "2026-02-14T16:40:00Z"
             milestones:
@@ -126,9 +126,9 @@ endusers:
               - no_pending_action
         planner:
           system_prompt: >
-            Electronics MCP misroute: user requests new_claim narrative; model only queries claim_status EV-2291.
+            Electronics MCP misroute: user requests new_claim narrative; model only queries claim_status CLAIM-EV-2291.
           output: >
-            PLAN: claim_status EV-2291 only; do not open a new claim.
+            PLAN: claim_status CLAIM-EV-2291 only; do not open a new claim.
         response_compose:
           system_prompt: >
             Summarize completed claim and closed visit; offer help on that claim only.
@@ -152,7 +152,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened claim EV-6602 for your TV after the fall and screen damage. I can send an engineer
+                I’ve opened CLAIM-EV-6602 for your TV after the fall and screen damage. I can send an engineer
                 to assess it — available visits include Thursday 09:00, Friday 13:00, or Saturday 10:00 next
                 week. Would you like me to book one of these?
           - target_span_class: tools.recommend
@@ -161,9 +161,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My TV fell over and the screen smashed. I need to make a new claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"TV tipped; panel smashed; new intake.","trigger_quote":"TV fell over and the screen smashed","missing_info":null,"confidence":0.96,"tool_args":{"product_type":"tv","description":"Physical fall; screen smashed; customer requests repair assessment.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Engineer home visits after new TV damage claim.","trigger_quote":"make a new claim","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"EV-6602","service_type":"engineer_home_visit","date_range_start":"2026-03-27","date_range_end":"2026-03-29"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — TV tipped; panel smashed; new intake.", "trigger_quote": "I want to file a claim — TV fell over and the screen smashed", "missing_info": null, "confidence": 0.96, "tool_args": {"product_type": "tv", "description": "Physical fall; screen smashed; customer requests repair assessment.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Engineer home visits after new TV damage claim.", "trigger_quote": "make a new claim", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-EV-6602", "service_type": "engineer_home_visit", "date_range_start": "2026-03-27", "date_range_end": "2026-03-29"}}]}
         agent_response: >
-          I’ve opened claim EV-6602 for your TV after the fall and screen damage. I can send an engineer
+          I’ve opened CLAIM-EV-6602 for your TV after the fall and screen damage. I can send an engineer
           to assess it — available visits include Thursday 09:00, Friday 13:00, or Saturday 10:00 next
           week. Would you like me to book one of these?
         tool_chain: [new_claim, get_available_slots]
@@ -181,19 +181,19 @@ endusers:
             description: "Physical fall; screen smashed; customer requests repair assessment."
             incident_date: "2026-03-22"
           get_available_slots:
-            claim_id: "EV-6602"
+            claim_id: "CLAIM-EV-6602"
             service_type: "engineer_home_visit"
             date_range_start: "2026-03-27"
             date_range_end: "2026-03-29"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EV-6602"
+            claim_id: "CLAIM-EV-6602"
             product_type: "tv"
             status: "opened"
             coverage: { type: "tv_accidental_damage", deductible: 85 }
             notes: "Correct path: new incident; engineer visit options offered."
           get_available_slots:
-            claim_id: "EV-6602"
+            claim_id: "CLAIM-EV-6602"
             slots:
               - { slot_id: "SLOT-2026-03-27T09:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-03-28T13:00", duration_minutes: 120 }
@@ -206,4 +206,55 @@ endusers:
             PLAN: new_claim tv fall/smash; get_available_slots engineer_home_visit end of week window.
         response_compose:
           system_prompt: >
-            Claim id EV-6602; three visit options; offer to book.
+            Claim id CLAIM-EV-6602; three visit options; offer to book.
+
+      - turn_index: 2
+        span_plan: *electronics_span_plan
+        vendor.enduser.request.raw: "Thursday 09:00 for CLAIM-EV-6602."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Thursday 09:00 for CLAIM-EV-6602."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Thursday 09:00 is booked for CLAIM-EV-6602 — you’ll get engineer confirmation by email.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Thursday 09:00 for CLAIM-EV-6602."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Thu 09:00 engineer visit from listed slots.","trigger_quote":"Thursday 09:00","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-EV-6602","appointment_id":"APT-EV-6602-HOLD","slot_id":"SLOT-2026-03-27T09:00","preferred_time_window":"morning"}}]}
+        agent_response: >
+          Thursday 09:00 is booked for CLAIM-EV-6602 — you’ll get engineer confirmation by email.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 880
+        gen_ai.usage.output_tokens: 78
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "CLAIM-EV-6602"
+            appointment_id: "APT-EV-6602-HOLD"
+            slot_id: "SLOT-2026-03-27T09:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "CLAIM-EV-6602"
+            appointment_id: "APT-EV-6602-01"
+            status: "scheduled"
+            scheduled_at: "2026-03-27T09:00:00Z"
+        planner:
+          system_prompt: >
+            Book selected engineer slot for CLAIM-EV-6602.
+          output: >
+            PLAN: update_appointment Thu 09:00.
+        response_compose:
+          system_prompt: >
+            Confirm TV visit booking.

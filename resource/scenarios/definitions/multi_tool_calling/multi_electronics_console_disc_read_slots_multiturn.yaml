@@ -11,7 +11,7 @@
 
 name: multi_electronics_console_disc_read_slots_multiturn
 description: >
-  Console disc read errors: EL-9173 + service slots; books sooner slot.
+  Console disc read errors: CLAIM-EL-9173 + service slots; books sooner slot.
 
 tags:
   - normal
@@ -75,27 +75,27 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times.
+          Reporting accidental damage — Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times.
+                Reporting accidental damage — Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-9173 opened. Thursday 11:00 or Tuesday the following week 11:00 — pick one.
+                CLAIM-EL-9173 opened. Thursday 11:00 or Tuesday the following week 11:00 — pick one.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times.
+                Need a claim opened — Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Optical drive read failure.", "trigger_quote": "disc won’t read", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "gaming_console", "description": "Physical disc games fail to mount; lens or drive suspect.", "incident_date": "2026-05-13"}}, {"tool_name": "get_available_slots", "trigger_summary": "Service-centre morning bays.", "trigger_quote": "repair slot", "missing_info": null, "confidence": 0.88, "tool_args": {"claim_id": "EL-9173", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-14", "date_range_end": "2026-05-21"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Optical drive read failure.", "trigger_quote": "disc won’t read", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "gaming_console", "description": "Physical disc games fail to mount; lens or drive suspect.", "incident_date": "2026-05-13"}}, {"tool_name": "get_available_slots", "trigger_summary": "Service-centre morning bays.", "trigger_quote": "repair slot", "missing_info": null, "confidence": 0.88, "tool_args": {"claim_id": "CLAIM-EL-9173", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-14", "date_range_end": "2026-05-21"}}]}
         agent_response: >
-          EL-9173 opened. Thursday 11:00 or Tuesday the following week 11:00 — pick one.
+          CLAIM-EL-9173 opened. Thursday 11:00 or Tuesday the following week 11:00 — pick one.
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Physical disc games fail to mount; lens or drive suspect."
             incident_date: "2026-05-13"
           get_available_slots:
-            claim_id: "EL-9173"
+            claim_id: "CLAIM-EL-9173"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-14"
             date_range_end: "2026-05-21"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-9173"
+            claim_id: "CLAIM-EL-9173"
             product_type: "gaming_console"
             status: "opened"
             coverage: { type: "electronics_mechanical_failure", deductible: 88 }
             notes: "Authorized repair."
           get_available_slots:
-            claim_id: "EL-9173"
+            claim_id: "CLAIM-EL-9173"
             slots:
               - { slot_id: "SLOT-2026-05-14T11:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-05-19T11:00", duration_minutes: 120 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; authorized slots.
         response_compose:
           system_prompt: >
-            EL-9173; two mornings.
+            CLAIM-EL-9173; two mornings.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Thursday 11:00 drop-off locked on EL-9173.
+                Thursday 11:00 drop-off locked on CLAIM-EL-9173.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "This Thursday morning."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Thursday morning service bay.", "trigger_quote": "Thursday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "EL-9173", "appointment_id": "APT-EL-9173-HOLD", "slot_id": "SLOT-2026-05-14T11:00", "preferred_time_window": "morning"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Thursday morning service bay.", "trigger_quote":"Thursday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "CLAIM-EL-9173", "appointment_id": "APT-EL-9173-HOLD", "slot_id": "SLOT-2026-05-14T11:00", "preferred_time_window": "morning"}}]}
         agent_response: >
-          Thursday 11:00 drop-off locked on EL-9173.
+          Thursday 11:00 drop-off locked on CLAIM-EL-9173.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "EL-9173"
+            claim_id: "CLAIM-EL-9173"
             appointment_id: "APT-EL-9173-HOLD"
             slot_id: "SLOT-2026-05-14T11:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "EL-9173"
+            claim_id: "CLAIM-EL-9173"
             appointment_id: "APT-EL-9173-01"
             status: "scheduled"
             scheduled_at: "2026-05-14T11:00:00Z"
         planner:
           system_prompt: >
-            Thursday bay for EL-9173.
+            Thursday bay for CLAIM-EL-9173.
           output: >
             PLAN: update_appointment SLOT-2026-05-14T11:00.
         response_compose:

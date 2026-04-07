@@ -14,7 +14,7 @@
 
 name: multi_electronics_repair_and_plus
 description: >
-  Soundbar claim EL-HT-7707 across four turns: verify assessor notes match what the customer heard,
+  Soundbar CLAIM-EL-HT-7707 across four turns: verify assessor notes match what the customer heard,
   register new packaging photos, book a Thursday engineer window, pay excess, then activate Toro
   Premium for living-room AV.
 
@@ -80,32 +80,32 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          I’m following up on soundbar claim EL-HT-7707. The assessor told me the HDMI board is dead —
+          I’m following up on soundbar CLAIM-EL-HT-7707. The assessor told me the HDMI board is dead —
           does your file actually say that? I also uploaded carton photos in the portal just now.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I’m following up on soundbar claim EL-HT-7707. The assessor told me the HDMI board is dead —
+                I’m following up on soundbar CLAIM-EL-HT-7707. The assessor told me the HDMI board is dead —
                 does your file actually say that? I also uploaded carton photos in the portal just now.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Yes — EL-HT-7707 shows the assessor conclusion as HDMI mainboard failure. Your new carton
+                Yes — CLAIM-EL-HT-7707 shows the assessor conclusion as HDMI mainboard failure. Your new carton
                 photos are attached. Next step is scheduling an engineer; say when you’d like me to look at
                 home-visit slots in East-2.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I’m following up on soundbar claim EL-HT-7707. The assessor told me the HDMI board is dead —
+                I’m following up on soundbar CLAIM-EL-HT-7707. The assessor told me the HDMI board is dead —
                 does your file actually say that? I also uploaded carton photos in the portal just now.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Verify assessor outcome matches customer understanding.","trigger_quote":"EL-HT-7707","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"EL-HT-7707"}},{"tool_name":"upload_documents","trigger_summary":"Register newly uploaded packaging photos.","trigger_quote":"uploaded carton photos","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"EL-HT-7707","document_types":["photo_packaging","assessor_report_pdf"],"expected_count":3}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Verify assessor outcome matches customer understanding.","trigger_quote":"CLAIM-EL-HT-7707","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-EL-HT-7707"}},{"tool_name":"upload_documents","trigger_summary":"Register newly uploaded packaging photos.","trigger_quote":"uploaded carton photos","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-EL-HT-7707","document_types":["photo_packaging","assessor_report_pdf"],"expected_count":3}}]}
         agent_response: >
-          Yes — EL-HT-7707 shows the assessor conclusion as HDMI mainboard failure. Your new carton
+          Yes — CLAIM-EL-HT-7707 shows the assessor conclusion as HDMI mainboard failure. Your new carton
           photos are attached. Next step is scheduling an engineer; say when you’d like me to look at
           home-visit slots in East-2.
         tool_chain: [claim_status, upload_documents]
@@ -119,29 +119,29 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
-            claim_id: "EL-HT-7707"
+            claim_id: "CLAIM-EL-HT-7707"
           upload_documents:
-            claim_id: "EL-HT-7707"
+            claim_id: "CLAIM-EL-HT-7707"
             document_types: ["photo_packaging", "assessor_report_pdf"]
             expected_count: 3
         gen_ai.tool.call.result:
           claim_status:
-            claim_id: "EL-HT-7707"
+            claim_id: "CLAIM-EL-HT-7707"
             status: "in_review"
             last_updated: "2026-03-22T11:05:00Z"
             milestones:
               - assessor_report_received
               - parts_order_pending
           upload_documents:
-            claim_id: "EL-HT-7707"
-            upload_batch_id: "UPL-EL-7707-02"
+            claim_id: "CLAIM-EL-HT-7707"
+            upload_batch_id: "UPL-CLAIM-EL-7707-02"
             pending_count: 0
             status: "received"
         planner:
           system_prompt: >
             Electronics MCP: confirm claim narrative and ingest packaging evidence.
           output: >
-            PLAN: claim_status EL-HT-7707; upload_documents packaging + assessor pdf refs.
+            PLAN: claim_status CLAIM-EL-HT-7707; upload_documents packaging + assessor pdf refs.
         response_compose:
           system_prompt: >
             Echo assessor wording accurately; warm handoff to scheduling.
@@ -162,7 +162,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                There’s availability that matches a Thursday 09:00 start in East-2 — I’ve booked EL-HT-7707
+                There’s availability that matches a Thursday 09:00 start in East-2 — I’ve booked CLAIM-EL-HT-7707
                 into that window. You’ll get the two-hour arrival details by SMS.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -171,9 +171,9 @@ endusers:
                 Please check engineer home visits in East-2 next week. Thursday morning, roughly 9 to 12, is
                 best for me.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Engineer visits East-2 next week.","trigger_quote":"East-2 next week","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"EL-HT-7707","service_type":"engineer_home_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}},{"tool_name":"update_appointment","trigger_summary":"Thursday 09:00–12:00 morning window.","trigger_quote":"Thursday morning, roughly 9 to 12","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"EL-HT-7707","appointment_id":"APT-EL-7707-HOLD","slot_id":"SLOT-2026-03-26T09:00","preferred_time_window":"morning"}}]}
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Engineer visits East-2 next week.","trigger_quote":"East-2 next week","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"CLAIM-EL-HT-7707","service_type":"engineer_home_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}},{"tool_name":"update_appointment","trigger_summary":"Thursday 09:00–12:00 morning window.","trigger_quote":"Thursday morning, roughly 9 to 12","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"CLAIM-EL-HT-7707","appointment_id":"APT-EL-7707-HOLD","slot_id":"SLOT-2026-03-26T09:00","preferred_time_window":"morning"}}]}
         agent_response: >
-          There’s availability that matches a Thursday 09:00 start in East-2 — I’ve booked EL-HT-7707
+          There’s availability that matches a Thursday 09:00 start in East-2 — I’ve booked CLAIM-EL-HT-7707
           into that window. You’ll get the two-hour arrival details by SMS.
         tool_chain: [get_available_slots, update_appointment]
         gen_ai.request.type: completion
@@ -186,24 +186,24 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           get_available_slots:
-            claim_id: "EL-HT-7707"
+            claim_id: "CLAIM-EL-HT-7707"
             service_type: "engineer_home_visit"
             date_range_start: "2026-03-24"
             date_range_end: "2026-03-28"
           update_appointment:
-            claim_id: "EL-HT-7707"
+            claim_id: "CLAIM-EL-HT-7707"
             appointment_id: "APT-EL-7707-HOLD"
             slot_id: "SLOT-2026-03-26T09:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           get_available_slots:
-            claim_id: "EL-HT-7707"
+            claim_id: "CLAIM-EL-HT-7707"
             slots:
               - { slot_id: "SLOT-2026-03-26T09:00", duration_minutes: 180 }
               - { slot_id: "SLOT-2026-03-27T14:00", duration_minutes: 180 }
             timezone: "Europe/Oslo"
           update_appointment:
-            claim_id: "EL-HT-7707"
+            claim_id: "CLAIM-EL-HT-7707"
             appointment_id: "APT-EL-7707-VISIT"
             status: "scheduled"
             scheduled_at: "2026-03-26T09:00:00Z"
@@ -219,28 +219,28 @@ endusers:
       - turn_index: 3
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          Great — please charge the €75 excess for EL-HT-7707 to the card you have on file.
+          Great — I want to submit payment of €75 for CLAIM-EL-HT-7707 to the card you have on file.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Great — please charge the €75 excess for EL-HT-7707 to the card you have on file.
+                Great — I want to submit payment of €75 for CLAIM-EL-HT-7707 to the card you have on file.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                The €75 excess is captured for EL-HT-7707. Nothing else is needed on payment before the
+                The €75 excess is captured for CLAIM-EL-HT-7707. Nothing else is needed on payment before the
                 engineer arrives.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Great — please charge the €75 excess for EL-HT-7707 to the card you have on file.
+                Great — I want to submit payment of €75 for CLAIM-EL-HT-7707 to the card you have on file.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Collect claim excess on stored card.","trigger_quote":"€75 excess","missing_info":null,"confidence":0.92,"tool_args":{"payment_target":"excess","reference_id":"EL-HT-7707","amount":75.0,"currency":"EUR"}}]}
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Submit payment for CLAIM-EL-HT-7707 on stored card.","trigger_quote":"submit payment of €75","missing_info":null,"confidence":0.92,"tool_args":{"payment_target":"excess","reference_id":"CLAIM-EL-HT-7707","amount":75.0,"currency":"EUR"}}]}
         agent_response: >
-          The €75 excess is captured for EL-HT-7707. Nothing else is needed on payment before the
+          The €75 excess is captured for CLAIM-EL-HT-7707. Nothing else is needed on payment before the
           engineer arrives.
         tool_chain: [pay]
         gen_ai.request.type: completion
@@ -254,13 +254,13 @@ endusers:
         gen_ai.tool.call.arguments:
           pay:
             payment_target: "excess"
-            reference_id: "EL-HT-7707"
+            reference_id: "CLAIM-EL-HT-7707"
             amount: 75.0
             currency: "EUR"
         gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-EL-7707-EX"
-            reference_id: "EL-HT-7707"
+            reference_id: "CLAIM-EL-HT-7707"
             status: "captured"
             amount: 75.0
             currency: "EUR"
@@ -268,7 +268,7 @@ endusers:
           system_prompt: >
             Electronics MCP: take excess after visit is booked.
           output: >
-            PLAN: pay 75 EUR excess EL-HT-7707 card_on_file.
+            PLAN: submit payment 75 EUR for CLAIM-EL-HT-7707 card_on_file.
         response_compose:
           system_prompt: >
             Brief payment confirmation.

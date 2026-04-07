@@ -3,7 +3,7 @@
 # =============================================================================
 # File: normal/multi_tool_calling/multi_tv_flickering_week_book_multiturn.yaml
 # Endusers: 1 | Conversation threads: 1 | Total user turns: 2
-# MCP: electronics — flickering picture EV-4477; Wed 14:00 / Fri 11:00; books Wednesday
+# MCP: electronics — flickering picture CLAIM-EV-4477; Wed 14:00 / Fri 11:00; books Wednesday
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -11,7 +11,7 @@
 
 name: multi_tv_flickering_week_book_multiturn
 description: >
-  TV flickering picture this week: claim EV-4477, Wednesday 14:00 or Friday 11:00, customer chooses Wednesday.
+  TV flickering picture this week: CLAIM-EV-4477, Wednesday 14:00 or Friday 11:00, customer chooses Wednesday.
 
 tags:
   - normal
@@ -86,7 +86,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened a claim for your TV with a flickering picture. Your claim ID is EV-4477. This week
+                I’ve opened a claim for your TV with a flickering picture. Your claim ID is CLAIM-EV-4477. This week
                 I can offer Wednesday 14:00 or Friday 11:00. Which one should I book?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -94,9 +94,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 I need to make a claim for my TV — the picture is flickering. Can you get me a visit this week?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"TV flickering picture; visit this week.","trigger_quote":"picture is flickering","missing_info":null,"confidence":0.92,"tool_args":{"product_type":"tv","description":"Intermittent flickering picture.","incident_date":"2026-03-21"}},{"tool_name":"get_available_slots","trigger_summary":"Engineer slots within current week.","trigger_quote":"this week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"EV-4477","service_type":"engineer_home_visit","date_range_start":"2026-03-23","date_range_end":"2026-03-28"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — TV flickering picture; visit this week.", "trigger_quote": "I want to file a claim — picture is flickering", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "tv", "description": "Intermittent flickering picture.", "incident_date": "2026-03-21"}}, {"tool_name": "get_available_slots", "trigger_summary": "Engineer slots within current week.", "trigger_quote": "this week", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "CLAIM-EV-4477", "service_type": "engineer_home_visit", "date_range_start": "2026-03-23", "date_range_end": "2026-03-28"}}]}
         agent_response: >
-          I’ve opened a claim for your TV with a flickering picture. Your claim ID is EV-4477. This week
+          I’ve opened a claim for your TV with a flickering picture. Your claim ID is CLAIM-EV-4477. This week
           I can offer Wednesday 14:00 or Friday 11:00. Which one should I book?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
@@ -113,19 +113,19 @@ endusers:
             description: "Picture flickering; customer requests visit this week."
             incident_date: "2026-03-21"
           get_available_slots:
-            claim_id: "EV-4477"
+            claim_id: "CLAIM-EV-4477"
             service_type: "engineer_home_visit"
             date_range_start: "2026-03-23"
             date_range_end: "2026-03-28"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EV-4477"
+            claim_id: "CLAIM-EV-4477"
             product_type: "tv"
             status: "opened"
             coverage: { type: "tv_display_fault", deductible: 50 }
             notes: "Two mid-week slots surfaced."
           get_available_slots:
-            claim_id: "EV-4477"
+            claim_id: "CLAIM-EV-4477"
             slots:
               - { slot_id: "SLOT-2026-03-26T14:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-03-28T11:00", duration_minutes: 120 }
@@ -134,10 +134,10 @@ endusers:
           system_prompt: >
             Electronics TV claim plus week-bound engineer availability.
           output: >
-            PLAN: new_claim EV-4477; get_available_slots Wed–Sun week of Mar 23.
+            PLAN: new_claim CLAIM-EV-4477; get_available_slots Wed–Sun week of Mar 23.
         response_compose:
           system_prompt: >
-            EV-4477; Wed 14:00 vs Fri 11:00; ask which to book.
+            CLAIM-EV-4477; Wed 14:00 vs Fri 11:00; ask which to book.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -151,16 +151,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve reserved Wednesday at 14:00 for your TV repair under claim EV-4477. If you change your mind
+                I’ve reserved Wednesday at 14:00 for your TV repair under CLAIM-EV-4477. If you change your mind
                 before then, just let me know and we can move the appointment.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Let’s try Wednesday at 2."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Wednesday 14:00.","trigger_quote":"Wednesday at 2","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"EV-4477","appointment_id":"APT-EV-4477-HOLD","slot_id":"SLOT-2026-03-26T14:00","preferred_time_window":"afternoon"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Wednesday 14:00.","trigger_quote":"Wednesday at 2","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-EV-4477","appointment_id":"APT-EV-4477-HOLD","slot_id":"SLOT-2026-03-26T14:00","preferred_time_window":"afternoon"}}]}
         agent_response: >
-          I’ve reserved Wednesday at 14:00 for your TV repair under claim EV-4477. If you change your mind
+          I’ve reserved Wednesday at 14:00 for your TV repair under CLAIM-EV-4477. If you change your mind
           before then, just let me know and we can move the appointment.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
@@ -173,19 +173,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "EV-4477"
+            claim_id: "CLAIM-EV-4477"
             appointment_id: "APT-EV-4477-HOLD"
             slot_id: "SLOT-2026-03-26T14:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "EV-4477"
+            claim_id: "CLAIM-EV-4477"
             appointment_id: "APT-EV-4477-01"
             status: "scheduled"
             scheduled_at: "2026-03-26T14:00:00Z"
         planner:
           system_prompt: >
-            User chose Wednesday 14:00 for EV-4477.
+            User chose Wednesday 14:00 for CLAIM-EV-4477.
           output: >
             PLAN: update_appointment Wed afternoon; mention flexibility to reschedule.
         response_compose:

@@ -3,7 +3,7 @@
 # =============================================================================
 # File: normal/multi_tool_calling/multi_tv_earliest_slot_book_multiturn.yaml
 # Endusers: 1 | Conversation threads: 1 | Total user turns: 2
-# MCP: electronics — TV no power EV-5522; earliest slot tomorrow 10:00; user confirms booking
+# MCP: electronics — TV no power CLAIM-EV-5522; earliest slot tomorrow 10:00; user confirms booking
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -11,7 +11,7 @@
 
 name: multi_tv_earliest_slot_book_multiturn
 description: >
-  TV will not power on: claim EV-5522, earliest slot tomorrow 10:00 offered; customer accepts and books.
+  TV will not power on: CLAIM-EV-5522, earliest slot tomorrow 10:00 offered; customer accepts and books.
 
 tags:
   - normal
@@ -86,7 +86,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve created a claim for your TV that won’t power on. Your claim ID is EV-5522. The earliest
+                I’ve created a claim for your TV that won’t power on. Your claim ID is CLAIM-EV-5522. The earliest
                 available slot is tomorrow at 10:00. Shall I book that for you?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -94,9 +94,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My TV won’t power on at all. Please start a claim and book the earliest possible visit.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"TV completely dead; no power.","trigger_quote":"won’t power on","missing_info":null,"confidence":0.94,"tool_args":{"product_type":"tv","description":"TV will not power on; no standby light.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Earliest engineer visit after intake.","trigger_quote":"earliest possible visit","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"EV-5522","service_type":"engineer_home_visit","date_range_start":"2026-03-23","date_range_end":"2026-03-29"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — TV completely dead; no power.", "trigger_quote": "I want to file a claim — won’t power on", "missing_info": null, "confidence": 0.94, "tool_args": {"product_type": "tv", "description": "TV will not power on; no standby light.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Earliest engineer visit after intake.", "trigger_quote": "earliest possible visit", "missing_info": null, "confidence": 0.91, "tool_args": {"claim_id": "CLAIM-EV-5522", "service_type": "engineer_home_visit", "date_range_start": "2026-03-23", "date_range_end": "2026-03-29"}}]}
         agent_response: >
-          I’ve created a claim for your TV that won’t power on. Your claim ID is EV-5522. The earliest
+          I’ve created a claim for your TV that won’t power on. Your claim ID is CLAIM-EV-5522. The earliest
           available slot is tomorrow at 10:00. Shall I book that for you?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
@@ -113,19 +113,19 @@ endusers:
             description: "TV will not power on; no standby light."
             incident_date: "2026-03-22"
           get_available_slots:
-            claim_id: "EV-5522"
+            claim_id: "CLAIM-EV-5522"
             service_type: "engineer_home_visit"
             date_range_start: "2026-03-23"
             date_range_end: "2026-03-29"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EV-5522"
+            claim_id: "CLAIM-EV-5522"
             product_type: "tv"
             status: "opened"
             coverage: { type: "tv_power_fault", deductible: 50 }
             notes: "Earliest slot identified; confirmation pending."
           get_available_slots:
-            claim_id: "EV-5522"
+            claim_id: "CLAIM-EV-5522"
             slots:
               - { slot_id: "SLOT-2026-03-23T10:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-03-25T14:00", duration_minutes: 120 }
@@ -134,7 +134,7 @@ endusers:
           system_prompt: >
             Electronics: dead TV claim then minimum-date-range slot query.
           output: >
-            PLAN: new_claim EV-5522; get_available_slots from tomorrow.
+            PLAN: new_claim CLAIM-EV-5522; get_available_slots from tomorrow.
         response_compose:
           system_prompt: >
             Voice-IVR friendly; offer tomorrow 10:00 as earliest; ask to book.
@@ -151,16 +151,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve scheduled your TV repair for tomorrow at 10:00 under claim EV-5522. You’ll get a
+                I’ve scheduled your TV repair for tomorrow at 10:00 under CLAIM-EV-5522. You’ll get a
                 confirmation with the appointment details.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Yes, book that."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Confirm earliest tomorrow 10:00.","trigger_quote":"Yes, book that","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"EV-5522","appointment_id":"APT-EV-5522-HOLD","slot_id":"SLOT-2026-03-23T10:00","preferred_time_window":"morning"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Confirm earliest tomorrow 10:00.","trigger_quote":"Yes, book that","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-EV-5522","appointment_id":"APT-EV-5522-HOLD","slot_id":"SLOT-2026-03-23T10:00","preferred_time_window":"morning"}}]}
         agent_response: >
-          I’ve scheduled your TV repair for tomorrow at 10:00 under claim EV-5522. You’ll get a
+          I’ve scheduled your TV repair for tomorrow at 10:00 under CLAIM-EV-5522. You’ll get a
           confirmation with the appointment details.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
@@ -173,19 +173,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "EV-5522"
+            claim_id: "CLAIM-EV-5522"
             appointment_id: "APT-EV-5522-HOLD"
             slot_id: "SLOT-2026-03-23T10:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "EV-5522"
+            claim_id: "CLAIM-EV-5522"
             appointment_id: "APT-EV-5522-01"
             status: "scheduled"
             scheduled_at: "2026-03-23T10:00:00Z"
         planner:
           system_prompt: >
-            User accepted tomorrow 10:00 for EV-5522.
+            User accepted tomorrow 10:00 for CLAIM-EV-5522.
           output: >
             PLAN: update_appointment earliest slot.
         response_compose:

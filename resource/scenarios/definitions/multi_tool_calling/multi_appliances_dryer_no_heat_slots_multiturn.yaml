@@ -11,7 +11,7 @@
 
 name: multi_appliances_dryer_no_heat_slots_multiturn
 description: >
-  Dryer cold cycles: HA-9153 + Mon/Wed slots; books Monday.
+  Dryer cold cycles: CLAIM-HA-9153 + Mon/Wed slots; books Monday.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                HA-9153 is live for the no-heat dryer. Monday 10:00–14:00 or Wednesday 10:00–14:00 — say which you want.
+                CLAIM-HA-9153 is live for the no-heat dryer. Monday 10:00–14:00 or Wednesday 10:00–14:00 — say which you want.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Dryer runs forever but the load is ice cold — need a claim and the earliest service visits you have.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Dryer no-heat fault.", "trigger_quote": "no heat", "missing_info": null, "confidence": 0.94, "tool_args": {"product_type": "dryer", "description": "Tumble dryer completes with no heat; laundry stays damp.", "incident_date": "2026-05-03"}}, {"tool_name": "get_available_slots", "trigger_summary": "Next-week morning technician windows.", "trigger_quote": "send someone out", "missing_info": null, "confidence": 0.91, "tool_args": {"claim_id": "HA-9153", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-05", "date_range_end": "2026-05-08"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Dryer no-heat fault.", "trigger_quote": "I want to file a claim — no heat", "missing_info": null, "confidence": 0.94, "tool_args": {"product_type": "dryer", "description": "Tumble dryer completes with no heat; laundry stays damp.", "incident_date": "2026-05-03"}}, {"tool_name": "get_available_slots", "trigger_summary": "Next-week morning technician windows.", "trigger_quote": "send someone out", "missing_info": null, "confidence": 0.91, "tool_args": {"claim_id": "CLAIM-HA-9153", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-05", "date_range_end": "2026-05-08"}}]}
         agent_response: >
-          HA-9153 is live for the no-heat dryer. Monday 10:00–14:00 or Wednesday 10:00–14:00 — say which you want.
+          CLAIM-HA-9153 is live for the no-heat dryer. Monday 10:00–14:00 or Wednesday 10:00–14:00 — say which you want.
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Tumble dryer completes with no heat; laundry stays damp."
             incident_date: "2026-05-03"
           get_available_slots:
-            claim_id: "HA-9153"
+            claim_id: "CLAIM-HA-9153"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-05"
             date_range_end: "2026-05-08"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-9153"
+            claim_id: "CLAIM-HA-9153"
             product_type: "dryer"
             status: "opened"
             coverage: { type: "appliance_mechanical_breakdown", deductible: 79 }
             notes: "Voice channel IVR closure."
           get_available_slots:
-            claim_id: "HA-9153"
+            claim_id: "CLAIM-HA-9153"
             slots:
               - { slot_id: "SLOT-2026-05-05T10:00", duration_minutes: 240 }
               - { slot_id: "SLOT-2026-05-07T10:00", duration_minutes: 240 }
@@ -132,10 +132,10 @@ endusers:
           system_prompt: >
             Appliances voice: dryer heating intake.
           output: >
-            PLAN: new_claim HA-9153; slots Mon/Wed morning.
+            PLAN: new_claim CLAIM-HA-9153; slots Mon/Wed morning.
         response_compose:
           system_prompt: >
-            Voice-simple; spell HA-9153; two windows.
+            Voice-simple; spell CLAIM-HA-9153; two windows.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Monday 10:00–14:00 is booked on HA-9153. We’ll text the technician name when assigned.
+                Monday 10:00–14:00 is booked on CLAIM-HA-9153. We’ll text the technician name when assigned.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Monday morning works."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Book Monday morning window.", "trigger_quote": "Monday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "HA-9153", "appointment_id": "APT-HA-9153-HOLD", "slot_id": "SLOT-2026-05-05T10:00", "preferred_time_window": "morning"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Book Monday morning window.", "trigger_quote":"Monday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "CLAIM-HA-9153", "appointment_id": "APT-HA-9153-HOLD", "slot_id": "SLOT-2026-05-05T10:00", "preferred_time_window": "morning"}}]}
         agent_response: >
-          Monday 10:00–14:00 is booked on HA-9153. We’ll text the technician name when assigned.
+          Monday 10:00–14:00 is booked on CLAIM-HA-9153. We’ll text the technician name when assigned.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "HA-9153"
+            claim_id: "CLAIM-HA-9153"
             appointment_id: "APT-HA-9153-HOLD"
             slot_id: "SLOT-2026-05-05T10:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "HA-9153"
+            claim_id: "CLAIM-HA-9153"
             appointment_id: "APT-HA-9153-01"
             status: "scheduled"
             scheduled_at: "2026-05-05T10:00:00Z"
         planner:
           system_prompt: >
-            Caller chose Monday for HA-9153.
+            Caller chose Monday for CLAIM-HA-9153.
           output: >
             PLAN: update_appointment Monday 10:00.
         response_compose:

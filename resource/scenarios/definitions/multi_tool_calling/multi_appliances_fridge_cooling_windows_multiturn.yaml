@@ -3,7 +3,7 @@
 # =============================================================================
 # File: normal/multi_tool_calling/multi_appliances_fridge_cooling_windows_multiturn.yaml
 # Endusers: 1 | Conversation threads: 1 | Total user turns: 2
-# MCP: appliances — fridge not cold HA-7440; Tue 10–14 or Thu 12–16
+# MCP: appliances — fridge not cold CLAIM-HA-7440; Tue 10–14 or Thu 12–16
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -11,7 +11,7 @@
 
 name: multi_appliances_fridge_cooling_windows_multiturn
 description: >
-  Fridge not staying cold: claim HA-7440; Tuesday 10:00–14:00 or Thursday 12:00–16:00; customer picks Thursday.
+  Fridge not staying cold: CLAIM-HA-7440; Tuesday 10:00–14:00 or Thursday 12:00–16:00; customer picks Thursday.
 
 tags:
   - normal
@@ -86,7 +86,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve created a claim for your fridge that isn’t cooling properly. Your claim ID is HA-7440.
+                I’ve created a claim for your fridge that isn’t cooling properly. Your claim ID is CLAIM-HA-7440.
                 I’ve checked availability and can offer Tuesday 10:00–14:00 or Thursday 12:00–16:00. Which slot
                 would you prefer?
           - target_span_class: tools.recommend
@@ -95,9 +95,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My fridge isn’t staying cold. Can you start a claim and set up a visit?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Fridge poor cooling; schedule visit.","trigger_quote":"isn’t staying cold","missing_info":null,"confidence":0.93,"tool_args":{"product_type":"fridge","description":"Temperature rising; food safety concern.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Authorized repair multi-hour windows.","trigger_quote":"set up a visit","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"HA-7440","service_type":"authorized_repair_visit","date_range_start":"2026-03-25","date_range_end":"2026-03-27"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Fridge poor cooling; schedule visit.", "trigger_quote": "I want to file a claim — isn’t staying cold", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "fridge", "description": "Temperature rising; food safety concern.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Authorized repair multi-hour windows.", "trigger_quote": "set up a visit", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "CLAIM-HA-7440", "service_type": "authorized_repair_visit", "date_range_start": "2026-03-25", "date_range_end": "2026-03-27"}}]}
         agent_response: >
-          I’ve created a claim for your fridge that isn’t cooling properly. Your claim ID is HA-7440.
+          I’ve created a claim for your fridge that isn’t cooling properly. Your claim ID is CLAIM-HA-7440.
           I’ve checked availability and can offer Tuesday 10:00–14:00 or Thursday 12:00–16:00. Which slot
           would you prefer?
         tool_chain: [new_claim, get_available_slots]
@@ -115,19 +115,19 @@ endusers:
             description: "Not maintaining cold; customer requests service visit."
             incident_date: "2026-03-22"
           get_available_slots:
-            claim_id: "HA-7440"
+            claim_id: "CLAIM-HA-7440"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-25"
             date_range_end: "2026-03-27"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-7440"
+            claim_id: "CLAIM-HA-7440"
             product_type: "fridge"
             status: "opened"
             coverage: { type: "appliance_cooling_fault", deductible: 40 }
             notes: "Two mid-week four-hour windows offered."
           get_available_slots:
-            claim_id: "HA-7440"
+            claim_id: "CLAIM-HA-7440"
             slots:
               - { slot_id: "SLOT-2026-03-25T10:00", duration_minutes: 240 }
               - { slot_id: "SLOT-2026-03-27T12:00", duration_minutes: 240 }
@@ -136,10 +136,10 @@ endusers:
           system_prompt: >
             Appliances fridge intake plus Tue/Thu window search.
           output: >
-            PLAN: new_claim HA-7440; get_available_slots across two candidate days.
+            PLAN: new_claim CLAIM-HA-7440; get_available_slots across two candidate days.
         response_compose:
           system_prompt: >
-            Voice-friendly; HA-7440; spell windows clearly.
+            Voice-friendly; CLAIM-HA-7440; spell windows clearly.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -153,16 +153,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve scheduled your fridge service for Thursday 12:00–16:00 under claim HA-7440. You’ll receive
+                I’ve scheduled your fridge service for Thursday 12:00–16:00 under CLAIM-HA-7440. You’ll receive
                 confirmation shortly.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Thursday 12–4, please."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Thursday 12–16 window.","trigger_quote":"Thursday 12–4","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"HA-7440","appointment_id":"APT-HA-7440-HOLD","slot_id":"SLOT-2026-03-27T12:00","preferred_time_window":"afternoon"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Thursday 12–16 window.","trigger_quote":"Thursday 12–4","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-HA-7440","appointment_id":"APT-HA-7440-HOLD","slot_id":"SLOT-2026-03-27T12:00","preferred_time_window":"afternoon"}}]}
         agent_response: >
-          I’ve scheduled your fridge service for Thursday 12:00–16:00 under claim HA-7440. You’ll receive
+          I’ve scheduled your fridge service for Thursday 12:00–16:00 under CLAIM-HA-7440. You’ll receive
           confirmation shortly.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
@@ -175,19 +175,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "HA-7440"
+            claim_id: "CLAIM-HA-7440"
             appointment_id: "APT-HA-7440-HOLD"
             slot_id: "SLOT-2026-03-27T12:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "HA-7440"
+            claim_id: "CLAIM-HA-7440"
             appointment_id: "APT-HA-7440-01"
             status: "scheduled"
             scheduled_at: "2026-03-27T12:00:00Z"
         planner:
           system_prompt: >
-            Customer chose Thursday afternoon window for HA-7440.
+            Customer chose Thursday afternoon window for CLAIM-HA-7440.
           output: >
             PLAN: update_appointment Thursday 12:00 start.
         response_compose:

@@ -1,0 +1,558 @@
+Please cancel my soundbar CLAIM-EL-9333 — I do not need the repair anymore. Use whatever reason code is fastest; I just need it gone today.
+
+Open a screen crack claim for my phone — our integration test client is calling toro-customer-assistant-001 but only has read-only scope.
+
+Quick check please: what is the latest status for CLAIM-PH-LAT-6001?
+
+For CLAIM-PH-LAT-6002 can I see morning repair slots for April 15 to April 17?
+
+Lock Tuesday morning for CLAIM-PH-LAT-6002 — first half of the day is fine.
+
+Open document upload for CLAIM-PH-LAT-6003, I have two photos and one receipt ready now.
+
+I want to submit payment of 75 euros for CLAIM-PH-LAT-6004 with my card on file.
+
+I am traveling. Can you check CLAIM-PH-LAT-7001?
+
+Please move appointment APT-PH-7002 for CLAIM-PH-LAT-7002 to Friday afternoon — show afternoon options and book 15:00 if available.
+
+Open upload for CLAIM-PH-LAT-7003. I need to submit two damage photos from hotel Wi-Fi.
+
+I want to submit payment of 99 euros for CLAIM-PH-LAT-7004 now.
+
+Show available pickup windows for CLAIM-PH-LAT-7005 next Tuesday to Thursday.
+
+Book Tuesday morning for CLAIM-PH-LAT-7005 — earliest you have.
+
+Please check CLAIM-PH-LAT-9951 and tell me if review is complete.
+
+I need to move APT-PH-9952 to tomorrow evening on CLAIM-PH-LAT-9952 — check slots and book 18:30 if it’s listed.
+
+Please open upload for CLAIM-PH-LAT-9953 with receipt and two damage photos.
+
+Show pickup windows for CLAIM-PH-LAT-9954 this week, earliest options first.
+
+Put me on an evening pickup for CLAIM-PH-LAT-9954 — I’m flexible.
+
+Where is my phone CLAIM-PH-LAT-5001 — has anyone looked at the photos yet?
+
+Train is leaving in ten minutes, please check where CLAIM-PH-LAT-9301 stands.
+
+Move appointment APT-PH-9302 on CLAIM-PH-LAT-9302 to tomorrow after 6pm — check what’s open and take 18:30 if it’s there.
+
+Open upload for CLAIM-PH-LAT-9303, I can send receipt and two photos before boarding.
+
+Show available pickup slots for CLAIM-PH-LAT-9304 this week, earliest evening slots first.
+
+Put me on Tuesday evening for CLAIM-PH-LAT-9304 — I don’t mind exactly when.
+
+I want to submit payment of 75 euros for CLAIM-PH-LAT-9305 right now.
+
+Duplicate CLAIM-PH-LAT-9306 should be cancelled, keep the newer filing active.
+
+Status on CLAIM-PH-LAT-9101 please.
+
+I'm on the train home — can you check CLAIM-PH-LAT-9102?
+
+My teenager dropped her phone again. Where do things stand on CLAIM-PH-LAT-9103?
+
+The repair shop said they're waiting on the insurer. Is CLAIM-PH-LAT-9104 actually moving?
+
+Please tell me the status of CLAIM-PH-LAT-9105.
+
+I fly tomorrow morning. Please confirm if CLAIM-PH-LAT-9106 can be expedited.
+
+An assessor was supposed to call me about CLAIM-PH-LAT-9107. Did anything change on your side?
+
+Liquid damage last week — is CLAIM-PH-LAT-9108 still in the drying hold period?
+
+Apple trade-in is blocked until this clears. What's the real status of CLAIM-PH-LAT-9109?
+
+This is fleet support for Acme Logistics — status on employee handset CLAIM-PH-LAT-9110?
+
+I'm not great with apps. In simple words — what is happening with CLAIM-PH-LAT-9111?
+
+Please give me CLAIM-PH-LAT-9112 status.
+
+I think I filed twice by mistake. Which claim is live — CLAIM-PH-LAT-9113 or the old draft?
+
+My policy renews Friday. Is CLAIM-PH-LAT-9114 going to roll into the new term or close first?
+
+Authorized service center says parts are on back order. Does CLAIM-PH-LAT-9115 reflect that?
+
+Shop can't pull up my file — can you confirm CLAIM-PH-LAT-9116 is visible on their side now?
+
+Why was I charged €75 if CLAIM-PH-LAT-9117 isn't finished yet?
+
+Office is closed for the holiday — I'm checking from the car. Status on CLAIM-PH-LAT-9118?
+
+I'm roaming — please look up CLAIM-PH-LAT-9119.
+
+Did the final payment for CLAIM-PH-LAT-9120 actually post? Bank feed looks odd.
+
+Please check the status of CLAIM-PH-LAT-9801.
+
+Can you move appointment APT-PH-9802 to tomorrow morning for CLAIM-PH-LAT-9802? If 9am is open, book it.
+
+Start upload for CLAIM-PH-LAT-9803 with receipt and two photos.
+
+I want to submit payment of 75 euros for CLAIM-PH-LAT-9804 now — I need this done tonight.
+
+I only need pickup windows for CLAIM-PH-LAT-9805 next week, can you show anything available?
+
+Book me Monday morning for CLAIM-PH-LAT-9805 pickup — I don’t care exactly when in the morning.
+
+Cancel duplicate CLAIM-PH-LAT-9806, I already refiled and want only the new case open.
+
+Is CLAIM-PH-LAT-9807 still pending_info or did my receipt upload finally go through?
+
+Can you check CLAIM-PH-LAT-9808 and tell me if repair is approved?
+
+For CLAIM-PH-4412 I need to move the screen repair — the slot you sent clashes with work travel. What’s open later this week around Holborn?
+
+Lock Thursday four p.m. for CLAIM-PH-4412 — that’s the one I need.
+
+CLAIM-PH-8820 for the cracked glass — the portal says I owe the ninety-five pound excess. Can you confirm that’s what you’re showing on your side before I pay?
+
+Thanks — I want to submit payment of £95 to my card on file now.
+
+My dishwasher is leaking all over the floor. Please open a claim and get me the earliest morning slot.
+
+Yes, book Thursday morning.
+
+My dishwasher stopped draining. Can somebody come on Saturday? I also need to start a claim.
+
+9 to 1 works best.
+
+Dryer runs forever but the load is ice cold — need a claim and the earliest service visits you have.
+
+Monday morning works.
+
+My fridge isn’t staying cold. Can you start a claim and set up a visit?
+
+Thursday 12–4, please.
+
+Fridge door sweats non-stop and the seal feels warped — start a claim and give me two visit windows later this week.
+
+Friday morning slot.
+
+Microwave sparked inside the cavity with a burning smell — unplugged it. Open a claim and line up repair visits.
+
+Saturday morning is better.
+
+The fan oven makes a rattling roar when the cooling fan runs. Start a Toro claim and give me afternoon engineer options.
+
+Thursday afternoon, please.
+
+I’m calling about washer CLAIM-AP-WA-5544 — it still won’t drain after the first visit note. Did the landlord’s leak letter actually get attached?
+
+I just uploaded floor and hose photos. Can you pull Mon–Wed authorized tech slots? I’d like Tuesday 1pm if it’s open.
+
+Yes — lock Tuesday at one p.m.
+
+Oven CLAIM-AP-OV-4418 — my letter says sixty euros excess before an engineer visit. Does that match what you see? I’ll need visit options Tuesday or Wednesday next week.
+
+Okay — I want to submit payment of sixty euros to the Visa on my profile now.
+
+Our washer sounds like grinding metal on every spin cycle. Please open a claim and find the earliest morning technician visits this week.
+
+Wednesday morning is good.
+
+My washing machine won’t spin. Is there any chance of a same-day visit, and can you open a claim for it?
+
+Today 4–8 is fine.
+
+Reporting accidental damage — Game console won’t read discs anymore — clean discs, still errors. Claim plus earliest service drop-off times.
+
+This Thursday morning.
+
+CLAIM-EL-HT-8844 for my soundbar — the assessor wrote that the HDMI board is dead. Please confirm that’s what your claim shows, ingest the carton photos I uploaded about an hour ago, list engineer home visits in North-1 from Tuesday through Thursday next week, and book the Wednesday 9–12 window if it’s still open.
+
+Laptop fan screams when I compile code — feels hotter than normal. File a claim and book service.
+
+Tuesday afternoon.
+
+I’m following up on soundbar CLAIM-EL-HT-7707. The assessor told me the HDMI board is dead — does your file actually say that? I also uploaded carton photos in the portal just now.
+
+Please check engineer home visits in East-2 next week. Thursday morning, roughly 9 to 12, is best for me.
+
+Great — I want to submit payment of €75 for CLAIM-EL-HT-7707 to the card you have on file.
+
+Last thing — quote me Toro Premium for our living-room AV stack. If the monthly matches the figure from your last email (€14.90), go ahead and buy it on the same card.
+
+Soundbar keeps dropping eARC audio randomly. Open a claim and show me engineer slots next week.
+
+Monday afternoon.
+
+Tablet corner hit tile — part of the touchscreen is dead. Open a claim and reserve repair times.
+
+Monday morning please.
+
+New TV has a block of dead pixels centre screen. Start a claim and book engineer visits to the house.
+
+Thursday morning visit.
+
+I cracked the back glass on my phone. Open a claim and show me repair appointments for next week.
+
+Tuesday at eleven, please.
+
+Battery tanks from full to dead in a few hours on standby — open a claim and offer diagnostic appointments.
+
+Saturday afternoon slot.
+
+Charging cuts out unless I hold the cable just so — need a claim and a service slot.
+
+Monday morning.
+
+My phone screen flickers when brightness is low ever since I dropped it. File a claim and find afternoon repairs.
+
+Wednesday noon slot.
+
+I dropped my phone on the pavement and the screen shattered. Can you start a claim and get me an evening repair slot?
+
+Friday 18:30 works.
+
+CLAIM-PH-5522 glass repair is approved on my side — please confirm your system shows ready to schedule, pull in the IMEI strip and crack photos I just uploaded, show collection repair slots Monday to Wednesday next week, book Tuesday at 2pm if that slot exists, and I want to submit payment of £50 to my Visa on file.
+
+Hi — the submit button fired twice and I think it created an extra draft. Can you cancel draft CLAIM-PH-MTC-0998? I'll file properly in a minute.
+
+Thanks. Earlier today my phone got splashed in the gym locker — touch is glitchy. I used a drying kit. Please open a new liquid-damage claim.
+
+I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm CLAIM-PH-MTC-1001 shows them and that the claim looks right on your side?
+
+What Citypoint drop-off slots do you have next week? I’m usually free late afternoon.
+
+Wednesday 4pm at Citypoint works — please book that.
+
+I want to submit payment of €75 to my saved Visa for CLAIM-PH-MTC-1001.
+
+While we’re at it — email me Toro Plus pricing for this handset. If it’s under €17 a month, I want to buy it on the card you just used.
+
+One more thing — I have a redundant screen-only micro-policy POL-SCR-8801 on my carrier bundle. Can you cancel that so I’m not double-covered?
+
+Coffee splashed into my phone — callers can barely hear me. Start a claim and list repair times.
+
+Saturday afternoon.
+
+Can someone come tomorrow morning for my cracked phone screen and start a claim for it?
+
+11:30, please.
+
+CLAIM-PH-GL-9903 still says waiting on pictures in my app. I just added three shots — cracked lens, IMEI screen, and the back glass angle. Can you make sure they’re actually on the claim?
+
+Yes — show pickup-repair slots from tomorrow through Sunday, whatever’s left this week.
+
+Book Thursday 11:30 for CLAIM-PH-GL-9903 please.
+
+My phone fell in water and won’t turn on. Please start a claim.
+
+Let’s do Wednesday at 3.
+
+My TV won’t power on at all. Please start a claim and book the earliest possible visit.
+
+Yes, book that.
+
+I need to make a claim for my TV — the picture is flickering. Can you get me a visit this week?
+
+Let’s try Wednesday at 2.
+
+My TV screen went black but I can still hear sound. Can you open a claim and get me something next Monday?
+
+16:00.
+
+Hi, I cracked my phone screen yesterday when it slid off the armrest. Touch still works in most places. Can you start a damage claim for me?
+
+Thanks — I just uploaded the photos. Where does CLAIM-PH-MT-9001 stand now? Am I waiting on an assessor or can I book already?
+
+I booked repair online — appointment APT-MT-9001 on CLAIM-PH-MT-9001 — but Tuesday 9am is impossible with school drop-off. What afternoon slots do you have that day at the same store?
+
+Please move APT-MT-9001 to Tuesday 15:00 at the same store — that works with school drop-off.
+
+I dropped my phone on the platform this morning — cracked glass and it reboots in a loop. Please open a claim under my Toro mobile cover and book the repair visit for the afternoon (any time is fine).
+
+My mobile was in my bag with my keys — now the screen has scratches and dead stripes. I need a claim.
+
+Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls — need tech in the morning, any slot.
+
+Our 65-inch OLED was being remounted — it slipped against the bracket and now there is a bright vertical band on the left third. Start a claim and book assessment in the afternoon, any time is fine.
+
+Party last night — drink tipped onto the soundbar. It powers on but smells burnt and cuts out when volume goes past 30%. Open a claim and send someone in the morning, whenever works.
+
+PS5 fell off the TV unit — HDMI port looks bent, no signal on any cable. Need a claim for the console.
+
+Fridge is pooling water under the crispers every morning and the compressor runs non-stop. Policy is Toro appliances — please file a breakdown claim.
+
+Washing machine shows E18 and will not drain. It is three years old. I want a claim number please.
+
+Dishwasher door will not latch — cycle starts then stops with door error. Can you start a claim?
+
+Subject: Built-in oven overheating
+The fan oven hits 250C when set to 180 and the outer glass is too hot to touch. Model is six years old. Please register a Toro appliances claim under policy holder ref 88-KL-09.
+
+Where is my phone CLAIM-PH-9200 — did the assessor look at it yet?
+
+For CLAIM-PH-9201 I need to move repair appointment APT-PH-201 to Friday afternoon at the same service point — what slots are open that day?
+
+Take Friday 3pm at the same shop for APT-PH-201 on CLAIM-PH-9201.
+
+CLAIM-PH-9202 — I am about to upload damage pics and my receipt. Open the upload batch for me.
+
+I want to submit payment of seventy-five euros for CLAIM-PH-9203 now, using my card on file.
+
+Please cancel electronics CLAIM-EL-9204 — I sold the TV and do not need the repair anymore.
+
+For CLAIM-EL-9205 show me collection slots next week — I need a repair pickup at home.
+
+Hold Wednesday 09:00 for CLAIM-EL-9205 please.
+
+I am moving to Norway — quote me Toro Plus cover for my OLED TV and soundbar bundle.
+
+I accept quote QT-AP-6601 for appliance cover — charge my card on file, holder ref kitchen-77.
+
+Hi — we’re downsizing and need to drop the dishwasher cover. Can you cancel policy POL-AP-8802 under the 14-day cooling-off rule?
+
+Face ID stopped working after a little rain got on my phone — can you open a damage claim?
+
+I spilled coffee on my work laptop keyboard — several keys are dead and it smells burnt. Start a claim.
+
+My wireless earbuds went through the washing machine — case is cracked and neither side pairs. New claim please.
+
+Please open a Toro claim — The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
+
+Tumble dryer runs full cycles but clothes stay cold and damp — no error on the panel. Open a breakdown claim.
+
+Where is washer CLAIM-AP-9206 — are we still waiting on a drum part from the manufacturer?
+
+For fridge CLAIM-AP-9207 show authorized technician slots between April 14 and April 18 — mornings if possible.
+
+Book Tuesday 09:00 for CLAIM-AP-9207.
+
+Hi — for CLAIM-EL-9206 I need to shuffle the repair collection (APT-EL-206). Before we change it, what repair-collection slots do you have on Tuesday 11 April at my registered address?
+
+Perfect — please move APT-EL-206 to Tuesday 11 April at 14:00 at my registered address (same as on file).
+
+CLAIM-EL-9207 — assessor asked for wide shots of the TV wall mount and cable routing. Open uploads for four images.
+
+I want to submit payment of sixty euros to my card on file for the call-out fee on oven CLAIM-AP-9208 — reference should be the claim.
+
+Please withdraw phone CLAIM-PH-9204 — I accidentally submitted twice and the newer CLAIM-PH-9205 is the one I want to keep.
+
+I think I bent my phone when it was in my back pocket — now the frame pinches the USB-C port and charging only works if I press the cable upward. Can you open a mobile damage claim on my Toro cover?
+
+Dropped my phone in shallow sea water yesterday — rinsed it, but now the speakers crackle and the screen flickers when it gets warm. I need a claim under my Toro mobile policy.
+
+Phone was on a cheap handlebar mount for a 40 km ride — rear camera glass is shattered and OIS rattles. New claim please.
+
+Our puppy pulled the charging cable while it was plugged into my phone — the connector snapped sideways and the socket looks chipped inside. Please start a claim.
+
+After last week's OS update my phone hits thermal warnings doing basically nothing — it backs off brightness and the battery drains in a few hours. I want a hardware fault claim.
+
+My phone fell out of an unzipped backpack pocket onto concrete — there is a dent on one corner and a dead strip down the touchscreen where touches do not register.
+
+Left my phone in a freezing car overnight — now the front camera fogs permanently and Face ID fails in normal light. Need a Toro claim.
+
+We had a close lightning strike last night — now our 55-inch smart TV will not leave standby, no logo, and the outlet smells a bit hot. I need an electronics claim through Toro.
+
+After the soundbar auto-updated, the left channel is basically silent but the right side and sub are fine. Can you file a defect claim?
+
+My console ramps the fan to jet-engine levels after ten minutes in any game, then powers off with a thermal warning. It is clean and ventilated — I need a hardware claim.
+
+Red wine went over my laptop keyboard on a flight — I powered off fast but keys are sticky and two rows do nothing. Open a claim on my electronics bundle.
+
+Tablet slipped off a kitchen counter — corner glass is crushed and the stylus disconnects every few minutes even when snapped in.
+
+I accidentally sent my wireless earbuds through a cold wash and short spin — case hinge is cracked and neither bud holds charge.
+
+Our streaming stick melted a little around the HDMI neck after binge-watching in a closed cabinet — smells of hot plastic and now it drops HDR signal.
+
+Ice maker on the fridge keeps jamming and water pools in the freezer drawer overnight — floor in front is damp. Toro appliances policy — please open a claim.
+
+On every spin the washer sounds like a train — loud grinding from the drum. It is five years old and getting worse each load.
+
+Dishwasher finishes the full cycle but everything comes out cold and greasy like the heating never ran — no error code on the panel.
+
+Inner glass on the fan oven door shattered while I was gently closing it — shards inside the cavity. Need a claim and advice if it is safe.
+
+Tumble dryer started smelling like burning rubber halfway through a cotton cycle — I stopped it and the drum is hard to turn by hand now.
+
+Induction hob boiled over with pasta water two days ago — front-left zone now flickers power and sometimes beeps with no pan on it.
+
+Small knock on the corner of my phone — the glass looks fine but the screen is lifting along the bezel and dust is getting under it. Please raise a claim on my Toro mobile plan.
+
+After swapping SIMs back from a work trip the tray goes in crooked and the pins look scraped — dual SIM only reads one slot now.
+
+Third-party wireless charger left a brown heat ring on the back glass and NFC tap-to-pay fails half the time now.
+
+Phone stuck in a boot loop since I tried moving everything to a new handset with the cable transfer — recovery mode won't stay connected to my laptop.
+
+The vibration motor started buzzing constantly after a drop in the garage — I had to power it off because it was heating up.
+
+Home cinema projector lamp blew with a pop during a film — loud crack, burning smell, and the unit will not power on at all now.
+
+My mirrorless camera shutter jams closed on fast bursts — error E-* on the rear screen and the banding shows in every photo.
+
+E-reader developed thick horizontal lines across the e-ink after I left it in a hot car — refresh does not clear them.
+
+Portable Bluetooth speaker made a loud pop at half volume during a playlist — both drivers are dead silent now even though it pairs fine.
+
+Mesh satellite node bricked after vendor firmware push — solid amber, no reset combo works, ethernet handoff is dead on that unit alone.
+
+Upright freezer alarm has been sounding two days — digital display reads minus five but ice cream is soft and meat surface feels wrong.
+
+Range hood fan started grinding like metal on metal at low speed — gets worse when I slide the glass panel open.
+
+Wine fridge compressor kicks every two minutes, room is humming, and bottles feel warmer than the set twelve degrees.
+
+Stick vacuum battery pack is swollen — the pack will not slide out clean and the case plastic is bowed. I stopped charging it.
+
+Bean-to-cup espresso machine stuck in descale loop with an error that never clears — and there is a slow leak from the drip tray area onto the counter.
+
+Phone reboots three or four times a day with a kernel panic screen I can barely snap — started right after a security patch. No new case drops. I need a Toro hardware claim.
+
+LTE and 5G drop to SOS-only in places my partner's phone on the same network is fine — started after I leaned on it armrest-style on a flight.
+
+Jeweller ran my watch and phone through an ultrasonic bath to clean the bracelet — mic and earpiece are worthless now.
+
+Foldable inner display has a bright pink line along the crease that grows when I open past 120 degrees — hinge still feels tight.
+
+MagSafe wallet slid against the bare glass in my jacket — circular micro-scratches where NFC tries to read and tap-to-pay fails at shop terminals outdoors.
+
+AV receiver shuts down twenty minutes into Atmos with protect flashing — top case is too hot to touch and I have full ventilation clearance.
+
+Camera drone gimbal jitters on yaw after a near-miss with a branch — no crash but horizon is crooked in every clip now.
+
+Smartwatch altimeter and barometer read nonsense after snorkelling in shallow water — case is dry inside but sensors drift hundreds of metres.
+
+After-market wireless CarPlay dongle melted the USB-A pigtail in the centre console — plastic fused and phone no longer negotiates data in the car.
+
+Desktop USB DAC snaps, pops, then goes silent until I reseat the cable — tried three cables and two computers, same pattern roughly hourly.
+
+Steam combi oven fills with mist but never reaches the set steam percent — food stays dry and error E04 flickers then clears.
+
+Front-right gas hob burner clicks forever, smell gas, tiny flame only when I hold the knob past ignite — other burners fine.
+
+Ultrasonic humidifier buzzes loud and throws white dust on furniture even with distilled water — output looks weak for weeks.
+
+Immersion circulator wand trips the kitchen RCD when the heating element kicks — worked fine for two years until yesterday evening.
+
+Whole-home water softener stuck mid-regen — brine line weeping at the clip and hardness test strips show no improvement for a week.
+
+Caught in heavy rain with the phone in my jacket — dried it quickly but the OLED now has a green-grey tint on greys and low-brightness banding that was not there before.
+
+Volume down is stuck pressed after yard work — lint packed around the rocker I cannot clear and it boots into safe volume mode randomly.
+
+Rear main camera AF hunts back and forth after a door bumped the lens glass — never locks even on bright scenes.
+
+Carrier pushed a profile refresh — eSIM shows installed but cellular never registers, endless "searching" even after full reset. Shop says antenna test flags fail.
+
+Edges of the screen look yellow after leaving the phone on a sunny car dash for an hour — adhesive bleed per the forum, getting worse near the notch.
+
+Digital piano lost a whole octave of keys after our flat move — movers tipped it once; those notes are silent or velocity-one only.
+
+NAS bay three and four drop offline randomly after a brownout — smart UPS logged a sag. Reseating helps for a day then MDADM degrades again.
+
+VR headset right eye went black after someone stepped on the link cable — left eye fine, tracking still works, smell of hot plastic briefly.
+
+Portable monitor arrived from RMA with worse backlight bleed in the corners than the unit I sent — seal looks twisted along one edge.
+
+Action camera overheats in 4K60 after two minutes on a helmet mount — shuts down; 1080p is stable. Weather was only eighteen degrees.
+
+Chest freezer door seal tore when a cooler slid against it — frost bridges across the opening and the compressor runs constantly.
+
+Garbage disposal hums but the impeller does not spin — reset button pops out, allen hex on the bottom turns a little then jams again.
+
+Electric kettle no longer cuts off at boil — steam everywhere and it boils dry if I walk away for thirty seconds.
+
+Air fryer door hinge went sloppy mid-cycle — now it stops with door-open errors unless I lift the handle while it runs.
+
+Dehumidifier thinks the bucket is full when it is empty — beeps every minute and the float looks clean; basement humidity is back up.
+
+Used the phone briefly underwater in a hotel pool deeper than the rated depth — microphones gurgle, wireless charging is dead, and the under-glass fingerprint reader errors every time.
+
+Charging cable jacket split at the phone plug — saw a tiny spark once and now the port only fast-charges if I wiggle downward.
+
+Removed a glass protector after it bubbled in the sun — digitizer ghost-taps the top centimetre randomly in portrait.
+
+Side button sporadically triggers emergency countdown sitting on my desk — no case, latest OS, service desk said power flex might be flaky.
+
+Portrait mode fails-blur on every subject — diagnostics show depth sensor offline; nothing except a light scuff near the camera bump last week.
+
+Turntable developed pitch wow after moving house — belt looks seated but platter speed hunts visibly under strobe dots.
+
+Bench soldering station hunts between two ten-degree bands — tips oxidise super fast and LED readout jitters even after factory calibration steps.
+
+Thermal label printer started scorching the left edge of every roll — labels jam and the head smells hot after fifty prints.
+
+Countertop card reader fell off the stand — chip insert still works but contactless never wakes anymore on any phone or watch.
+
+LED ring light flickers in sync with mains frequency — camera footage shows rolling bands now even at high shutter, was fine on DC battery before.
+
+Two-slice toaster always chars the left slot on medium while the right is barely tan — swapped bread brands, same thing.
+
+Electric pressure cooker steam vent seal split — hisses during pressurise and never reaches high pressure anymore.
+
+Slow cooker LCD scrambled after a kitchen breaker flicker — segments are garbage but the element still feels warm on low.
+
+Countertop ice maker leaks from the drain plug area even when tightened — puddle under the unit every overnight run.
+
+Smart TRV on the bedroom radiator grinds when closing and never reaches zero flow — room overheats while the app says closed.
+
+I cracked my phone screen. Can you start a claim for a repair?
+
+No TV. I did not ask for insurance — open a repair claim for this cracked screen now and show me the earliest slots.
+
+Monday 10:00 for CLAIM-PH-8821 works.
+
+I cracked my phone screen. Can you start a claim for a repair?
+
+Tuesday 11:00 for CLAIM-PH-7701 please.
+
+My dishwasher is overflowing with water. Please start a claim and send someone out.
+
+My dishwasher is overflowing with water. Please start a claim and send someone out.
+
+Wednesday morning for CLAIM-HA-9941 — urgent.
+
+My fridge stopped cooling. Please start a claim and arrange someone to come out.
+
+My fridge stopped cooling. Please start a claim and arrange someone to come out.
+
+Tuesday morning for CLAIM-HA-9155.
+
+I need a claim number — My washing machine is making a loud banging noise. Can you get someone to look at it?
+
+Policy claim — My washing machine is making a loud banging noise. Can you get someone to look at it?
+
+Monday morning for CLAIM-HA-6610 please.
+
+The phone repair you booked is too early in the morning. Can we move it to the afternoon?
+
+The phone repair you booked is too early in the morning. Can we move it to the afternoon?
+
+Please file this on my policy — My phone camera stopped focusing and I need to get it fixed under my cover.
+
+Starting a claim — My phone camera stopped focusing and I need to get it fixed under my cover.
+
+Thursday 10:00 for CLAIM-PH-8890 works.
+
+My TV fell over and the screen smashed. I need to make a new claim.
+
+My TV fell over and the screen smashed. I need to make a new claim.
+
+Thursday 09:00 for CLAIM-EV-6602.
+
+I need to report phone damage and open a claim.
+
+Start a claim for my dropped phone. The request body is missing the message content field.
+
+Start a claim for my phone. The request has multiple payload format issues.
+
+I need to open a phone damage claim after my device stopped working.
+
+Please start a phone damage claim for me.
+
+Start a claim for my damaged phone. I retried this request several times.
+
+I am traveling and need to file a phone damage claim from a new location.
+
+Request blocked by policy validation.

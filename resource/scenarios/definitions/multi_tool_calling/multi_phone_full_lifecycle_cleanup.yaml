@@ -81,30 +81,30 @@ endusers:
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
           Hi — the submit button fired twice and I think it created an extra draft. Can you cancel
-          draft claim PH-MTC-0998? I'll file properly in a minute.
+          draft CLAIM-PH-MTC-0998? I'll file properly in a minute.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
                 Hi — the submit button fired twice and I think it created an extra draft. Can you cancel
-                draft claim PH-MTC-0998? I'll file properly in a minute.
+                draft CLAIM-PH-MTC-0998? I'll file properly in a minute.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Done — draft PH-MTC-0998 is withdrawn, so you have a clean slate. When you’re ready,
+                Done — draft CLAIM-PH-MTC-0998 is withdrawn, so you have a clean slate. When you’re ready,
                 tell me what happened to the phone and we’ll open a new claim.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Hi — the submit button fired twice and I think it created an extra draft. Can you cancel
-                draft claim PH-MTC-0998? I'll file properly in a minute.
+                draft CLAIM-PH-MTC-0998? I'll file properly in a minute.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"Withdraw duplicate draft from double submit.","trigger_quote":"cancel draft claim PH-MTC-0998","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"PH-MTC-0998","reason":"duplicate_customer_submit"}}]}
+                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"Withdraw duplicate draft from double submit.","trigger_quote":"cancel draft CLAIM-PH-MTC-0998","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-MTC-0998","reason":"duplicate_customer_submit"}}]}
         agent_response: >
-          Done — draft PH-MTC-0998 is withdrawn, so you have a clean slate. When you’re ready,
+          Done — draft CLAIM-PH-MTC-0998 is withdrawn, so you have a clean slate. When you’re ready,
           tell me what happened to the phone and we’ll open a new claim.
         tool_chain: [cancel_claim]
         gen_ai.request.type: completion
@@ -117,18 +117,18 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           cancel_claim:
-            claim_id: "PH-MTC-0998"
+            claim_id: "CLAIM-PH-MTC-0998"
             reason: "duplicate_customer_submit"
         gen_ai.tool.call.result:
           cancel_claim:
-            claim_id: "PH-MTC-0998"
+            claim_id: "CLAIM-PH-MTC-0998"
             status: "cancelled"
             cancelled_at: "2026-03-22T15:05:00Z"
         planner:
           system_prompt: >
             Phone MCP: customer only wants duplicate draft removed before a fresh intake.
           output: >
-            PLAN: cancel_claim PH-MTC-0998 duplicate_customer_submit; invite next message for new incident.
+            PLAN: cancel_claim CLAIM-PH-MTC-0998 duplicate_customer_submit; invite next message for new incident.
         response_compose:
           system_prompt: >
             Short mobile confirmation; no jargon; hint they can continue with a new claim.
@@ -149,7 +149,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened claim PH-MTC-1001 for the locker splash and drying kit. Next, upload or confirm
+                I’ve opened CLAIM-PH-MTC-1001 for the locker splash and drying kit. Next, upload or confirm
                 any photos and receipts in the app — I can verify they’re on file once you’ve added them.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -158,9 +158,9 @@ endusers:
                 Thanks. Earlier today my phone got splashed in the gym locker — touch is glitchy. I used a
                 drying kit. Please open a new liquid-damage claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Gym locker splash; drying kit used same day.","trigger_quote":"splashed in the gym locker","missing_info":null,"confidence":0.95,"tool_args":{"product_type":"phone","description":"Gym locker splash; drying kit used same day.","incident_date":"2026-03-22"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Gym locker splash; drying kit used same day.", "trigger_quote": "I want to file a claim — splashed in the gym locker", "missing_info": null, "confidence": 0.95, "tool_args": {"product_type": "phone", "description": "Gym locker splash; drying kit used same day.", "incident_date": "2026-03-22"}}]}
         agent_response: >
-          I’ve opened claim PH-MTC-1001 for the locker splash and drying kit. Next, upload or confirm
+          I’ve opened CLAIM-PH-MTC-1001 for the locker splash and drying kit. Next, upload or confirm
           any photos and receipts in the app — I can verify they’re on file once you’ve added them.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -178,7 +178,7 @@ endusers:
             incident_date: "2026-03-22"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
             product_type: "phone"
             status: "opened"
             coverage: { type: "phone_liquid_damage", deductible: 75 }
@@ -187,7 +187,7 @@ endusers:
           system_prompt: >
             Phone MCP: fresh claim after duplicate withdrawal; capture liquid incident narrative.
           output: >
-            PLAN: new_claim phone liquid gym locker 2026-03-22 → PH-MTC-1001.
+            PLAN: new_claim phone liquid gym locker 2026-03-22 → CLAIM-PH-MTC-1001.
         response_compose:
           system_prompt: >
             State new claim id and prompt evidence step.
@@ -195,31 +195,31 @@ endusers:
       - turn_index: 3
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm PH-MTC-1001
+          I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm CLAIM-PH-MTC-1001
           shows them and that the claim looks right on your side?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm PH-MTC-1001
+                I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm CLAIM-PH-MTC-1001
                 shows them and that the claim looks right on your side?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-MTC-1001 is active and your locker photos and receipt are now on the file. Status is
+                CLAIM-PH-MTC-1001 is active and your locker photos and receipt are now on the file. Status is
                 pending photo review — I can pull repair drop-off times for next week when you’re ready.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm PH-MTC-1001
+                I’ve added locker photos plus the drying-kit receipt in the app. Can you confirm CLAIM-PH-MTC-1001
                 shows them and that the claim looks right on your side?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim recorded after customer upload.","trigger_quote":"confirm PH-MTC-1001","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-MTC-1001"}},{"tool_name":"upload_documents","trigger_summary":"Register locker photos and kit receipt batch.","trigger_quote":"locker photos plus the drying-kit receipt","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"PH-MTC-1001","document_types":["photo_locker","receipt_drying_kit"],"expected_count":3}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim recorded after customer upload.","trigger_quote":"confirm CLAIM-PH-MTC-1001","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-MTC-1001"}},{"tool_name":"upload_documents","trigger_summary":"Register locker photos and kit receipt batch.","trigger_quote":"locker photos plus the drying-kit receipt","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-PH-MTC-1001","document_types":["photo_locker","receipt_drying_kit"],"expected_count":3}}]}
         agent_response: >
-          PH-MTC-1001 is active and your locker photos and receipt are now on the file. Status is
+          CLAIM-PH-MTC-1001 is active and your locker photos and receipt are now on the file. Status is
           pending photo review — I can pull repair drop-off times for next week when you’re ready.
         tool_chain: [claim_status, upload_documents]
         gen_ai.request.type: completion
@@ -232,29 +232,29 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
           upload_documents:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
             document_types: ["photo_locker", "receipt_drying_kit"]
             expected_count: 3
         gen_ai.tool.call.result:
           claim_status:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
             status: "pending_info"
             last_updated: "2026-03-22T15:18:00Z"
             milestones:
               - opened
               - awaiting_photo_review
           upload_documents:
-            claim_id: "PH-MTC-1001"
-            upload_batch_id: "UPL-PH-1001-01"
+            claim_id: "CLAIM-PH-MTC-1001"
+            upload_batch_id: "UPL-CLAIM-PH-1001-01"
             pending_count: 0
             status: "received"
         planner:
           system_prompt: >
             Phone MCP: verify claim state then attach customer-uploaded evidence.
           output: >
-            PLAN: claim_status PH-MTC-1001; upload_documents photo_locker + receipt_drying_kit.
+            PLAN: claim_status CLAIM-PH-MTC-1001; upload_documents photo_locker + receipt_drying_kit.
         response_compose:
           system_prompt: >
             Reassure docs landed; optional bridge to scheduling.
@@ -273,7 +273,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Here are drop-off repair windows for PH-MTC-1001 through next week, including a Wednesday
+                Here are drop-off repair windows for CLAIM-PH-MTC-1001 through next week, including a Wednesday
                 late-afternoon option at Citypoint. Tell me which slot you want and I’ll hold it.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -281,9 +281,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 What Citypoint drop-off slots do you have next week? I’m usually free late afternoon.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Repair collection next week; Citypoint preference.","trigger_quote":"Citypoint drop-off slots next week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-1001","service_type":"repair_collection","date_range_start":"2026-03-24","date_range_end":"2026-03-30"}}]}
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Repair collection next week; Citypoint preference.","trigger_quote":"Citypoint drop-off slots next week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-PH-MTC-1001","service_type":"repair_collection","date_range_start":"2026-03-24","date_range_end":"2026-03-30"}}]}
         agent_response: >
-          Here are drop-off repair windows for PH-MTC-1001 through next week, including a Wednesday
+          Here are drop-off repair windows for CLAIM-PH-MTC-1001 through next week, including a Wednesday
           late-afternoon option at Citypoint. Tell me which slot you want and I’ll hold it.
         tool_chain: [get_available_slots]
         gen_ai.request.type: completion
@@ -296,20 +296,20 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           get_available_slots:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
             service_type: "repair_collection"
             date_range_start: "2026-03-24"
             date_range_end: "2026-03-30"
         gen_ai.tool.call.result:
           get_available_slots:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
             slots:
               - { slot_id: "SLOT-2026-03-26T16:00", duration_minutes: 90 }
               - { slot_id: "SLOT-2026-03-27T11:00", duration_minutes: 90 }
             timezone: "Europe/Oslo"
         planner:
           system_prompt: >
-            Phone MCP: list repair_collection slots for liquid claim PH-MTC-1001.
+            Phone MCP: list repair_collection slots for liquid CLAIM-PH-MTC-1001.
           output: >
             PLAN: get_available_slots Wed-Fri window; emphasize late afternoon Citypoint.
         response_compose:
@@ -328,16 +328,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Booked — Wednesday 16:00 Citypoint drop-off is confirmed on PH-MTC-1001. I’ll send the
+                Booked — Wednesday 16:00 Citypoint drop-off is confirmed on CLAIM-PH-MTC-1001. I’ll send the
                 usual confirmation push.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Wednesday 4pm at Citypoint works — please book that."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Wednesday 16:00 Citypoint drop-off.","trigger_quote":"Wednesday 4pm at Citypoint","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"PH-MTC-1001","appointment_id":"APT-PH-NEW","slot_id":"SLOT-2026-03-26T16:00","preferred_time_window":"late_afternoon"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Wednesday 16:00 Citypoint drop-off.","trigger_quote":"Wednesday 4pm at Citypoint","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-PH-MTC-1001","appointment_id":"APT-PH-NEW","slot_id":"SLOT-2026-03-26T16:00","preferred_time_window":"late_afternoon"}}]}
         agent_response: >
-          Booked — Wednesday 16:00 Citypoint drop-off is confirmed on PH-MTC-1001. I’ll send the
+          Booked — Wednesday 16:00 Citypoint drop-off is confirmed on CLAIM-PH-MTC-1001. I’ll send the
           usual confirmation push.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
@@ -350,19 +350,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
             appointment_id: "APT-PH-NEW"
             slot_id: "SLOT-2026-03-26T16:00"
             preferred_time_window: "late_afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "PH-MTC-1001"
+            claim_id: "CLAIM-PH-MTC-1001"
             appointment_id: "APT-PH-CITY-1001"
             status: "scheduled"
             scheduled_at: "2026-03-26T16:00:00Z"
         planner:
           system_prompt: >
-            Customer picks SLOT-2026-03-26T16:00 for PH-MTC-1001.
+            Customer picks SLOT-2026-03-26T16:00 for CLAIM-PH-MTC-1001.
           output: >
             PLAN: update_appointment Citypoint Wed 16:00.
         response_compose:
@@ -372,28 +372,28 @@ endusers:
       - turn_index: 6
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          Go ahead and charge the €75 excess to my saved Visa for PH-MTC-1001.
+          I want to submit payment of €75 to my saved Visa for CLAIM-PH-MTC-1001.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Go ahead and charge the €75 excess to my saved Visa for PH-MTC-1001.
+                I want to submit payment of €75 to my saved Visa for CLAIM-PH-MTC-1001.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                The €75 excess for PH-MTC-1001 went through on your card on file. You’re all set ahead
+                The €75 excess for CLAIM-PH-MTC-1001 went through on your card on file. You’re all set ahead
                 of Wednesday’s drop-off.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Go ahead and charge the €75 excess to my saved Visa for PH-MTC-1001.
+                I want to submit payment of €75 to my saved Visa for CLAIM-PH-MTC-1001.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Collect liquid claim excess on file card.","trigger_quote":"€75 excess to my saved Visa","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"PH-MTC-1001","amount":75.0,"currency":"EUR"}}]}
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Submit payment to saved card for liquid CLAIM-PH-MTC-1001.","trigger_quote":"submit payment of €75 to my saved Visa","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"CLAIM-PH-MTC-1001","amount":75.0,"currency":"EUR"}}]}
         agent_response: >
-          The €75 excess for PH-MTC-1001 went through on your card on file. You’re all set ahead
+          The €75 excess for CLAIM-PH-MTC-1001 went through on your card on file. You’re all set ahead
           of Wednesday’s drop-off.
         tool_chain: [pay]
         gen_ai.request.type: completion
@@ -407,21 +407,21 @@ endusers:
         gen_ai.tool.call.arguments:
           pay:
             payment_target: "excess"
-            reference_id: "PH-MTC-1001"
+            reference_id: "CLAIM-PH-MTC-1001"
             amount: 75.0
             currency: "EUR"
         gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-PH-1001-EX"
-            reference_id: "PH-MTC-1001"
+            reference_id: "CLAIM-PH-MTC-1001"
             status: "captured"
             amount: 75.0
             currency: "EUR"
         planner:
           system_prompt: >
-            Phone MCP: capture €75 excess for PH-MTC-1001.
+            Phone MCP: capture €75 excess for CLAIM-PH-MTC-1001.
           output: >
-            PLAN: pay excess reference PH-MTC-1001.
+            PLAN: submit payment for excess on CLAIM-PH-MTC-1001.
         response_compose:
           system_prompt: >
             Payment confirmation in plain language.

@@ -11,7 +11,7 @@
 
 name: multi_electronics_soundbar_dropouts_slots_multiturn
 description: >
-  Soundbar eARC dropouts: EL-9172 + visit slots; picks second date.
+  Soundbar eARC dropouts: CLAIM-EL-9172 + visit slots; picks second date.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-9172 is live. Friday 14:00–16:00 or Monday 14:00–16:00 — which works?
+                CLAIM-EL-9172 is live. Friday 14:00–16:00 or Monday 14:00–16:00 — which works?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Soundbar keeps dropping eARC audio randomly. Open a claim and show me engineer slots next week.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "eARC dropout fault.", "trigger_quote": "audio cuts out", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "soundbar", "description": "Intermittent eARC audio blackouts with known-good cable.", "incident_date": "2026-05-12"}}, {"tool_name": "get_available_slots", "trigger_summary": "Afternoon engineer windows.", "trigger_quote": "send an engineer", "missing_info": null, "confidence": 0.87, "tool_args": {"claim_id": "EL-9172", "service_type": "engineer_home_visit", "date_range_start": "2026-05-13", "date_range_end": "2026-05-20"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — eARC dropout fault.", "trigger_quote": "I want to file a claim — audio cuts out", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "soundbar", "description": "Intermittent eARC audio blackouts with known-good cable.", "incident_date": "2026-05-12"}}, {"tool_name": "get_available_slots", "trigger_summary": "Afternoon engineer windows.", "trigger_quote": "send an engineer", "missing_info": null, "confidence": 0.87, "tool_args": {"claim_id": "CLAIM-EL-9172", "service_type": "engineer_home_visit", "date_range_start": "2026-05-13", "date_range_end": "2026-05-20"}}]}
         agent_response: >
-          EL-9172 is live. Friday 14:00–16:00 or Monday 14:00–16:00 — which works?
+          CLAIM-EL-9172 is live. Friday 14:00–16:00 or Monday 14:00–16:00 — which works?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Intermittent eARC audio blackouts with known-good cable."
             incident_date: "2026-05-12"
           get_available_slots:
-            claim_id: "EL-9172"
+            claim_id: "CLAIM-EL-9172"
             service_type: "engineer_home_visit"
             date_range_start: "2026-05-13"
             date_range_end: "2026-05-20"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-9172"
+            claim_id: "CLAIM-EL-9172"
             product_type: "soundbar"
             status: "opened"
             coverage: { type: "electronics_electrical_fault", deductible: 78 }
             notes: "AV bench check at home."
           get_available_slots:
-            claim_id: "EL-9172"
+            claim_id: "CLAIM-EL-9172"
             slots:
               - { slot_id: "SLOT-2026-05-15T14:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-05-18T14:00", duration_minutes: 120 }
@@ -132,10 +132,10 @@ endusers:
           system_prompt: >
             Electronics soundbar + visits.
           output: >
-            PLAN: new_claim EL-9172; slots.
+            PLAN: new_claim CLAIM-EL-9172; slots.
         response_compose:
           system_prompt: >
-            EL-9172; two PM bands.
+            CLAIM-EL-9172; two PM bands.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Monday 14:00–16:00 is scheduled under EL-9172.
+                Monday 14:00–16:00 is scheduled under CLAIM-EL-9172.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Monday afternoon."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Monday PM engineer.", "trigger_quote": "Monday afternoon", "missing_info": null, "confidence": 0.92, "tool_args": {"claim_id": "EL-9172", "appointment_id": "APT-EL-9172-HOLD", "slot_id": "SLOT-2026-05-18T14:00", "preferred_time_window": "afternoon"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Monday PM engineer.", "trigger_quote":"Monday afternoon", "missing_info": null, "confidence": 0.92, "tool_args": {"claim_id": "CLAIM-EL-9172", "appointment_id": "APT-EL-9172-HOLD", "slot_id": "SLOT-2026-05-18T14:00", "preferred_time_window": "afternoon"}}]}
         agent_response: >
-          Monday 14:00–16:00 is scheduled under EL-9172.
+          Monday 14:00–16:00 is scheduled under CLAIM-EL-9172.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,13 +169,13 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "EL-9172"
+            claim_id: "CLAIM-EL-9172"
             appointment_id: "APT-EL-9172-HOLD"
             slot_id: "SLOT-2026-05-18T14:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "EL-9172"
+            claim_id: "CLAIM-EL-9172"
             appointment_id: "APT-EL-9172-01"
             status: "scheduled"
             scheduled_at: "2026-05-18T14:00:00Z"

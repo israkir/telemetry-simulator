@@ -11,7 +11,7 @@
 
 name: multi_electronics_tablet_digitizer_slots_multiturn
 description: >
-  Tablet corner touch dead: EL-9175 + repair slots; books first option.
+  Tablet corner touch dead: CLAIM-EL-9175 + repair slots; books first option.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-9175 created. Monday 10:00 or Thursday 10:00 appointments — choose.
+                CLAIM-EL-9175 created. Monday 10:00 or Thursday 10:00 appointments — choose.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Tablet corner hit tile — part of the touchscreen is dead. Open a claim and reserve repair times.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Tablet digitizer dead strip.", "trigger_quote": "corner of the screen", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "tablet", "description": "Corner drop; digitizer dead zone after impact.", "incident_date": "2026-05-15"}}, {"tool_name": "get_available_slots", "trigger_summary": "Carry-in morning slots.", "trigger_quote": "fix the tablet", "missing_info": null, "confidence": 0.89, "tool_args": {"claim_id": "EL-9175", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-16", "date_range_end": "2026-05-23"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Tablet digitizer dead strip.", "trigger_quote": "I want to file a claim — corner of the screen", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "tablet", "description": "Corner drop; digitizer dead zone after impact.", "incident_date": "2026-05-15"}}, {"tool_name": "get_available_slots", "trigger_summary": "Carry-in morning slots.", "trigger_quote": "fix the tablet", "missing_info": null, "confidence": 0.89, "tool_args": {"claim_id": "CLAIM-EL-9175", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-16", "date_range_end": "2026-05-23"}}]}
         agent_response: >
-          EL-9175 created. Monday 10:00 or Thursday 10:00 appointments — choose.
+          CLAIM-EL-9175 created. Monday 10:00 or Thursday 10:00 appointments — choose.
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Corner drop; digitizer dead zone after impact."
             incident_date: "2026-05-15"
           get_available_slots:
-            claim_id: "EL-9175"
+            claim_id: "CLAIM-EL-9175"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-16"
             date_range_end: "2026-05-23"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-9175"
+            claim_id: "CLAIM-EL-9175"
             product_type: "tablet"
             status: "opened"
             coverage: { type: "electronics_impact_damage", deductible: 74 }
             notes: "Carry-in repair."
           get_available_slots:
-            claim_id: "EL-9175"
+            claim_id: "CLAIM-EL-9175"
             slots:
               - { slot_id: "SLOT-2026-05-18T10:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-05-21T10:00", duration_minutes: 120 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; repair slots.
         response_compose:
           system_prompt: >
-            EL-9175; two mornings.
+            CLAIM-EL-9175; two mornings.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Monday 10:00 carry-in booked on EL-9175.
+                Monday 10:00 carry-in booked on CLAIM-EL-9175.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Monday morning please."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Monday morning repair.", "trigger_quote": "Monday morning", "missing_info": null, "confidence": 0.94, "tool_args": {"claim_id": "EL-9175", "appointment_id": "APT-EL-9175-HOLD", "slot_id": "SLOT-2026-05-18T10:00", "preferred_time_window": "morning"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Monday morning repair.", "trigger_quote":"Monday morning", "missing_info": null, "confidence": 0.94, "tool_args": {"claim_id": "CLAIM-EL-9175", "appointment_id": "APT-EL-9175-HOLD", "slot_id": "SLOT-2026-05-18T10:00", "preferred_time_window": "morning"}}]}
         agent_response: >
-          Monday 10:00 carry-in booked on EL-9175.
+          Monday 10:00 carry-in booked on CLAIM-EL-9175.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "EL-9175"
+            claim_id: "CLAIM-EL-9175"
             appointment_id: "APT-EL-9175-HOLD"
             slot_id: "SLOT-2026-05-18T10:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "EL-9175"
+            claim_id: "CLAIM-EL-9175"
             appointment_id: "APT-EL-9175-01"
             status: "scheduled"
             scheduled_at: "2026-05-18T10:00:00Z"
         planner:
           system_prompt: >
-            Sunday for EL-9175.
+            Sunday for CLAIM-EL-9175.
           output: >
             PLAN: update_appointment.
         response_compose:

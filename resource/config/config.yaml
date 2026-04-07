@@ -119,6 +119,8 @@ mcp_tool_genai_payloads:
         product_type: { type: string, required: true, description: "Product line (phone, tv, fridge, ...)" }
         description: { type: string, description: "Free-text incident / damage summary" }
         incident_date: { type: string, format: iso8601-date }
+        scheduling_time_resolution: { type: string, description: "When set to ambiguous_day_part, caller must also supply a concrete clock window or slot — otherwise MCP rejects (see preferred_time_window)." }
+        preferred_time_window: { type: string, description: "Day-part hint (morning / afternoon); only valid with scheduling_time_resolution=concrete_slot or after get_available_slots; with ambiguous_day_part alone the tool fails." }
       sample:
         product_type: "phone"
         description: "Device not powering on after drop; screen damage reported."
@@ -127,9 +129,11 @@ mcp_tool_genai_payloads:
       structure:
         claim_id: { type: string }
         product_type: { type: string }
-        status: { type: string, enum: [opened, pending_info, closed] }
+        status: { type: string, enum: [opened, pending_info, closed, error] }
         coverage: { type: object, description: "Summary coverage descriptor" }
         notes: { type: string }
+        error_code: { type: string, description: "Set when status=error (e.g. ambiguous_scheduling_time)" }
+        error_message: { type: string }
       sample:
         claim_id: "CLM-0001"
         product_type: "phone"
@@ -143,6 +147,7 @@ mcp_tool_genai_payloads:
         appointment_id: { type: string, description: "Existing booking to reschedule" }
         slot_id: { type: string }
         preferred_time_window: { type: string, description: "e.g. morning / ISO range" }
+        scheduling_time_resolution: { type: string, description: "ambiguous_day_part without slot_id causes MCP validation failure; use concrete slot_id or list slots first." }
       sample:
         claim_id: "CLM-0001"
         appointment_id: "APT-000100"
@@ -154,6 +159,8 @@ mcp_tool_genai_payloads:
         appointment_id: { type: string }
         status: { type: string }
         scheduled_at: { type: string, format: iso8601-datetime }
+        error_code: { type: string }
+        error_message: { type: string }
       sample:
         claim_id: "CLM-0001"
         appointment_id: "APT-000100"

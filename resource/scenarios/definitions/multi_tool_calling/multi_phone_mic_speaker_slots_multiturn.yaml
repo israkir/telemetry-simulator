@@ -11,7 +11,7 @@
 
 name: multi_phone_mic_speaker_slots_multiturn
 description: >
-  Liquid mic/speaker: PH-9162 + slots; picks earlier slot.
+  Liquid mic/speaker: CLAIM-PH-9162 + slots; picks earlier slot.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-9162 is active. I have Saturday 14:00 or Wednesday 16:00 — which works?
+                CLAIM-PH-9162 is active. I have Saturday 14:00 or Wednesday 16:00 — which works?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Coffee splashed into my phone — callers can barely hear me. Start a claim and list repair times.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Liquid damage to audio path.", "trigger_quote": "coffee on the phone", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "phone", "description": "Coffee splash; earpiece and mic muffled.", "incident_date": "2026-05-07"}}, {"tool_name": "get_available_slots", "trigger_summary": "Post-liquid repair availability.", "trigger_quote": "get it fixed", "missing_info": null, "confidence": 0.88, "tool_args": {"claim_id": "PH-9162", "service_type": "screen_repair_visit", "date_range_start": "2026-05-08", "date_range_end": "2026-05-14"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Liquid damage to audio path.", "trigger_quote": "I want to file a claim — coffee on the phone", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "phone", "description": "Coffee splash; earpiece and mic muffled.", "incident_date": "2026-05-07"}}, {"tool_name": "get_available_slots", "trigger_summary": "Post-liquid repair availability.", "trigger_quote": "get it fixed", "missing_info": null, "confidence": 0.88, "tool_args": {"claim_id": "CLAIM-PH-9162", "service_type": "screen_repair_visit", "date_range_start": "2026-05-08", "date_range_end": "2026-05-14"}}]}
         agent_response: >
-          PH-9162 is active. I have Saturday 14:00 or Wednesday 16:00 — which works?
+          CLAIM-PH-9162 is active. I have Saturday 14:00 or Wednesday 16:00 — which works?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Coffee splash; earpiece and mic muffled."
             incident_date: "2026-05-07"
           get_available_slots:
-            claim_id: "PH-9162"
+            claim_id: "CLAIM-PH-9162"
             service_type: "screen_repair_visit"
             date_range_start: "2026-05-08"
             date_range_end: "2026-05-14"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-9162"
+            claim_id: "CLAIM-PH-9162"
             product_type: "phone"
             status: "opened"
             coverage: { type: "phone_liquid_damage", deductible: 85 }
             notes: "Liquid path."
           get_available_slots:
-            claim_id: "PH-9162"
+            claim_id: "CLAIM-PH-9162"
             slots:
               - { slot_id: "SLOT-2026-05-09T14:00", duration_minutes: 90 }
               - { slot_id: "SLOT-2026-05-13T16:00", duration_minutes: 90 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; screen_repair_visit window.
         response_compose:
           system_prompt: >
-            PH-9162; power-off tip.
+            CLAIM-PH-9162; power-off tip.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,16 +149,21 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Saturday 14:00 is set for PH-9162. Keep the device powered off until drop-off if possible.
+                I need you to pick 14:00 or 16:00 from the list — “Saturday afternoon” alone isn’t enough to book.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Saturday afternoon."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Saturday afternoon repair.", "trigger_quote": "Saturday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "PH-9162", "appointment_id": "APT-PH-9162-HOLD", "slot_id": "SLOT-2026-05-09T14:00", "preferred_time_window": "afternoon"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Vague Saturday afternoon only.", "trigger_quote":"Saturday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-PH-9162", "appointment_id": "APT-PH-9162-HOLD", "preferred_time_window": "afternoon", "scheduling_time_resolution": "ambiguous_day_part"}}]}
         agent_response: >
-          Saturday 14:00 is set for PH-9162. Keep the device powered off until drop-off if possible.
+          I need you to pick 14:00 or 16:00 from the list — “Saturday afternoon” alone isn’t enough to book.
         tool_chain: [update_appointment]
+        mcp_tool_retries:
+          update_appointment:
+            attempts:
+              - outcome: fail
+                error.type: invalid_arguments
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
         gen_ai.usage.input_tokens: 830
@@ -169,21 +174,23 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "PH-9162"
+            claim_id: "CLAIM-PH-9162"
             appointment_id: "APT-PH-9162-HOLD"
-            slot_id: "SLOT-2026-05-09T14:00"
             preferred_time_window: "afternoon"
+            scheduling_time_resolution: "ambiguous_day_part"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "PH-9162"
-            appointment_id: "APT-PH-9162-01"
-            status: "scheduled"
-            scheduled_at: "2026-05-09T14:00:00Z"
+            claim_id: "CLAIM-PH-9162"
+            appointment_id: "APT-PH-9162-HOLD"
+            status: "error"
+            scheduled_at: ""
+            error_code: "ambiguous_scheduling_time"
+            error_message: "slot_id required when only ambiguous day-part is provided"
         planner:
           system_prompt: >
-            Saturday 14:00 chosen.
+            Mic/speaker flow: tool rejects vague afternoon.
           output: >
-            PLAN: update_appointment.
+            PLAN: invalid_arguments; ask for SLOT-* or exact time.
         response_compose:
           system_prompt: >
-            Drop-off reminder.
+            Offer the two listed slots explicitly.

@@ -70,7 +70,7 @@ def test_multiturn_enduser_shares_session_when_using_runner_style_shared_ids() -
     loader = ScenarioLoader()
     scenario = loader.load("new_claim_phone_multi_turn")
     assert scenario.name == "claim_phone_multiturn"
-    assert len(scenario.endusers[0].turns) == 3
+    assert len(scenario.endusers[0].turns) == 4
     config = load_config()
     default_tenant_id = get_default_tenant_ids()[0] if get_default_tenant_ids() else None
     ctx = resolve_context(
@@ -99,7 +99,7 @@ def test_multiturn_enduser_shares_session_when_using_runner_style_shared_ids() -
         assert graph.compiled_turn.session_id == sess
         assert graph.compiled_turn.conversation_id == conv
         request_ids.append(graph.compiled_turn.request_id)
-    assert len(set(request_ids)) == 3
+    assert len(set(request_ids)) == 4
 
 
 def test_data_plane_root_span_has_redaction_and_orchestration_attrs() -> None:
@@ -223,7 +223,8 @@ def test_llm_call_span_has_genai_attributes_and_tool_events() -> None:
     config = load_config()
     ctx = _resolve_ctx()
     latency_model = LatencyModel.from_scenario(scenario)
-    enduser = scenario.endusers[0]
+    # Second enduser: successful new_claim (first enduser exercises ambiguous scheduling_time_resolution failure).
+    enduser = scenario.endusers[1]
     turn = enduser.turns[0]
 
     graph = compile_turn(
@@ -247,8 +248,8 @@ def test_llm_call_span_has_genai_attributes_and_tool_events() -> None:
 
     assert llm.attributes["gen_ai.request.type"] == "completion"
     assert llm.attributes["gen_ai.response.finish_reason"] == "stop"
-    assert llm.attributes["gen_ai.usage.input_tokens"] == 1180
-    assert llm.attributes["gen_ai.usage.output_tokens"] == 178
+    assert llm.attributes["gen_ai.usage.input_tokens"] == 920
+    assert llm.attributes["gen_ai.usage.output_tokens"] == 155
     # Inferred from scenario turn_index (1) and one captured user message on the span.
     assert llm.attributes[f"{prefix}.llm.turn.count"] == 1
     assert llm.attributes[f"{prefix}.llm.tool.request.count"] == 1
@@ -259,9 +260,9 @@ def test_llm_call_span_has_genai_attributes_and_tool_events() -> None:
     in_msgs = json.loads(llm.attributes["gen_ai.input.messages"])
     out_msgs = json.loads(llm.attributes["gen_ai.output.messages"])
     assert in_msgs[0]["role"] == "user"
-    assert in_msgs[0]["content"][0]["text"].startswith("I dropped my phone on the platform")
+    assert in_msgs[0]["content"][0]["text"].startswith("My mobile was in my bag with my keys")
     assert out_msgs[0]["role"] == "assistant"
-    assert "PH-8101" in out_msgs[0]["content"][0]["text"]
+    assert "CLAIM-PH-8102" in out_msgs[0]["content"][0]["text"]
 
     assert llm.events == [], "llm.call span events are disabled for now"
 
@@ -672,7 +673,15 @@ def test_response_validation_span_has_agent_response_event(tmp_path: Path) -> No
 
     attrs = agent_event[0].get("attributes") or {}
     assert "vendor.agent.response.raw" in attrs
-    assert "PH-8101" in str(attrs["vendor.agent.response.raw"])
+    agent_raws: list[str] = []
+    for rv in response_validation:
+        for ev in rv.get("events") or []:
+            if ev.get("name") != "gentoro.agent.response":
+                continue
+            raw = (ev.get("attributes") or {}).get("vendor.agent.response.raw")
+            if raw is not None:
+                agent_raws.append(str(raw))
+    assert any("CLAIM-PH-8102" in t for t in agent_raws), "expected a successful claim id somewhere in the run"
 
 
 def test_tool_recommendation_span_has_tool_selection_event(tmp_path: Path) -> None:

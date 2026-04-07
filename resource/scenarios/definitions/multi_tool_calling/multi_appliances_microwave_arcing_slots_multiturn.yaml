@@ -11,7 +11,7 @@
 
 name: multi_appliances_microwave_arcing_slots_multiturn
 description: >
-  Microwave arcing: HA-9154 + service slots; customer takes later date.
+  Microwave arcing: CLAIM-HA-9154 + service slots; customer takes later date.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                HA-9154 is opened; please keep it unplugged. Earliest slots are Wednesday 09:00–11:00 or Saturday 09:00–11:00 — your choice.
+                CLAIM-HA-9154 is opened; please keep it unplugged. Earliest slots are Wednesday 09:00–11:00 or Saturday 09:00–11:00 — your choice.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Microwave sparked inside the cavity with a burning smell — unplugged it. Open a claim and line up repair visits.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Microwave arcing and odour.", "trigger_quote": "arcing inside", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "microwave", "description": "Arcing inside cavity; burning smell; user requests inspection.", "incident_date": "2026-05-04"}}, {"tool_name": "get_available_slots", "trigger_summary": "Short technician windows after safety intake.", "trigger_quote": "book someone", "missing_info": null, "confidence": 0.88, "tool_args": {"claim_id": "HA-9154", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-06", "date_range_end": "2026-05-11"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Microwave arcing and odour.", "trigger_quote": "I want to file a claim — arcing inside", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "microwave", "description": "Arcing inside cavity; burning smell; user requests inspection.", "incident_date": "2026-05-04"}}, {"tool_name": "get_available_slots", "trigger_summary": "Short technician windows after safety intake.", "trigger_quote": "book someone", "missing_info": null, "confidence": 0.88, "tool_args": {"claim_id": "CLAIM-HA-9154", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-06", "date_range_end": "2026-05-11"}}]}
         agent_response: >
-          HA-9154 is opened; please keep it unplugged. Earliest slots are Wednesday 09:00–11:00 or Saturday 09:00–11:00 — your choice.
+          CLAIM-HA-9154 is opened; please keep it unplugged. Earliest slots are Wednesday 09:00–11:00 or Saturday 09:00–11:00 — your choice.
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Arcing inside cavity; burning smell; user requests inspection."
             incident_date: "2026-05-04"
           get_available_slots:
-            claim_id: "HA-9154"
+            claim_id: "CLAIM-HA-9154"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-06"
             date_range_end: "2026-05-11"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-9154"
+            claim_id: "CLAIM-HA-9154"
             product_type: "microwave"
             status: "opened"
             coverage: { type: "appliance_mechanical_breakdown", deductible: 74 }
             notes: "Safety wording on arcing."
           get_available_slots:
-            claim_id: "HA-9154"
+            claim_id: "CLAIM-HA-9154"
             slots:
               - { slot_id: "SLOT-2026-05-07T09:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-05-10T09:00", duration_minutes: 120 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; get_available_slots two morning options.
         response_compose:
           system_prompt: >
-            Safety first; HA-9154; unplug reminder.
+            Safety first; CLAIM-HA-9154; unplug reminder.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Saturday 09:00–11:00 is reserved on HA-9154. Do not use the unit until the visit.
+                Saturday 09:00–11:00 is reserved on CLAIM-HA-9154. Do not use the unit until the visit.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Saturday morning is better."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Saturday short morning slot.", "trigger_quote": "Saturday morning", "missing_info": null, "confidence": 0.92, "tool_args": {"claim_id": "HA-9154", "appointment_id": "APT-HA-9154-HOLD", "slot_id": "SLOT-2026-05-10T09:00", "preferred_time_window": "morning"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Saturday short morning slot.", "trigger_quote":"Saturday morning", "missing_info": null, "confidence": 0.92, "tool_args": {"claim_id": "CLAIM-HA-9154", "appointment_id": "APT-HA-9154-HOLD", "slot_id": "SLOT-2026-05-10T09:00", "preferred_time_window": "morning"}}]}
         agent_response: >
-          Saturday 09:00–11:00 is reserved on HA-9154. Do not use the unit until the visit.
+          Saturday 09:00–11:00 is reserved on CLAIM-HA-9154. Do not use the unit until the visit.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "HA-9154"
+            claim_id: "CLAIM-HA-9154"
             appointment_id: "APT-HA-9154-HOLD"
             slot_id: "SLOT-2026-05-10T09:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "HA-9154"
+            claim_id: "CLAIM-HA-9154"
             appointment_id: "APT-HA-9154-01"
             status: "scheduled"
             scheduled_at: "2026-05-10T09:00:00Z"
         planner:
           system_prompt: >
-            Customer prefers Saturday for HA-9154.
+            Customer prefers Saturday for CLAIM-HA-9154.
           output: >
             PLAN: update_appointment Saturday 09:00.
         response_compose:

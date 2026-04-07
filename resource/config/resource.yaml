@@ -7,7 +7,7 @@
 # Do not set vendor.component under data-plane.attributes; it is overridden per span.
 
 schema_url: "https://gentoro.ai/otel/schema/enterprise/1.0.0"
-service_version: &service_version "1.1.4"
+service_version: &service_version "1.1.5"
 
 control-plane:
   attributes:

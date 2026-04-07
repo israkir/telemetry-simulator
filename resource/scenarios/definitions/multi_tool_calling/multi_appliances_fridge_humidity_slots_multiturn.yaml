@@ -11,7 +11,7 @@
 
 name: multi_appliances_fridge_humidity_slots_multiturn
 description: >
-  Fridge sweating at gasket: HA-9155 + slots; books first option.
+  Fridge sweating at gasket: CLAIM-HA-9155 + slots; books first option.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Claim HA-9155 is logged. I can do Friday 11:00–15:00 or Monday 15:00–19:00 — which fits?
+                CLAIM-HA-9155 is logged. I can do Friday 11:00–15:00 or Monday 15:00–19:00 — which fits?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Fridge door sweats non-stop and the seal feels warped — start a claim and give me two visit windows later this week.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Fridge gasket condensation fault.", "trigger_quote": "sweating around the door", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "fridge", "description": "Excess condensation and gasket leak path; cooling unstable.", "incident_date": "2026-05-05"}}, {"tool_name": "get_available_slots", "trigger_summary": "Mid-week repair availability.", "trigger_quote": "set up a visit", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "HA-9155", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-06", "date_range_end": "2026-05-12"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Fridge gasket condensation fault.", "trigger_quote": "I want to file a claim — sweating around the door", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "fridge", "description": "Excess condensation and gasket leak path; cooling unstable.", "incident_date": "2026-05-05"}}, {"tool_name": "get_available_slots", "trigger_summary": "Mid-week repair availability.", "trigger_quote": "set up a visit", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "CLAIM-HA-9155", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-06", "date_range_end": "2026-05-12"}}]}
         agent_response: >
-          Claim HA-9155 is logged. I can do Friday 11:00–15:00 or Monday 15:00–19:00 — which fits?
+          CLAIM-HA-9155 is logged. I can do Friday 11:00–15:00 or Monday 15:00–19:00 — which fits?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Excess condensation and gasket leak path; cooling unstable."
             incident_date: "2026-05-05"
           get_available_slots:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-06"
             date_range_end: "2026-05-12"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             product_type: "fridge"
             status: "opened"
             coverage: { type: "appliance_cooling_fault", deductible: 86 }
             notes: "Food-safety note."
           get_available_slots:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             slots:
               - { slot_id: "SLOT-2026-05-08T11:00", duration_minutes: 240 }
               - { slot_id: "SLOT-2026-05-11T15:00", duration_minutes: 240 }
@@ -132,10 +132,10 @@ endusers:
           system_prompt: >
             Appliances fridge seal + slot offer.
           output: >
-            PLAN: new_claim HA-9155; list two windows.
+            PLAN: new_claim CLAIM-HA-9155; list two windows.
         response_compose:
           system_prompt: >
-            HA-9155; food caution.
+            CLAIM-HA-9155; food caution.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Friday 11:00–15:00 is confirmed for HA-9155. Keep perishables monitored until the tech arrives.
+                Friday 11:00–15:00 is confirmed for CLAIM-HA-9155. Keep perishables monitored until the tech arrives.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Friday morning slot."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Book Friday mid-day window.", "trigger_quote": "Friday morning slot", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "HA-9155", "appointment_id": "APT-HA-9155-HOLD", "slot_id": "SLOT-2026-05-08T11:00", "preferred_time_window": "morning"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Book Friday mid-day window.", "trigger_quote":"Friday morning slot", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "CLAIM-HA-9155", "appointment_id": "APT-HA-9155-HOLD", "slot_id": "SLOT-2026-05-08T11:00", "preferred_time_window": "morning"}}]}
         agent_response: >
-          Friday 11:00–15:00 is confirmed for HA-9155. Keep perishables monitored until the tech arrives.
+          Friday 11:00–15:00 is confirmed for CLAIM-HA-9155. Keep perishables monitored until the tech arrives.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             appointment_id: "APT-HA-9155-HOLD"
             slot_id: "SLOT-2026-05-08T11:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             appointment_id: "APT-HA-9155-01"
             status: "scheduled"
             scheduled_at: "2026-05-08T11:00:00Z"
         planner:
           system_prompt: >
-            Friday window chosen for HA-9155.
+            Friday window chosen for CLAIM-HA-9155.
           output: >
             PLAN: update_appointment SLOT-2026-05-08T11:00.
         response_compose:

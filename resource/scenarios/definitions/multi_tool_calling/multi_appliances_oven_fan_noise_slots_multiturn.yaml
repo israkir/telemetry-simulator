@@ -11,7 +11,7 @@
 
 name: multi_appliances_oven_fan_noise_slots_multiturn
 description: >
-  Built-in fan oven noisy: HA-9152 + Tue/Thu afternoon slots; customer picks Thursday.
+  Built-in fan oven noisy: CLAIM-HA-9152 + Tue/Thu afternoon slots; customer picks Thursday.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Claim HA-9152 is open for the noisy oven fan. Tuesday 13:00–16:00 or Thursday 14:00–17:00 are free — which afternoon should I hold?
+                CLAIM-HA-9152 is open for the noisy oven fan. Tuesday 13:00–16:00 or Thursday 14:00–17:00 are free — which afternoon should I hold?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 The fan oven makes a rattling roar when the cooling fan runs. Start a Toro claim and give me afternoon engineer options.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Oven cooling fan rattle; service needed.", "trigger_quote": "fan runs loud", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "oven", "description": "Cooling fan runs loud and rattles after heating cycles.", "incident_date": "2026-05-02"}}, {"tool_name": "get_available_slots", "trigger_summary": "Afternoon authorized repair slots.", "trigger_quote": "technician this week", "missing_info": null, "confidence": 0.89, "tool_args": {"claim_id": "HA-9152", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-05", "date_range_end": "2026-05-10"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Oven cooling fan rattle; service needed.", "trigger_quote": "I want to file a claim — fan runs loud", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "oven", "description": "Cooling fan runs loud and rattles after heating cycles.", "incident_date": "2026-05-02"}}, {"tool_name": "get_available_slots", "trigger_summary": "Afternoon authorized repair slots.", "trigger_quote": "technician this week", "missing_info": null, "confidence": 0.89, "tool_args": {"claim_id": "CLAIM-HA-9152", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-05", "date_range_end": "2026-05-10"}}]}
         agent_response: >
-          Claim HA-9152 is open for the noisy oven fan. Tuesday 13:00–16:00 or Thursday 14:00–17:00 are free — which afternoon should I hold?
+          CLAIM-HA-9152 is open for the noisy oven fan. Tuesday 13:00–16:00 or Thursday 14:00–17:00 are free — which afternoon should I hold?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Cooling fan runs loud and rattles after heating cycles."
             incident_date: "2026-05-02"
           get_available_slots:
-            claim_id: "HA-9152"
+            claim_id: "CLAIM-HA-9152"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-05"
             date_range_end: "2026-05-10"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-9152"
+            claim_id: "CLAIM-HA-9152"
             product_type: "oven"
             status: "opened"
             coverage: { type: "appliance_mechanical_breakdown", deductible: 88 }
             notes: "Afternoon engineer windows."
           get_available_slots:
-            claim_id: "HA-9152"
+            claim_id: "CLAIM-HA-9152"
             slots:
               - { slot_id: "SLOT-2026-05-07T13:00", duration_minutes: 180 }
               - { slot_id: "SLOT-2026-05-09T14:00", duration_minutes: 180 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; get_available_slots Tue/Thu afternoons.
         response_compose:
           system_prompt: >
-            Clear; HA-9152; two afternoon bands.
+            Clear; CLAIM-HA-9152; two afternoon bands.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Thursday 14:00–17:00 is scheduled on HA-9152. Confirmation will follow by email.
+                Thursday 14:00–17:00 is scheduled on CLAIM-HA-9152. Confirmation will follow by email.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Thursday afternoon, please."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Thursday afternoon oven service.", "trigger_quote": "Thursday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "HA-9152", "appointment_id": "APT-HA-9152-HOLD", "slot_id": "SLOT-2026-05-09T14:00", "preferred_time_window": "afternoon"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Thursday afternoon oven service.", "trigger_quote":"Thursday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-HA-9152", "appointment_id": "APT-HA-9152-HOLD", "slot_id": "SLOT-2026-05-09T14:00", "preferred_time_window": "afternoon"}}]}
         agent_response: >
-          Thursday 14:00–17:00 is scheduled on HA-9152. Confirmation will follow by email.
+          Thursday 14:00–17:00 is scheduled on CLAIM-HA-9152. Confirmation will follow by email.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "HA-9152"
+            claim_id: "CLAIM-HA-9152"
             appointment_id: "APT-HA-9152-HOLD"
             slot_id: "SLOT-2026-05-09T14:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "HA-9152"
+            claim_id: "CLAIM-HA-9152"
             appointment_id: "APT-HA-9152-01"
             status: "scheduled"
             scheduled_at: "2026-05-09T14:00:00Z"
         planner:
           system_prompt: >
-            Customer confirms Thursday 14:00 start for HA-9152.
+            Customer confirms Thursday 14:00 start for CLAIM-HA-9152.
           output: >
             PLAN: update_appointment afternoon slot.
         response_compose:

@@ -86,9 +86,9 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Train is leaving in ten minutes, please check where claim PH-LAT-9301 stands.
+          Train is leaving in ten minutes, please check where CLAIM-PH-LAT-9301 stands.
         agent_response: >
-          PH-LAT-9301 is in review with an assessor assigned. You will get a push update when the decision is posted.
+          CLAIM-PH-LAT-9301 is in review with an assessor assigned. You will get a push update when the decision is posted.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -100,10 +100,10 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
-            claim_id: "PH-LAT-9301"
+            claim_id: "CLAIM-PH-LAT-9301"
         gen_ai.tool.call.result:
           claim_status:
-            claim_id: "PH-LAT-9301"
+            claim_id: "CLAIM-PH-LAT-9301"
             status: "in_review"
             last_updated: "2026-04-11T16:42:00Z"
             milestones:
@@ -112,9 +112,9 @@ endusers:
               - assessor_assigned
         planner:
           system_prompt: >
-            Commuter peak claim_status check for PH-LAT-9301.
+            Commuter peak claim_status check for CLAIM-PH-LAT-9301.
           output: >
-            PLAN: claim_status PH-LAT-9301 and concise reassurance.
+            PLAN: claim_status CLAIM-PH-LAT-9301 and concise reassurance.
         response_compose:
           system_prompt: >
             Keep answer short for a commuting user.
@@ -126,35 +126,46 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Move appointment APT-PH-9302 on claim PH-LAT-9302 to tomorrow after 6pm.
+          Move appointment APT-PH-9302 on CLAIM-PH-LAT-9302 to tomorrow after 6pm — check what’s open and
+          take 18:30 if it’s there.
         agent_response: >
-          APT-PH-9302 is rescheduled to tomorrow at 18:30 for PH-LAT-9302.
-        tool_chain: [update_appointment]
+          Tomorrow evening shows 18:30 for CLAIM-PH-LAT-9302 — APT-PH-9302 is rescheduled to that time.
+        tool_chain: [get_available_slots, update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 730
-        gen_ai.usage.output_tokens: 89
+        gen_ai.usage.input_tokens: 780
+        gen_ai.usage.output_tokens: 98
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
+        gentoro.llm.turn.count: 2
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "CLAIM-PH-LAT-9302"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-04-14"
+            date_range_end: "2026-04-14"
           update_appointment:
-            claim_id: "PH-LAT-9302"
+            claim_id: "CLAIM-PH-LAT-9302"
             appointment_id: "APT-PH-9302"
             slot_id: "SLOT-2026-04-14T18:30"
             preferred_time_window: "evening"
         gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "CLAIM-PH-LAT-9302"
+            slots:
+              - { slot_id: "SLOT-2026-04-14T18:30", duration_minutes: 90 }
+            timezone: "America/Los_Angeles"
           update_appointment:
-            claim_id: "PH-LAT-9302"
+            claim_id: "CLAIM-PH-LAT-9302"
             appointment_id: "APT-PH-9302"
             status: "rescheduled"
             scheduled_at: "2026-04-14T18:30:00Z"
         planner:
           system_prompt: >
-            Peak-hour appointment reschedule for PH-LAT-9302.
+            Peak-hour: list tomorrow evening slots then reschedule APT-PH-9302 for CLAIM-PH-LAT-9302.
           output: >
-            PLAN: update_appointment with evening slot.
+            PLAN: get_available_slots tomorrow evening; update_appointment 18:30.
         response_compose:
           system_prompt: >
             Confirm new date and time explicitly.
@@ -166,9 +177,9 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Open upload for PH-LAT-9303, I can send receipt and two photos before boarding.
+          Open upload for CLAIM-PH-LAT-9303, I can send receipt and two photos before boarding.
         agent_response: >
-          Upload batch UPL-PH-LAT-9303 is ready for three files. Submit them and I will attach them to your case.
+          Upload batch UPL-CLAIM-PH-LAT-9303 is ready for three files. Submit them and I will attach them to your case.
         tool_chain: [upload_documents]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -180,18 +191,18 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           upload_documents:
-            claim_id: "PH-LAT-9303"
+            claim_id: "CLAIM-PH-LAT-9303"
             document_types: ["photo_damage", "proof_of_purchase"]
             expected_count: 3
         gen_ai.tool.call.result:
           upload_documents:
-            claim_id: "PH-LAT-9303"
-            upload_batch_id: "UPL-PH-LAT-9303"
+            claim_id: "CLAIM-PH-LAT-9303"
+            upload_batch_id: "UPL-CLAIM-PH-LAT-9303"
             pending_count: 3
             status: "pending"
         planner:
           system_prompt: >
-            Commuter-window upload initiation for PH-LAT-9303.
+            Commuter-window upload initiation for CLAIM-PH-LAT-9303.
           output: >
             PLAN: upload_documents with expected_count 3.
         response_compose:
@@ -205,9 +216,9 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Show available pickup slots for PH-LAT-9304 this week, earliest evening slots first.
+          Show available pickup slots for CLAIM-PH-LAT-9304 this week, earliest evening slots first.
         agent_response: >
-          Earliest evening windows for PH-LAT-9304 are Tue 18:00 and Thu 18:30.
+          Earliest evening windows for CLAIM-PH-LAT-9304 are Tue 18:00 and Thu 18:30.
         tool_chain: [get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -219,25 +230,68 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           get_available_slots:
-            claim_id: "PH-LAT-9304"
+            claim_id: "CLAIM-PH-LAT-9304"
             service_type: "repair_collection"
             date_range_start: "2026-04-14"
             date_range_end: "2026-04-18"
         gen_ai.tool.call.result:
           get_available_slots:
-            claim_id: "PH-LAT-9304"
+            claim_id: "CLAIM-PH-LAT-9304"
             slots:
               - { slot_id: "SLOT-2026-04-15T18:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-04-17T18:30", duration_minutes: 120 }
             timezone: "America/Los_Angeles"
         planner:
           system_prompt: >
-            Peak-hour slot retrieval for PH-LAT-9304 with evening preference.
+            Peak-hour slot retrieval for CLAIM-PH-LAT-9304 with evening preference.
           output: >
             PLAN: get_available_slots and rank evening options first.
         response_compose:
           system_prompt: >
             Return top two options only.
+
+      - turn_index: 2
+        span_plan: *latency_demo_span_plan
+        vendor.enduser.request.raw: >
+          Put me on Tuesday evening for CLAIM-PH-LAT-9304 — I don’t mind exactly when.
+        agent_response: >
+          I need a slot id or a specific hour — “Tuesday evening” alone isn’t enough to book pickup.
+        tool_chain: [update_appointment]
+        mcp_tool_retries:
+          update_appointment:
+            attempts:
+              - outcome: fail
+                error.type: invalid_arguments
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 600
+        gen_ai.usage.output_tokens: 66
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "CLAIM-PH-LAT-9304"
+            appointment_id: "APT-PH-LAT-9304-HOLD"
+            preferred_time_window: "evening"
+            scheduling_time_resolution: "ambiguous_day_part"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "CLAIM-PH-LAT-9304"
+            appointment_id: "APT-PH-LAT-9304-HOLD"
+            status: "error"
+            scheduled_at: ""
+            error_code: "ambiguous_scheduling_time"
+            error_message: "slot_id required when only ambiguous day-part is provided"
+        planner:
+          system_prompt: >
+            Peak hour: update_appointment rejects vague evening without slot for CLAIM-PH-LAT-9304.
+          output: >
+            PLAN: invalid_arguments; prompt user to pick SLOT-* from prior turn.
+        response_compose:
+          system_prompt: >
+            Short, practical; name the two listed times if needed.
 
   - id: peak_commute_05
     vendor.enduser.pseudo.id: "user_peak_commute_05"
@@ -246,9 +300,9 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Please collect the 75 euro excess for PH-LAT-9305 right now.
+          I want to submit payment of 75 euros for CLAIM-PH-LAT-9305 right now.
         agent_response: >
-          EUR 75.00 has been captured for PH-LAT-9305 with payment reference PAY-PH-LAT-9305.
+          EUR 75.00 has been captured for CLAIM-PH-LAT-9305 with payment reference PAY-PH-LAT-9305.
         tool_chain: [pay]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -261,21 +315,21 @@ endusers:
         gen_ai.tool.call.arguments:
           pay:
             payment_target: "excess"
-            reference_id: "PH-LAT-9305"
+            reference_id: "CLAIM-PH-LAT-9305"
             amount: 75.0
             currency: "EUR"
         gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-PH-LAT-9305"
-            reference_id: "PH-LAT-9305"
+            reference_id: "CLAIM-PH-LAT-9305"
             status: "captured"
             amount: 75.0
             currency: "EUR"
         planner:
           system_prompt: >
-            Commuter-window payment flow for PH-LAT-9305.
+            Commuter-window payment flow for CLAIM-PH-LAT-9305.
           output: >
-            PLAN: pay excess and return payment confirmation.
+            PLAN: submit payment and return payment confirmation.
         response_compose:
           system_prompt: >
             Read amount and payment reference clearly.
@@ -287,9 +341,9 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Duplicate claim PH-LAT-9306 should be cancelled, keep the newer filing active.
+          Duplicate CLAIM-PH-LAT-9306 should be cancelled, keep the newer filing active.
         agent_response: >
-          PH-LAT-9306 has been cancelled as duplicate. Your newer filing remains active.
+          CLAIM-PH-LAT-9306 has been cancelled as duplicate. Your newer filing remains active.
         tool_chain: [cancel_claim]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -301,16 +355,16 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           cancel_claim:
-            claim_id: "PH-LAT-9306"
+            claim_id: "CLAIM-PH-LAT-9306"
             reason: "duplicate_submission"
         gen_ai.tool.call.result:
           cancel_claim:
-            claim_id: "PH-LAT-9306"
+            claim_id: "CLAIM-PH-LAT-9306"
             status: "cancelled"
             cancelled_at: "2026-04-11T17:36:00Z"
         planner:
           system_prompt: >
-            Peak-hour duplicate cleanup flow for PH-LAT-9306.
+            Peak-hour duplicate cleanup flow for CLAIM-PH-LAT-9306.
           output: >
             PLAN: cancel_claim with duplicate_submission reason.
         response_compose:

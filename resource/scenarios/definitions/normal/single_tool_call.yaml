@@ -96,32 +96,40 @@ endusers:
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
           I dropped my phone on the platform this morning — cracked glass and it reboots in a loop.
-          Please open a claim under my Toro mobile cover.
+          Please open a claim under my Toro mobile cover and book the repair visit for the afternoon
+          (any time is fine).
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
                 I dropped my phone on the platform this morning — cracked glass and it reboots in a loop.
-                Please open a claim under my Toro mobile cover.
+                Please open a claim under my Toro mobile cover and book the repair visit for the afternoon
+                (any time is fine).
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Claim PH-8101 is open for your handset: drop damage with cracked glass and boot looping.
-                Upload photos of the front and any error screen; we will confirm repair vs replace next.
+                I could not complete that yet — the scheduling API needs a concrete time (for example 14:00–16:00)
+                or a slot id, not only “afternoon.” Tell me a specific window and I will open the claim and book.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 I dropped my phone on the platform this morning — cracked glass and it reboots in a loop.
-                Please open a claim under my Toro mobile cover.
+                Please open a claim under my Toro mobile cover and book the repair visit for the afternoon
+                (any time is fine).
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Platform drop; cracked glass; boot loop.","trigger_quote":"I dropped my phone on the platform this morning","missing_info":null,"confidence":0.92,"tool_args":{"product_type":"phone","description":"Dropped on platform; cracked glass; device boot loops.","incident_date":"2026-04-08"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Platform drop; cracked glass; boot loop; vague afternoon repair.", "trigger_quote": "open a claim ... afternoon (any time is fine)", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "phone", "description": "Dropped on platform; cracked glass; device boot loops.", "incident_date": "2026-04-08", "scheduling_time_resolution": "ambiguous_day_part", "preferred_time_window": "afternoon"}}]}
         agent_response: >
-          Claim PH-8101 is open for your handset: drop damage with cracked glass and boot looping.
-          Upload photos of the front and any error screen; we will confirm repair vs replace next.
+          I could not complete that yet — the scheduling API needs a concrete time (for example 14:00–16:00)
+          or a slot id, not only “afternoon.” Tell me a specific window and I will open the claim and book.
         tool_chain: [new_claim]
+        mcp_tool_retries:
+          new_claim:
+            attempts:
+              - outcome: fail
+                error.type: invalid_arguments
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
         gen_ai.usage.input_tokens: 1180
@@ -134,21 +142,25 @@ endusers:
             product_type: "phone"
             description: "Dropped on platform; cracked glass; device boot loops."
             incident_date: "2026-04-08"
+            scheduling_time_resolution: "ambiguous_day_part"
+            preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-8101"
+            claim_id: ""
             product_type: "phone"
-            status: "opened"
-            coverage: { type: "phone_accidental_damage", deductible: 75 }
-            notes: "Mobile line; intake photos requested."
+            status: "error"
+            coverage: {}
+            notes: ""
+            error_code: "ambiguous_scheduling_time"
+            error_message: "preferred_time_window must be a concrete clock window or slot_id when scheduling_time_resolution is ambiguous_day_part"
         planner:
           system_prompt: >
-            Toro planner: user_ph_web_01 on phone MCP — open new_claim from the drop/boot loop report.
+            Toro planner: user_ph_web_01 on phone MCP — new_claim rejected: ambiguous afternoon only.
           output: >
-            PLAN: Call new_claim on server phone with product_type phone, incident_date 2026-04-08, description from transcript.
+            PLAN: new_claim with scheduling_time_resolution ambiguous_day_part — expect MCP invalid_arguments; ask for concrete window.
         response_compose:
           system_prompt: >
-            Confirm PH-8101; professional tone; photo + next-step expectation.
+            Explain validation error in plain language; ask for a specific time band or slot.
 
   - id: dept_phone_voice_keys
     vendor.enduser.pseudo.id: "user_ph_voice_02"
@@ -169,7 +181,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I have started PH-8102 for abrasion and display stripe damage, likely from contact with keys.
+                I have started CLAIM-PH-8102 for abrasion and display stripe damage, likely from contact with keys.
                 We will text a photo link; if anything is unclear, say "agent" to reach a person.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -177,9 +189,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My mobile was in my bag with my keys — now the screen has scratches and dead stripes. I need a claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Bag carry with keys; scratched screen; dead stripes.","trigger_quote":"in my bag with my keys","missing_info":null,"confidence":0.88,"tool_args":{"product_type":"phone","description":"Screen scratched with dead stripes after carrying with keys in bag.","incident_date":"2026-04-07"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Bag carry with keys; scratched screen; dead stripes.", "trigger_quote": "in my bag with my keys", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "phone", "description": "Screen scratched with dead stripes after carrying with keys in bag.", "incident_date": "2026-04-07"}}]}
         agent_response: >
-          I have started PH-8102 for abrasion and display stripe damage, likely from contact with keys.
+          I have started CLAIM-PH-8102 for abrasion and display stripe damage, likely from contact with keys.
           We will text a photo link; if anything is unclear, say "agent" to reach a person.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -196,7 +208,7 @@ endusers:
             incident_date: "2026-04-07"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-8102"
+            claim_id: "CLAIM-PH-8102"
             product_type: "phone"
             status: "opened"
             coverage: { type: "phone_display_damage", deductible: 50 }
@@ -208,7 +220,7 @@ endusers:
             PLAN: new_claim on phone with bag/keys abrasion narrative.
         response_compose:
           system_prompt: >
-            Warm, short sentences; PH-8102; SMS photo link.
+            Warm, short sentences; CLAIM-PH-8102; SMS photo link.
 
   - id: dept_phone_app_liquid
     vendor.enduser.pseudo.id: "user_ph_app_03"
@@ -217,24 +229,29 @@ endusers:
     turns:
       - turn_index: 1
         span_plan: *new_claim_span_plan
-        vendor.enduser.request.raw: "Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls."
+        vendor.enduser.request.raw: "Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls — need tech in the morning, any slot."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: "Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls."
+              vendor.enduser.request.raw: "Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls — need tech in the morning, any slot."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
-              vendor.agent.response.raw: "PH-8103 opened — liquid / coffee, sticky controls, muffled speaker. Send pics + IMEI if handy. Updates here in app."
+              vendor.agent.response.raw: "Can’t open with that scheduling text — say a concrete window (e.g. 09:00–11:00) or pick a slot after I list times."
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: "Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls."
+              vendor.agent.tool_selection.input.raw: "Spilled coffee on phone. Sticky keys + speaker muffled. New claim pls — need tech in the morning, any slot."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Coffee spill; sticky input; muffled speaker.","trigger_quote":"Spilled coffee on phone","missing_info":null,"confidence":0.9,"tool_args":{"product_type":"phone","description":"Coffee spill; sticky keys; muffled speaker.","incident_date":"2026-04-09"}}]}
-        agent_response: "PH-8103 opened — liquid / coffee, sticky controls, muffled speaker. Send pics + IMEI if handy. Updates here in app."
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Coffee spill; vague morning visit.", "trigger_quote": "need tech in the morning, any slot", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "phone", "description": "Coffee spill; sticky keys; muffled speaker.", "incident_date": "2026-04-09", "scheduling_time_resolution": "ambiguous_day_part", "preferred_time_window": "morning"}}]}
+        agent_response: "Can’t open with that scheduling text — say a concrete window (e.g. 09:00–11:00) or pick a slot after I list times."
         tool_chain: [new_claim]
+        mcp_tool_retries:
+          new_claim:
+            attempts:
+              - outcome: fail
+                error.type: invalid_arguments
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
         gen_ai.usage.input_tokens: 640
@@ -247,21 +264,25 @@ endusers:
             product_type: "phone"
             description: "Coffee spill; sticky keys; muffled speaker."
             incident_date: "2026-04-09"
+            scheduling_time_resolution: "ambiguous_day_part"
+            preferred_time_window: "morning"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-8103"
+            claim_id: ""
             product_type: "phone"
-            status: "opened"
-            coverage: { type: "phone_liquid_damage", deductible: 99 }
-            notes: "In-app thread; IMEI optional."
+            status: "error"
+            coverage: {}
+            notes: ""
+            error_code: "ambiguous_scheduling_time"
+            error_message: "preferred_time_window must be a concrete clock window or slot_id when scheduling_time_resolution is ambiguous_day_part"
         planner:
           system_prompt: >
-            Phone MCP; terse in-app user — extract liquid damage and date.
+            Phone MCP; new_claim fails — ambiguous morning only.
           output: >
-            PLAN: new_claim; reply minimal.
+            PLAN: new_claim invalid_arguments; ask for concrete window or get_available_slots.
         response_compose:
           system_prompt: >
-            Ultra-brief app message with PH-8103.
+            One-line app style; no claim id; ask for specific time band.
 
   # --- Home electronics MCP ---
   - id: dept_el_oled_wall
@@ -273,32 +294,40 @@ endusers:
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
           Our 65-inch OLED was being remounted — it slipped against the bracket and now there is a
-          bright vertical band on the left third. I need a Toro electronics claim started.
+          bright vertical band on the left third. Start a claim and book assessment in the afternoon,
+          any time is fine.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
                 Our 65-inch OLED was being remounted — it slipped against the bracket and now there is a
-                bright vertical band on the left third. I need a Toro electronics claim started.
+                bright vertical band on the left third. Start a claim and book assessment in the afternoon,
+                any time is fine.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-4201 is logged for your TV: remount slip against bracket with a persistent vertical band.
-                A technician will review panel photos; keep the unit powered off until we advise.
+                I can’t file with only “afternoon” for the visit — give a concrete clock window (or we list slots first),
+                then I’ll open the TV claim.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Our 65-inch OLED was being remounted — it slipped against the bracket and now there is a
-                bright vertical band on the left third. I need a Toro electronics claim started.
+                bright vertical band on the left third. Start a claim and book assessment in the afternoon,
+                any time is fine.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"OLED remount slip; vertical band panel fault.","trigger_quote":"65-inch OLED was being remounted","missing_info":null,"confidence":0.91,"tool_args":{"product_type":"tv","description":"65in OLED damaged during remount; vertical bright band left third.","incident_date":"2026-04-06"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "OLED band; vague afternoon assessment.", "trigger_quote": "afternoon, any time is fine", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "tv", "description": "65in OLED damaged during remount; vertical bright band left third.", "incident_date": "2026-04-06", "scheduling_time_resolution": "ambiguous_day_part", "preferred_time_window": "afternoon"}}]}
         agent_response: >
-          EL-4201 is logged for your TV: remount slip against bracket with a persistent vertical band.
-          A technician will review panel photos; keep the unit powered off until we advise.
+          I can’t file with only “afternoon” for the visit — give a concrete clock window (or we list slots first),
+          then I’ll open the TV claim.
         tool_chain: [new_claim]
+        mcp_tool_retries:
+          new_claim:
+            attempts:
+              - outcome: fail
+                error.type: invalid_arguments
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
         gen_ai.usage.input_tokens: 1280
@@ -311,21 +340,25 @@ endusers:
             product_type: "tv"
             description: "65in OLED damaged during remount; vertical bright band left third."
             incident_date: "2026-04-06"
+            scheduling_time_resolution: "ambiguous_day_part"
+            preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-4201"
+            claim_id: ""
             product_type: "tv"
-            status: "opened"
-            coverage: { type: "tv_panel_damage", deductible: 120 }
-            notes: "Electronics MCP; wall-mount incident."
+            status: "error"
+            coverage: {}
+            notes: ""
+            error_code: "ambiguous_scheduling_time"
+            error_message: "preferred_time_window must be a concrete clock window or slot_id when scheduling_time_resolution is ambiguous_day_part"
         planner:
           system_prompt: >
-            Toro planner: electronics MCP for user_el_tv_01 — TV panel damage during install.
+            Electronics MCP; new_claim rejected — ambiguous afternoon booking bundled with intake.
           output: >
-            PLAN: new_claim on server electronics, product_type tv.
+            PLAN: new_claim invalid_arguments; separate claim intake from concrete slot selection.
         response_compose:
           system_prompt: >
-            Reference EL-4201; safety note to leave TV off.
+            No claim id; explain scheduling validation; offer slot listing next.
 
   - id: dept_el_soundbar_spill
     vendor.enduser.pseudo.id: "user_el_sb_02"
@@ -336,32 +369,37 @@ endusers:
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
           Party last night — drink tipped onto the soundbar. It powers on but smells burnt and cuts out
-          when volume goes past 30%. Open a claim for the soundbar?
+          when volume goes past 30%. Open a claim and send someone in the morning, whenever works.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
                 Party last night — drink tipped onto the soundbar. It powers on but smells burnt and cuts out
-                when volume goes past 30%. Open a claim for the soundbar?
+                when volume goes past 30%. Open a claim and send someone in the morning, whenever works.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-4202 is open for liquid ingress to the soundbar: intermittent audio and odour reported.
-                Unplug it for safety and upload a short video of the dropout if you can.
+                The claim tool won’t accept “morning” without a specific time or slot — tell me a window like
+                09:00–12:00 or we’ll pull open visits first.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Party last night — drink tipped onto the soundbar. It powers on but smells burnt and cuts out
-                when volume goes past 30%. Open a claim for the soundbar?
+                when volume goes past 30%. Open a claim and send someone in the morning, whenever works.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Liquid on soundbar; distortion; burnt smell.","trigger_quote":"drink tipped onto the soundbar","missing_info":null,"confidence":0.89,"tool_args":{"product_type":"soundbar","description":"Liquid spill on soundbar; audio cuts above 30%; burnt smell.","incident_date":"2026-04-05"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Liquid on soundbar; vague morning visit.", "trigger_quote": "in the morning, whenever works", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "soundbar", "description": "Liquid spill on soundbar; audio cuts above 30%; burnt smell.", "incident_date": "2026-04-05", "scheduling_time_resolution": "ambiguous_day_part", "preferred_time_window": "morning"}}]}
         agent_response: >
-          EL-4202 is open for liquid ingress to the soundbar: intermittent audio and odour reported.
-          Unplug it for safety and upload a short video of the dropout if you can.
+          The claim tool won’t accept “morning” without a specific time or slot — tell me a window like
+          09:00–12:00 or we’ll pull open visits first.
         tool_chain: [new_claim]
+        mcp_tool_retries:
+          new_claim:
+            attempts:
+              - outcome: fail
+                error.type: invalid_arguments
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
         gen_ai.usage.input_tokens: 1050
@@ -374,21 +412,25 @@ endusers:
             product_type: "soundbar"
             description: "Liquid spill on soundbar; audio cuts above 30%; burnt smell."
             incident_date: "2026-04-05"
+            scheduling_time_resolution: "ambiguous_day_part"
+            preferred_time_window: "morning"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-4202"
+            claim_id: ""
             product_type: "soundbar"
-            status: "opened"
-            coverage: { type: "electronics_liquid_damage", deductible: 85 }
-            notes: "Safety: advise unplug pending assessment."
+            status: "error"
+            coverage: {}
+            notes: ""
+            error_code: "ambiguous_scheduling_time"
+            error_message: "preferred_time_window must be a concrete clock window or slot_id when scheduling_time_resolution is ambiguous_day_part"
         planner:
           system_prompt: >
-            Electronics MCP; soundbar liquid damage claim for user_el_sb_02.
+            Electronics MCP; new_claim fails on bundled ambiguous morning visit.
           output: >
-            PLAN: new_claim electronics, product_type soundbar.
+            PLAN: invalid_arguments; decouple intake from vague day-part.
         response_compose:
           system_prompt: >
-            EL-4202; safety first; evidence guidance.
+            Safety note still OK; no claim id until scheduling fixed.
 
   - id: dept_el_console_hdmi
     vendor.enduser.pseudo.id: "user_el_game_03"
@@ -409,7 +451,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-4203 created for the gaming console: fall from furniture with suspected HDMI port damage and no video output.
+                CLAIM-EL-4203 created for the gaming console: fall from furniture with suspected HDMI port damage and no video output.
                 Photo the port and serial label when you can.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -417,9 +459,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 PS5 fell off the TV unit — HDMI port looks bent, no signal on any cable. Need a claim for the console.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Console fall; bent HDMI; no signal.","trigger_quote":"PS5 fell off the TV unit","missing_info":null,"confidence":0.9,"tool_args":{"product_type":"gaming_console","description":"Console fell; HDMI port bent; no display output.","incident_date":"2026-04-08"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Console fall; bent HDMI; no signal.", "trigger_quote": "PS5 fell off the TV unit", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "gaming_console", "description": "Console fell; HDMI port bent; no display output.", "incident_date": "2026-04-08"}}]}
         agent_response: >
-          EL-4203 created for the gaming console: fall from furniture with suspected HDMI port damage and no video output.
+          CLAIM-EL-4203 created for the gaming console: fall from furniture with suspected HDMI port damage and no video output.
           Photo the port and serial label when you can.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -436,7 +478,7 @@ endusers:
             incident_date: "2026-04-08"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-4203"
+            claim_id: "CLAIM-EL-4203"
             product_type: "gaming_console"
             status: "opened"
             coverage: { type: "electronics_impact_damage", deductible: 75 }
@@ -448,7 +490,7 @@ endusers:
             PLAN: new_claim with product_type gaming_console.
         response_compose:
           system_prompt: >
-            EL-4203; practical photo list.
+            CLAIM-EL-4203; practical photo list.
 
   # --- Home appliances MCP ---
   - id: dept_ap_fridge_leak
@@ -472,7 +514,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                AP-5501 is open for the refrigerator: recurrent water under crispers with continuous compressor run.
+                CLAIM-AP-5501 is open for the refrigerator: recurrent water under crispers with continuous compressor run.
                 Book a technician slot when prompted; mop standing water for safety.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -481,9 +523,9 @@ endusers:
                 Fridge is pooling water under the crispers every morning and the compressor runs non-stop.
                 Policy is Toro appliances — please file a breakdown claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Fridge water pooling; compressor always on.","trigger_quote":"pooling water under the crispers","missing_info":null,"confidence":0.93,"tool_args":{"product_type":"fridge","description":"Refrigerator leaks water under crispers; compressor runs continuously.","incident_date":"2026-04-04"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Fridge water pooling; compressor always on.", "trigger_quote": "pooling water under the crispers", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "fridge", "description": "Refrigerator leaks water under crispers; compressor runs continuously.", "incident_date": "2026-04-04"}}]}
         agent_response: >
-          AP-5501 is open for the refrigerator: recurrent water under crispers with continuous compressor run.
+          CLAIM-AP-5501 is open for the refrigerator: recurrent water under crispers with continuous compressor run.
           Book a technician slot when prompted; mop standing water for safety.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -500,7 +542,7 @@ endusers:
             incident_date: "2026-04-04"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "AP-5501"
+            claim_id: "CLAIM-AP-5501"
             product_type: "fridge"
             status: "opened"
             coverage: { type: "appliance_mechanical_breakdown", deductible: 90 }
@@ -512,7 +554,7 @@ endusers:
             PLAN: new_claim on appliances, product_type fridge.
         response_compose:
           system_prompt: >
-            AP-5501; safety + booking hint.
+            CLAIM-AP-5501; safety + booking hint.
 
   - id: dept_ap_washer_error
     vendor.enduser.pseudo.id: "user_ap_wash_02"
@@ -533,7 +575,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                AP-5502 is recorded for the washer: E18 no-drain fault on a three-year-old unit.
+                CLAIM-AP-5502 is recorded for the washer: E18 no-drain fault on a three-year-old unit.
                 Avoid running further cycles; an engineer visit will be arranged after intake photos.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -541,9 +583,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 Washing machine shows E18 and will not drain. It is three years old. I want a claim number please.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Washer E18 drain fault.","trigger_quote":"E18 and will not drain","missing_info":null,"confidence":0.91,"tool_args":{"product_type":"washer","description":"Washer displays E18; will not drain; unit approx three years old.","incident_date":"2026-04-07"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Washer E18 drain fault.", "trigger_quote": "E18 and will not drain", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "washer", "description": "Washer displays E18; will not drain; unit approx three years old.", "incident_date": "2026-04-07"}}]}
         agent_response: >
-          AP-5502 is recorded for the washer: E18 no-drain fault on a three-year-old unit.
+          CLAIM-AP-5502 is recorded for the washer: E18 no-drain fault on a three-year-old unit.
           Avoid running further cycles; an engineer visit will be arranged after intake photos.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -560,7 +602,7 @@ endusers:
             incident_date: "2026-04-07"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "AP-5502"
+            claim_id: "CLAIM-AP-5502"
             product_type: "washer"
             status: "opened"
             coverage: { type: "appliance_breakdown", deductible: 65 }
@@ -572,7 +614,7 @@ endusers:
             PLAN: new_claim appliances, product_type washer.
         response_compose:
           system_prompt: >
-            Clear claim id AP-5502; no further cycles.
+            Clear claim id CLAIM-AP-5502; no further cycles.
 
   - id: dept_ap_dishwasher_door
     vendor.enduser.pseudo.id: "user_ap_dw_03"
@@ -593,7 +635,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                AP-5503 is filed for the dishwasher: door latch fault aborting cycles.
+                CLAIM-AP-5503 is filed for the dishwasher: door latch fault aborting cycles.
                 Send a short clip of the latch behaviour if possible; repair scheduling follows review.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -601,9 +643,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 Dishwasher door will not latch — cycle starts then stops with door error. Can you start a claim?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Dishwasher door latch; cycle abort.","trigger_quote":"door will not latch","missing_info":null,"confidence":0.9,"tool_args":{"product_type":"dishwasher","description":"Dishwasher door will not latch; cycle stops with door error.","incident_date":"2026-04-09"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Dishwasher door latch; cycle abort.", "trigger_quote": "door will not latch", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "dishwasher", "description": "Dishwasher door will not latch; cycle stops with door error.", "incident_date": "2026-04-09"}}]}
         agent_response: >
-          AP-5503 is filed for the dishwasher: door latch fault aborting cycles.
+          CLAIM-AP-5503 is filed for the dishwasher: door latch fault aborting cycles.
           Send a short clip of the latch behaviour if possible; repair scheduling follows review.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -620,7 +662,7 @@ endusers:
             incident_date: "2026-04-09"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "AP-5503"
+            claim_id: "CLAIM-AP-5503"
             product_type: "dishwasher"
             status: "opened"
             coverage: { type: "appliance_mechanical_breakdown", deductible: 70 }
@@ -632,7 +674,7 @@ endusers:
             PLAN: new_claim product_type dishwasher.
         response_compose:
           system_prompt: >
-            AP-5503; evidence suggestion.
+            CLAIM-AP-5503; evidence suggestion.
 
   - id: dept_ap_oven_overheat
     vendor.enduser.pseudo.id: "user_ap_ov_04"
@@ -659,7 +701,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Dear customer, claim AP-5504 is opened for the built-in oven: runaway heating versus setpoint and excessive external temperature.
+                Dear customer, CLAIM-AP-5504 is opened for the built-in oven: runaway heating versus setpoint and excessive external temperature.
                 Do not use the oven until assessed; reply with photos of the control panel readout and rating plate.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -670,9 +712,9 @@ endusers:
                 The fan oven hits 250C when set to 180 and the outer glass is too hot to touch. Model is six years old.
                 Please register a Toro appliances claim under policy holder ref 88-KL-09.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Oven overheating vs setpoint; hot outer glass.","trigger_quote":"fan oven hits 250C when set to 180","missing_info":null,"confidence":0.92,"tool_args":{"product_type":"oven","description":"Built-in fan oven overheats versus set temperature; outer glass excessively hot; six years old.","incident_date":"2026-04-08"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Oven overheating vs setpoint; hot outer glass.", "trigger_quote": "fan oven hits 250C when set to 180", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "oven", "description": "Built-in fan oven overheats versus set temperature; outer glass excessively hot; six years old.", "incident_date": "2026-04-08"}}]}
         agent_response: >
-          Dear customer, claim AP-5504 is opened for the built-in oven: runaway heating versus setpoint and excessive external temperature.
+          Dear customer, CLAIM-AP-5504 is opened for the built-in oven: runaway heating versus setpoint and excessive external temperature.
           Do not use the oven until assessed; reply with photos of the control panel readout and rating plate.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -689,7 +731,7 @@ endusers:
             incident_date: "2026-04-08"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "AP-5504"
+            claim_id: "CLAIM-AP-5504"
             product_type: "oven"
             status: "opened"
             coverage: { type: "appliance_safety_thermal", deductible: 80 }
@@ -701,7 +743,7 @@ endusers:
             PLAN: new_claim oven, incident_date 2026-04-08.
         response_compose:
           system_prompt: >
-            Letter-style; AP-5504; do-not-use safety line.
+            Letter-style; CLAIM-AP-5504; do-not-use safety line.
 
   # --- Other MCP tools (non–new_claim), one representative turn each ---
 
@@ -713,27 +755,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Where is my phone claim PH-9200 — did the assessor look at it yet?
+          Where is my phone CLAIM-PH-9200 — did the assessor look at it yet?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Where is my phone claim PH-9200 — did the assessor look at it yet?
+                Where is my phone CLAIM-PH-9200 — did the assessor look at it yet?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-9200 is in review: photos are on file and an assessor has been assigned; you will get an SMS when the decision is posted.
+                CLAIM-PH-9200 is in review: photos are on file and an assessor has been assigned; you will get an SMS when the decision is posted.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Where is my phone claim PH-9200 — did the assessor look at it yet?
+                Where is my phone CLAIM-PH-9200 — did the assessor look at it yet?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for existing phone claim PH-9200.","trigger_quote":"Where is my phone claim PH-9200","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"PH-9200"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for existing phone CLAIM-PH-9200.","trigger_quote":"Where is my phone CLAIM-PH-9200","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"CLAIM-PH-9200"}}]}
         agent_response: >
-          PH-9200 is in review: photos are on file and an assessor has been assigned; you will get an SMS when the decision is posted.
+          CLAIM-PH-9200 is in review: photos are on file and an assessor has been assigned; you will get an SMS when the decision is posted.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -744,10 +786,10 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
-            claim_id: "PH-9200"
+            claim_id: "CLAIM-PH-9200"
         gen_ai.tool.call.result:
           claim_status:
-            claim_id: "PH-9200"
+            claim_id: "CLAIM-PH-9200"
             status: "in_review"
             last_updated: "2026-03-21T14:22:00Z"
             milestones:
@@ -756,9 +798,9 @@ endusers:
               - assessor_assigned
         planner:
           system_prompt: >
-            Phone MCP; user asks for claim_status on PH-9200.
+            Phone MCP; user asks for claim_status on CLAIM-PH-9200.
           output: >
-            PLAN: claim_status with claim_id PH-9200; summarize milestones in plain language.
+            PLAN: claim_status with claim_id CLAIM-PH-9200; summarize milestones in plain language.
         response_compose:
           system_prompt: >
             Short reassurance; mention SMS when decision is ready.
@@ -771,13 +813,70 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          For claim PH-9201 please move repair appointment APT-PH-201 from Friday morning to Friday 3pm same shop.
+          For CLAIM-PH-9201 I need to move repair appointment APT-PH-201 to Friday afternoon at the same service
+          point — what slots are open that day?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                For claim PH-9201 please move repair appointment APT-PH-201 from Friday morning to Friday 3pm same shop.
+                For CLAIM-PH-9201 I need to move repair appointment APT-PH-201 to Friday afternoon at the same service
+                point — what slots are open that day?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Friday afternoon has 15:00 and 16:30 available for CLAIM-PH-9201 at that shop — say which one you want.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                For CLAIM-PH-9201 I need to move repair appointment APT-PH-201 to Friday afternoon at the same service
+                point — what slots are open that day?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Friday afternoon screen repair slots same service point.","trigger_quote":"Friday afternoon","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-PH-9201","service_type":"screen_repair_visit","date_range_start":"2026-04-10","date_range_end":"2026-04-10"}}]}
+        agent_response: >
+          Friday afternoon has 15:00 and 16:30 available for CLAIM-PH-9201 at that shop — say which one you want.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 780
+        gen_ai.usage.output_tokens: 98
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "CLAIM-PH-9201"
+            service_type: "screen_repair_visit"
+            date_range_start: "2026-04-10"
+            date_range_end: "2026-04-10"
+        gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "CLAIM-PH-9201"
+            slots:
+              - { slot_id: "SLOT-2026-04-10T15:00", duration_minutes: 90 }
+              - { slot_id: "SLOT-2026-04-10T16:30", duration_minutes: 90 }
+            timezone: "America/Los_Angeles"
+        planner:
+          system_prompt: >
+            Phone MCP; list Friday afternoon repair options before rescheduling APT-PH-201.
+          output: >
+            PLAN: get_available_slots same-day afternoon window for CLAIM-PH-9201.
+        response_compose:
+          system_prompt: >
+            Offer two concrete times; invite explicit pick.
+
+      - turn_index: 2
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Take Friday 3pm at the same shop for APT-PH-201 on CLAIM-PH-9201.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Take Friday 3pm at the same shop for APT-PH-201 on CLAIM-PH-9201.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
@@ -787,9 +886,9 @@ endusers:
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                For claim PH-9201 please move repair appointment APT-PH-201 from Friday morning to Friday 3pm same shop.
+                Take Friday 3pm at the same shop for APT-PH-201 on CLAIM-PH-9201.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule repair slot for PH-9201 to Friday afternoon.","trigger_quote":"Friday 3pm same shop","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"PH-9201","appointment_id":"APT-PH-201","slot_id":"SLOT-2026-04-10T15:00","preferred_time_window":"afternoon"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule repair slot for CLAIM-PH-9201 to Friday afternoon.","trigger_quote":"Friday 3pm","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-PH-9201","appointment_id":"APT-PH-201","slot_id":"SLOT-2026-04-10T15:00","preferred_time_window":"afternoon"}}]}
         agent_response: >
           Done — APT-PH-201 is now Friday 15:00 at the same service point; the app should refresh in a minute.
         tool_chain: [update_appointment]
@@ -798,23 +897,24 @@ endusers:
         gen_ai.usage.input_tokens: 810
         gen_ai.usage.output_tokens: 112
         gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "PH-9201"
+            claim_id: "CLAIM-PH-9201"
             appointment_id: "APT-PH-201"
             slot_id: "SLOT-2026-04-10T15:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "PH-9201"
+            claim_id: "CLAIM-PH-9201"
             appointment_id: "APT-PH-201"
             status: "rescheduled"
             scheduled_at: "2026-04-10T15:00:00Z"
         planner:
           system_prompt: >
-            Phone MCP; reschedule existing appointment for open claim.
+            Phone MCP; reschedule existing appointment after slot listing for CLAIM-PH-9201.
           output: >
             PLAN: update_appointment with claim_id, appointment_id, new slot_id, preferred_time_window.
         response_compose:
@@ -829,27 +929,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Claim PH-9202 — I am about to upload damage pics and my receipt. Open the upload batch for me.
+          CLAIM-PH-9202 — I am about to upload damage pics and my receipt. Open the upload batch for me.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Claim PH-9202 — I am about to upload damage pics and my receipt. Open the upload batch for me.
+                CLAIM-PH-9202 — I am about to upload damage pics and my receipt. Open the upload batch for me.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Upload channel is open: send two files (damage photos and proof of purchase). Batch UPL-PH-902 will show as received when both land.
+                Upload channel is open: send two files (damage photos and proof of purchase). Batch UPL-CLAIM-PH-902 will show as received when both land.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Claim PH-9202 — I am about to upload damage pics and my receipt. Open the upload batch for me.
+                CLAIM-PH-9202 — I am about to upload damage pics and my receipt. Open the upload batch for me.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"upload_documents","trigger_summary":"Start document upload for PH-9202; photos + receipt.","trigger_quote":"upload damage pics and my receipt","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-9202","document_types":["photo_damage","proof_of_purchase"],"expected_count":2}}]}
+                {"tool_plan":[{"tool_name":"upload_documents","trigger_summary":"Start document upload for CLAIM-PH-9202; photos + receipt.","trigger_quote":"upload damage pics and my receipt","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-9202","document_types":["photo_damage","proof_of_purchase"],"expected_count":2}}]}
         agent_response: >
-          Upload channel is open: send two files (damage photos and proof of purchase). Batch UPL-PH-902 will show as received when both land.
+          Upload channel is open: send two files (damage photos and proof of purchase). Batch UPL-CLAIM-PH-902 will show as received when both land.
         tool_chain: [upload_documents]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -860,13 +960,13 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           upload_documents:
-            claim_id: "PH-9202"
+            claim_id: "CLAIM-PH-9202"
             document_types: ["photo_damage", "proof_of_purchase"]
             expected_count: 2
         gen_ai.tool.call.result:
           upload_documents:
-            claim_id: "PH-9202"
-            upload_batch_id: "UPL-PH-902"
+            claim_id: "CLAIM-PH-9202"
+            upload_batch_id: "UPL-CLAIM-PH-902"
             pending_count: 2
             status: "pending"
         planner:
@@ -886,27 +986,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          I want to pay the seventy-five euro excess on claim PH-9203 now, use my card on file.
+          I want to submit payment of seventy-five euros for CLAIM-PH-9203 now, using my card on file.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I want to pay the seventy-five euro excess on claim PH-9203 now, use my card on file.
+                I want to submit payment of seventy-five euros for CLAIM-PH-9203 now, using my card on file.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Payment captured: EUR 75.00 excess for PH-9203; reference PAY-PH-9203 is on your policy timeline.
+                Payment captured: EUR 75.00 excess for CLAIM-PH-9203; reference PAY-PH-9203 is on your policy timeline.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I want to pay the seventy-five euro excess on claim PH-9203 now, use my card on file.
+                I want to submit payment of seventy-five euros for CLAIM-PH-9203 now, using my card on file.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Collect policy excess for claim PH-9203 via card on file.","trigger_quote":"pay the seventy-five euro excess","missing_info":null,"confidence":0.9,"tool_args":{"payment_target":"excess","reference_id":"PH-9203","amount":75.0,"currency":"EUR"}}]}
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Submit payment for CLAIM-PH-9203 via card on file.","trigger_quote":"submit payment of seventy-five euros","missing_info":null,"confidence":0.9,"tool_args":{"payment_target":"excess","reference_id":"CLAIM-PH-9203","amount":75.0,"currency":"EUR"}}]}
         agent_response: >
-          Payment captured: EUR 75.00 excess for PH-9203; reference PAY-PH-9203 is on your policy timeline.
+          Payment captured: EUR 75.00 excess for CLAIM-PH-9203; reference PAY-PH-9203 is on your policy timeline.
         tool_chain: [pay]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -918,13 +1018,13 @@ endusers:
         gen_ai.tool.call.arguments:
           pay:
             payment_target: "excess"
-            reference_id: "PH-9203"
+            reference_id: "CLAIM-PH-9203"
             amount: 75.0
             currency: "EUR"
         gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-PH-9203"
-            reference_id: "PH-9203"
+            reference_id: "CLAIM-PH-9203"
             status: "captured"
             amount: 75.0
             currency: "EUR"
@@ -945,27 +1045,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Please cancel electronics claim EL-9204 — I sold the TV and do not need the repair anymore.
+          Please cancel electronics CLAIM-EL-9204 — I sold the TV and do not need the repair anymore.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Please cancel electronics claim EL-9204 — I sold the TV and do not need the repair anymore.
+                Please cancel electronics CLAIM-EL-9204 — I sold the TV and do not need the repair anymore.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-9204 is cancelled as requested. If anything was prepaid toward excess, refunds follow normal policy timelines.
+                CLAIM-EL-9204 is cancelled as requested. If anything was prepaid toward excess, refunds follow normal policy timelines.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Please cancel electronics claim EL-9204 — I sold the TV and do not need the repair anymore.
+                Please cancel electronics CLAIM-EL-9204 — I sold the TV and do not need the repair anymore.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"User withdraws EL-9204 after selling TV.","trigger_quote":"sold the TV and do not need the repair","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"EL-9204","reason":"customer_requested_cancellation"}}]}
+                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"User withdraws CLAIM-EL-9204 after selling TV.","trigger_quote":"sold the TV and do not need the repair","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-EL-9204","reason":"customer_requested_cancellation"}}]}
         agent_response: >
-          EL-9204 is cancelled as requested. If anything was prepaid toward excess, refunds follow normal policy timelines.
+          CLAIM-EL-9204 is cancelled as requested. If anything was prepaid toward excess, refunds follow normal policy timelines.
         tool_chain: [cancel_claim]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -976,18 +1076,18 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           cancel_claim:
-            claim_id: "EL-9204"
+            claim_id: "CLAIM-EL-9204"
             reason: "customer_requested_cancellation"
         gen_ai.tool.call.result:
           cancel_claim:
-            claim_id: "EL-9204"
+            claim_id: "CLAIM-EL-9204"
             status: "cancelled"
             cancelled_at: "2026-03-22T10:05:00Z"
         planner:
           system_prompt: >
             Electronics MCP; cancel_claim with explicit user reason.
           output: >
-            PLAN: cancel_claim EL-9204; acknowledge refund policy briefly.
+            PLAN: cancel_claim CLAIM-EL-9204; acknowledge refund policy briefly.
         response_compose:
           system_prompt: >
             Neutral closure; mention refunds if applicable.
@@ -1000,27 +1100,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          For claim EL-9205 show me collection slots next week — I need a repair pickup at home.
+          For CLAIM-EL-9205 show me collection slots next week — I need a repair pickup at home.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                For claim EL-9205 show me collection slots next week — I need a repair pickup at home.
+                For CLAIM-EL-9205 show me collection slots next week — I need a repair pickup at home.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Here are open collection windows for EL-9205 next week: Wed 09:00 or Wed 14:00 (2h). Tap one in the app to hold it.
+                Here are open collection windows for CLAIM-EL-9205 next week: Wed 09:00 or Wed 14:00 (2h). Tap one in the app to hold it.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                For claim EL-9205 show me collection slots next week — I need a repair pickup at home.
+                For CLAIM-EL-9205 show me collection slots next week — I need a repair pickup at home.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"List repair_collection slots for EL-9205 in next calendar week.","trigger_quote":"collection slots next week","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"EL-9205","service_type":"repair_collection","date_range_start":"2026-04-13","date_range_end":"2026-04-19"}}]}
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"List repair_collection slots for CLAIM-EL-9205 in next calendar week.","trigger_quote":"collection slots next week","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"CLAIM-EL-9205","service_type":"repair_collection","date_range_start":"2026-04-13","date_range_end":"2026-04-19"}}]}
         agent_response: >
-          Here are open collection windows for EL-9205 next week: Wed 09:00 or Wed 14:00 (2h). Tap one in the app to hold it.
+          Here are open collection windows for CLAIM-EL-9205 next week: Wed 09:00 or Wed 14:00 (2h). Tap one in the app to hold it.
         tool_chain: [get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1031,13 +1131,13 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           get_available_slots:
-            claim_id: "EL-9205"
+            claim_id: "CLAIM-EL-9205"
             service_type: "repair_collection"
             date_range_start: "2026-04-13"
             date_range_end: "2026-04-19"
         gen_ai.tool.call.result:
           get_available_slots:
-            claim_id: "EL-9205"
+            claim_id: "CLAIM-EL-9205"
             slots:
               - { slot_id: "SLOT-2026-04-15T09:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-04-15T14:00", duration_minutes: 120 }
@@ -1050,6 +1150,60 @@ endusers:
         response_compose:
           system_prompt: >
             Present two concrete slot options; app booking hint.
+
+      - turn_index: 2
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Hold Wednesday 09:00 for CLAIM-EL-9205 please.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Hold Wednesday 09:00 for CLAIM-EL-9205 please.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Wednesday 09:00 is confirmed for CLAIM-EL-9205 collection — you’ll get the driver window by SMS.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Hold Wednesday 09:00 for CLAIM-EL-9205 please.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Wed 09:00 repair_collection from listed slots.","trigger_quote":"Wednesday 09:00","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-EL-9205","appointment_id":"APT-EL-9205-HOLD","slot_id":"SLOT-2026-04-15T09:00","preferred_time_window":"morning"}}]}
+        agent_response: >
+          Wednesday 09:00 is confirmed for CLAIM-EL-9205 collection — you’ll get the driver window by SMS.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 780
+        gen_ai.usage.output_tokens: 92
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "CLAIM-EL-9205"
+            appointment_id: "APT-EL-9205-HOLD"
+            slot_id: "SLOT-2026-04-15T09:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "CLAIM-EL-9205"
+            appointment_id: "APT-EL-9205-COL"
+            status: "scheduled"
+            scheduled_at: "2026-04-15T09:00:00Z"
+        planner:
+          system_prompt: >
+            Electronics MCP; confirm collection slot after listing.
+          output: >
+            PLAN: update_appointment SLOT-2026-04-15T09:00.
+        response_compose:
+          system_prompt: >
+            Confirm pickup time and channel.
 
   - id: tool_el_choose_insurance
     vendor.enduser.pseudo.id: "user_el_quote_22"
@@ -1167,23 +1321,21 @@ endusers:
 
   - id: tool_ap_cancel_product
     vendor.enduser.pseudo.id: "user_ap_cpol_31"
-    channel: email
+    channel: app_chat
     mcp_server: appliances
     turns:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Subject: Cancel dishwasher policy
-
-          Please cancel policy POL-AP-8802 under the 14-day cooling-off rule — we are downsizing.
+          Hi — we’re downsizing and need to drop the dishwasher cover. Can you cancel policy POL-AP-8802 under
+          the 14-day cooling-off rule?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Subject: Cancel dishwasher policy
-
-                Please cancel policy POL-AP-8802 under the 14-day cooling-off rule — we are downsizing.
+                Hi — we’re downsizing and need to drop the dishwasher cover. Can you cancel policy POL-AP-8802 under
+                the 14-day cooling-off rule?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
@@ -1193,9 +1345,8 @@ endusers:
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Subject: Cancel dishwasher policy
-
-                Please cancel policy POL-AP-8802 under the 14-day cooling-off rule — we are downsizing.
+                Hi — we’re downsizing and need to drop the dishwasher cover. Can you cancel policy POL-AP-8802 under
+                the 14-day cooling-off rule?
               vendor.agent.tool_selection.tool.plan: |
                 {"tool_plan":[{"tool_name":"cancel_product","trigger_summary":"Cooling-off cancellation for POL-AP-8802.","trigger_quote":"14-day cooling-off rule","missing_info":null,"confidence":0.93,"tool_args":{"policy_id":"POL-AP-8802","reason":"cooling_off"}}]}
         agent_response: >
@@ -1225,7 +1376,7 @@ endusers:
             PLAN: cancel_product POL-AP-8802; state refund_estimate from tool result.
         response_compose:
           system_prompt: >
-            Formal email tone; refund expectation.
+            Conversational app chat; refund expectation.
 
   # --- Eleven additional single-tool turns (five intakes + six operations) ---
 
@@ -1248,7 +1399,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-8104 is open: liquid exposure suspected after rain; Face ID and TrueDepth faults logged.
+                CLAIM-PH-8104 is open: liquid exposure suspected after rain; Face ID and TrueDepth faults logged.
                 Dry the device, power it off, and upload clear shots of the front sensor strip when you can.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -1256,9 +1407,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 Face ID stopped working after a little rain got on my phone — can you open a damage claim?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Rain exposure; Face ID failure.","trigger_quote":"rain got on my phone","missing_info":null,"confidence":0.9,"tool_args":{"product_type":"phone","description":"Face ID stopped after light rain exposure; possible liquid ingress.","incident_date":"2026-04-10"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Rain exposure; Face ID failure.", "trigger_quote": "rain got on my phone", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "phone", "description": "Face ID stopped after light rain exposure; possible liquid ingress.", "incident_date": "2026-04-10"}}]}
         agent_response: >
-          PH-8104 is open: liquid exposure suspected after rain; Face ID and TrueDepth faults logged.
+          CLAIM-PH-8104 is open: liquid exposure suspected after rain; Face ID and TrueDepth faults logged.
           Dry the device, power it off, and upload clear shots of the front sensor strip when you can.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -1275,7 +1426,7 @@ endusers:
             incident_date: "2026-04-10"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-8104"
+            claim_id: "CLAIM-PH-8104"
             product_type: "phone"
             status: "opened"
             coverage: { type: "phone_liquid_damage", deductible: 75 }
@@ -1287,7 +1438,7 @@ endusers:
             PLAN: new_claim phone with incident_date 2026-04-10.
         response_compose:
           system_prompt: >
-            PH-8104; safety (power off, dry) and photo guidance.
+            CLAIM-PH-8104; safety (power off, dry) and photo guidance.
 
   - id: dept_el_laptop_spill
     vendor.enduser.pseudo.id: "user_el_lap_41"
@@ -1308,7 +1459,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-4204 is filed for the laptop: liquid ingress with dead keys and a burnt smell from the deck.
+                CLAIM-EL-4204 is filed for the laptop: liquid ingress with dead keys and a burnt smell from the deck.
                 Unplug power, do not charge overnight, and send photos of the keyboard and underside vents.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -1316,9 +1467,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 I spilled coffee on my work laptop keyboard — several keys are dead and it smells burnt. Start a claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Coffee spill; keyboard failure; odour.","trigger_quote":"spilled coffee on my work laptop","missing_info":null,"confidence":0.91,"tool_args":{"product_type":"laptop","description":"Coffee spill on keyboard; multiple keys dead; burnt smell.","incident_date":"2026-04-11"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Coffee spill; keyboard failure; odour.", "trigger_quote": "spilled coffee on my work laptop", "missing_info": null, "confidence": 0.91, "tool_args": {"product_type": "laptop", "description": "Coffee spill on keyboard; multiple keys dead; burnt smell.", "incident_date": "2026-04-11"}}]}
         agent_response: >
-          EL-4204 is filed for the laptop: liquid ingress with dead keys and a burnt smell from the deck.
+          CLAIM-EL-4204 is filed for the laptop: liquid ingress with dead keys and a burnt smell from the deck.
           Unplug power, do not charge overnight, and send photos of the keyboard and underside vents.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -1335,7 +1486,7 @@ endusers:
             incident_date: "2026-04-11"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-4204"
+            claim_id: "CLAIM-EL-4204"
             product_type: "laptop"
             status: "opened"
             coverage: { type: "electronics_liquid_damage", deductible: 85 }
@@ -1347,7 +1498,7 @@ endusers:
             PLAN: new_claim product_type laptop.
         response_compose:
           system_prompt: >
-            EL-4204; unplug / no-charge safety; photo list.
+            CLAIM-EL-4204; unplug / no-charge safety; photo list.
 
   - id: dept_el_earbuds_wash_cycle
     vendor.enduser.pseudo.id: "user_el_buds_42"
@@ -1368,7 +1519,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EL-4205 covers the earbuds: wash-cycle damage with cracked case and pairing failure on both buds.
+                CLAIM-EL-4205 covers the earbuds: wash-cycle damage with cracked case and pairing failure on both buds.
                 Keep them powered off and upload a photo of the case hinge and serial if visible.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -1376,9 +1527,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My wireless earbuds went through the washing machine — case is cracked and neither side pairs. New claim please.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Earbuds washed; cracked case; no pairing.","trigger_quote":"went through the washing machine","missing_info":null,"confidence":0.89,"tool_args":{"product_type":"earbuds","description":"Wireless earbuds washed; charging case cracked; neither bud pairs.","incident_date":"2026-04-09"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Earbuds washed; cracked case; no pairing.", "trigger_quote": "went through the washing machine", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "earbuds", "description": "Wireless earbuds washed; charging case cracked; neither bud pairs.", "incident_date": "2026-04-09"}}]}
         agent_response: >
-          EL-4205 covers the earbuds: wash-cycle damage with cracked case and pairing failure on both buds.
+          CLAIM-EL-4205 covers the earbuds: wash-cycle damage with cracked case and pairing failure on both buds.
           Keep them powered off and upload a photo of the case hinge and serial if visible.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -1395,7 +1546,7 @@ endusers:
             incident_date: "2026-04-09"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "EL-4205"
+            claim_id: "CLAIM-EL-4205"
             product_type: "earbuds"
             status: "opened"
             coverage: { type: "wearables_accidental_damage", deductible: 45 }
@@ -1407,7 +1558,7 @@ endusers:
             PLAN: new_claim earbuds wash incident.
         response_compose:
           system_prompt: >
-            EL-4205; power-off; hinge/serial photos.
+            CLAIM-EL-4205; power-off; hinge/serial photos.
 
   - id: dept_ap_microwave_arcing
     vendor.enduser.pseudo.id: "user_ap_mw_43"
@@ -1417,28 +1568,28 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
+          Please open a Toro claim — The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
+                Please open a Toro claim — The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                AP-5505 is logged for the microwave: internal arcing with pop and odour during heating.
+                CLAIM-AP-5505 is logged for the microwave: internal arcing with pop and odour during heating.
                 Do not use it again until inspected; we will arrange a technician after intake photos of the cavity.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
+                Can you start a new claim — The microwave arced inside while heating soup — loud pop and a burning smell. I need a Toro appliances claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Microwave arcing; pop; burning smell.","trigger_quote":"microwave arced inside","missing_info":null,"confidence":0.93,"tool_args":{"product_type":"microwave","description":"Arcing inside cavity during heating; loud pop; burning smell.","incident_date":"2026-04-12"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Microwave arcing; pop; burning smell.", "trigger_quote": "microwave arced inside", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "microwave", "description": "Arcing inside cavity during heating; loud pop; burning smell.", "incident_date": "2026-04-12"}}]}
         agent_response: >
-          AP-5505 is logged for the microwave: internal arcing with pop and odour during heating.
+          CLAIM-AP-5505 is logged for the microwave: internal arcing with pop and odour during heating.
           Do not use it again until inspected; we will arrange a technician after intake photos of the cavity.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -1455,7 +1606,7 @@ endusers:
             incident_date: "2026-04-12"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "AP-5505"
+            claim_id: "CLAIM-AP-5505"
             product_type: "microwave"
             status: "opened"
             coverage: { type: "appliance_safety_electrical", deductible: 55 }
@@ -1467,7 +1618,7 @@ endusers:
             PLAN: new_claim microwave arcing narrative.
         response_compose:
           system_prompt: >
-            IVR clear; AP-5505; do-not-use.
+            IVR clear; CLAIM-AP-5505; do-not-use.
 
   - id: dept_ap_dryer_no_heat
     vendor.enduser.pseudo.id: "user_ap_dry_44"
@@ -1488,7 +1639,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                AP-5506 is opened for the dryer: heating failure with normal drum motion and no fault code.
+                CLAIM-AP-5506 is opened for the dryer: heating failure with normal drum motion and no fault code.
                 Clean the lint path for safety; an engineer slot will follow once the claim is triaged.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -1496,9 +1647,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 Tumble dryer runs full cycles but clothes stay cold and damp — no error on the panel. Open a breakdown claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Dryer no heat; damp load; no error code.","trigger_quote":"clothes stay cold and damp","missing_info":null,"confidence":0.9,"tool_args":{"product_type":"dryer","description":"Tumble dryer completes cycles without heat; laundry remains damp; no panel error.","incident_date":"2026-04-10"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Dryer no heat; damp load; no error code.", "trigger_quote": "clothes stay cold and damp", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "dryer", "description": "Tumble dryer completes cycles without heat; laundry remains damp; no panel error.", "incident_date": "2026-04-10"}}]}
         agent_response: >
-          AP-5506 is opened for the dryer: heating failure with normal drum motion and no fault code.
+          CLAIM-AP-5506 is opened for the dryer: heating failure with normal drum motion and no fault code.
           Clean the lint path for safety; an engineer slot will follow once the claim is triaged.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -1515,7 +1666,7 @@ endusers:
             incident_date: "2026-04-10"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "AP-5506"
+            claim_id: "CLAIM-AP-5506"
             product_type: "dryer"
             status: "opened"
             coverage: { type: "appliance_mechanical_breakdown", deductible: 65 }
@@ -1527,7 +1678,7 @@ endusers:
             PLAN: new_claim dryer no-heat.
         response_compose:
           system_prompt: >
-            AP-5506; lint safety; engineer next step.
+            CLAIM-AP-5506; lint safety; engineer next step.
 
   - id: tool_ap_claim_status_parts
     vendor.enduser.pseudo.id: "user_ap_stat_45"
@@ -1537,27 +1688,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Where is washer claim AP-9206 — are we still waiting on a drum part from the manufacturer?
+          Where is washer CLAIM-AP-9206 — are we still waiting on a drum part from the manufacturer?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Where is washer claim AP-9206 — are we still waiting on a drum part from the manufacturer?
+                Where is washer CLAIM-AP-9206 — are we still waiting on a drum part from the manufacturer?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                AP-9206 is on hold for parts: the drum assembly is back-ordered until 2026-04-18. You will get a push when it ships.
+                CLAIM-AP-9206 is on hold for parts: the drum assembly is back-ordered until 2026-04-18. You will get a push when it ships.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Where is washer claim AP-9206 — are we still waiting on a drum part from the manufacturer?
+                Where is washer CLAIM-AP-9206 — are we still waiting on a drum part from the manufacturer?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Parts hold timeline for AP-9206.","trigger_quote":"waiting on a drum part","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"AP-9206"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Parts hold timeline for CLAIM-AP-9206.","trigger_quote":"waiting on a drum part","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-AP-9206"}}]}
         agent_response: >
-          AP-9206 is on hold for parts: the drum assembly is back-ordered until 2026-04-18. You will get a push when it ships.
+          CLAIM-AP-9206 is on hold for parts: the drum assembly is back-ordered until 2026-04-18. You will get a push when it ships.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1568,10 +1719,10 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
-            claim_id: "AP-9206"
+            claim_id: "CLAIM-AP-9206"
         gen_ai.tool.call.result:
           claim_status:
-            claim_id: "AP-9206"
+            claim_id: "CLAIM-AP-9206"
             status: "awaiting_parts"
             last_updated: "2026-04-08T08:40:00Z"
             milestones:
@@ -1583,7 +1734,7 @@ endusers:
           system_prompt: >
             Appliances MCP; claim_status with parts delay narrative.
           output: >
-            PLAN: claim_status AP-9206; translate milestones for app user.
+            PLAN: claim_status CLAIM-AP-9206; translate milestones for app user.
         response_compose:
           system_prompt: >
             Plain ETA language; push notification expectation.
@@ -1596,27 +1747,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          For fridge claim AP-9207 show authorized technician slots between April 14 and April 18 — mornings if possible.
+          For fridge CLAIM-AP-9207 show authorized technician slots between April 14 and April 18 — mornings if possible.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                For fridge claim AP-9207 show authorized technician slots between April 14 and April 18 — mornings if possible.
+                For fridge CLAIM-AP-9207 show authorized technician slots between April 14 and April 18 — mornings if possible.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Open windows for AP-9207 that week: Tue 09:00, Wed 09:30, or Thu 10:00 (each a two-hour arrival band). Pick one in chat to hold.
+                Open windows for CLAIM-AP-9207 that week: Tue 09:00, Wed 09:30, or Thu 10:00 (each a two-hour arrival band). Pick one in chat to hold.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                For fridge claim AP-9207 show authorized technician slots between April 14 and April 18 — mornings if possible.
+                For fridge CLAIM-AP-9207 show authorized technician slots between April 14 and April 18 — mornings if possible.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Authorized repair mornings mid-April for AP-9207.","trigger_quote":"April 14 and April 18","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"AP-9207","service_type":"authorized_repair_visit","date_range_start":"2026-04-14","date_range_end":"2026-04-18"}}]}
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Authorized repair mornings mid-April for CLAIM-AP-9207.","trigger_quote":"April 14 and April 18","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-AP-9207","service_type":"authorized_repair_visit","date_range_start":"2026-04-14","date_range_end":"2026-04-18"}}]}
         agent_response: >
-          Open windows for AP-9207 that week: Tue 09:00, Wed 09:30, or Thu 10:00 (each a two-hour arrival band). Pick one in chat to hold.
+          Open windows for CLAIM-AP-9207 that week: Tue 09:00, Wed 09:30, or Thu 10:00 (each a two-hour arrival band). Pick one in chat to hold.
         tool_chain: [get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1627,13 +1778,13 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           get_available_slots:
-            claim_id: "AP-9207"
+            claim_id: "CLAIM-AP-9207"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-04-14"
             date_range_end: "2026-04-18"
         gen_ai.tool.call.result:
           get_available_slots:
-            claim_id: "AP-9207"
+            claim_id: "CLAIM-AP-9207"
             slots:
               - { slot_id: "SLOT-2026-04-15T09:00", duration_minutes: 120 }
               - { slot_id: "SLOT-2026-04-16T09:30", duration_minutes: 120 }
@@ -1648,25 +1799,132 @@ endusers:
           system_prompt: >
             Morning-biased wording; three concrete options.
 
-  - id: tool_el_update_appointment_collection
-    vendor.enduser.pseudo.id: "user_el_appt_47"
-    channel: email
-    mcp_server: electronics
-    turns:
-      - turn_index: 1
+      - turn_index: 2
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Subject: EL-9206 collection move
-
-          Please move my repair collection for claim EL-9206 from appointment APT-EL-206 to Tuesday 11 April at 14:00 — same address.
+          Book Tuesday 09:00 for CLAIM-AP-9207.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Subject: EL-9206 collection move
+                Book Tuesday 09:00 for CLAIM-AP-9207.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Tuesday 09:00 is locked for CLAIM-AP-9207 — the two-hour arrival band is in your confirmation email.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Book Tuesday 09:00 for CLAIM-AP-9207.
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Tue 09:00 authorized visit from listed slots.","trigger_quote":"Tuesday 09:00","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-AP-9207","appointment_id":"APT-AP-9207-HOLD","slot_id":"SLOT-2026-04-15T09:00","preferred_time_window":"morning"}}]}
+        agent_response: >
+          Tuesday 09:00 is locked for CLAIM-AP-9207 — the two-hour arrival band is in your confirmation email.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 820
+        gen_ai.usage.output_tokens: 96
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "CLAIM-AP-9207"
+            appointment_id: "APT-AP-9207-HOLD"
+            slot_id: "SLOT-2026-04-15T09:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "CLAIM-AP-9207"
+            appointment_id: "APT-AP-9207-01"
+            status: "scheduled"
+            scheduled_at: "2026-04-15T09:00:00Z"
+        planner:
+          system_prompt: >
+            Appliances MCP; book selected fridge visit window.
+          output: >
+            PLAN: update_appointment Tue 09:00.
+        response_compose:
+          system_prompt: >
+            Confirm technician band and email follow-up.
 
-                Please move my repair collection for claim EL-9206 from appointment APT-EL-206 to Tuesday 11 April at 14:00 — same address.
+  - id: tool_el_update_appointment_collection
+    vendor.enduser.pseudo.id: "user_el_appt_47"
+    channel: app_chat
+    mcp_server: electronics
+    turns:
+      - turn_index: 1
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Hi — for CLAIM-EL-9206 I need to shuffle the repair collection (APT-EL-206). Before we change it, what
+          repair-collection slots do you have on Tuesday 11 April at my registered address?
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Hi — for CLAIM-EL-9206 I need to shuffle the repair collection (APT-EL-206). Before we change it, what
+                repair-collection slots do you have on Tuesday 11 April at my registered address?
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                On 11 April we have 14:00 or 16:30 for CLAIM-EL-9206 collection — say which window you want and we’ll confirm APT-EL-206.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: |
+                Hi — for CLAIM-EL-9206 I need to shuffle the repair collection (APT-EL-206). Before we change it, what
+                repair-collection slots do you have on Tuesday 11 April at my registered address?
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"List repair_collection slots for CLAIM-EL-9206 on 11 April.","trigger_quote":"Tuesday 11 April","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-EL-9206","service_type":"repair_collection","date_range_start":"2026-04-11","date_range_end":"2026-04-11"}}]}
+        agent_response: >
+          On 11 April we have 14:00 or 16:30 for CLAIM-EL-9206 collection — say which window you want and we’ll confirm APT-EL-206.
+        tool_chain: [get_available_slots]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 108
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          get_available_slots:
+            claim_id: "CLAIM-EL-9206"
+            service_type: "repair_collection"
+            date_range_start: "2026-04-11"
+            date_range_end: "2026-04-11"
+        gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "CLAIM-EL-9206"
+            slots:
+              - { slot_id: "SLOT-2026-04-11T14:00", duration_minutes: 120 }
+              - { slot_id: "SLOT-2026-04-11T16:30", duration_minutes: 120 }
+            timezone: "Europe/Oslo"
+        planner:
+          system_prompt: >
+            Electronics MCP; list same-day collection options before updating APT-EL-206.
+          output: >
+            PLAN: get_available_slots repair_collection for CLAIM-EL-9206 on 2026-04-11.
+        response_compose:
+          system_prompt: >
+            App chat; two concrete times; ask for explicit pick.
+
+      - turn_index: 2
+        span_plan: *new_claim_span_plan
+        vendor.enduser.request.raw: >
+          Perfect — please move APT-EL-206 to Tuesday 11 April at 14:00 at my registered address (same as on file).
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: >
+                Perfect — please move APT-EL-206 to Tuesday 11 April at 14:00 at my registered address (same as on file).
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
@@ -1676,11 +1934,9 @@ endusers:
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Subject: EL-9206 collection move
-
-                Please move my repair collection for claim EL-9206 from appointment APT-EL-206 to Tuesday 11 April at 14:00 — same address.
+                Perfect — please move APT-EL-206 to Tuesday 11 April at 14:00 at my registered address (same as on file).
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule EL-9206 collection to Tue 14:00.","trigger_quote":"Tuesday 11 April at 14:00","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"EL-9206","appointment_id":"APT-EL-206","slot_id":"SLOT-2026-04-11T14:00","preferred_time_window":"afternoon"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule CLAIM-EL-9206 collection to Tue 14:00 from listed slots.","trigger_quote":"Tuesday 11 April at 14:00","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-EL-9206","appointment_id":"APT-EL-206","slot_id":"SLOT-2026-04-11T14:00","preferred_time_window":"afternoon"}}]}
         agent_response: >
           APT-EL-206 is updated: collection is now Tuesday 11 April at 14:00 at your registered address. A calendar invite will follow.
         tool_chain: [update_appointment]
@@ -1689,28 +1945,29 @@ endusers:
         gen_ai.usage.input_tokens: 920
         gen_ai.usage.output_tokens: 118
         gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "EL-9206"
+            claim_id: "CLAIM-EL-9206"
             appointment_id: "APT-EL-206"
             slot_id: "SLOT-2026-04-11T14:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "EL-9206"
+            claim_id: "CLAIM-EL-9206"
             appointment_id: "APT-EL-206"
             status: "rescheduled"
             scheduled_at: "2026-04-11T14:00:00Z"
         planner:
           system_prompt: >
-            Electronics MCP; update_appointment for home collection slot.
+            Electronics MCP; update_appointment after slot listing for home collection.
           output: >
-            PLAN: update_appointment EL-9206 APT-EL-206 to new slot_id.
+            PLAN: update_appointment CLAIM-EL-9206 APT-EL-206 to new slot_id.
         response_compose:
           system_prompt: >
-            Formal email reply; date and time explicit.
+            App chat confirmation; date and time explicit.
 
   - id: tool_el_upload_assessor_photos
     vendor.enduser.pseudo.id: "user_el_upl_48"
@@ -1720,27 +1977,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Claim EL-9207 — assessor asked for wide shots of the TV wall mount and cable routing. Open uploads for four images.
+          CLAIM-EL-9207 — assessor asked for wide shots of the TV wall mount and cable routing. Open uploads for four images.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Claim EL-9207 — assessor asked for wide shots of the TV wall mount and cable routing. Open uploads for four images.
+                CLAIM-EL-9207 — assessor asked for wide shots of the TV wall mount and cable routing. Open uploads for four images.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Batch UPL-EL-907 is ready for EL-9207: upload four photos (mount overview and cable runs). Status stays pending until all four arrive.
+                Batch UPL-CLAIM-EL-907 is ready for CLAIM-EL-9207: upload four photos (mount overview and cable runs). Status stays pending until all four arrive.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Claim EL-9207 — assessor asked for wide shots of the TV wall mount and cable routing. Open uploads for four images.
+                CLAIM-EL-9207 — assessor asked for wide shots of the TV wall mount and cable routing. Open uploads for four images.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"upload_documents","trigger_summary":"Assessor-requested mount and cable photos for EL-9207.","trigger_quote":"wide shots of the TV wall mount","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"EL-9207","document_types":["photo_wall_mount","photo_cable_routing"],"expected_count":4}}]}
+                {"tool_plan":[{"tool_name":"upload_documents","trigger_summary":"Assessor-requested mount and cable photos for CLAIM-EL-9207.","trigger_quote":"wide shots of the TV wall mount","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-EL-9207","document_types":["photo_wall_mount","photo_cable_routing"],"expected_count":4}}]}
         agent_response: >
-          Batch UPL-EL-907 is ready for EL-9207: upload four photos (mount overview and cable runs). Status stays pending until all four arrive.
+          Batch UPL-CLAIM-EL-907 is ready for CLAIM-EL-9207: upload four photos (mount overview and cable runs). Status stays pending until all four arrive.
         tool_chain: [upload_documents]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1751,13 +2008,13 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           upload_documents:
-            claim_id: "EL-9207"
+            claim_id: "CLAIM-EL-9207"
             document_types: ["photo_wall_mount", "photo_cable_routing"]
             expected_count: 4
         gen_ai.tool.call.result:
           upload_documents:
-            claim_id: "EL-9207"
-            upload_batch_id: "UPL-EL-907"
+            claim_id: "CLAIM-EL-9207"
+            upload_batch_id: "UPL-CLAIM-EL-907"
             pending_count: 4
             status: "pending"
         planner:
@@ -1777,27 +2034,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Charge sixty euros to my card on file for the call-out fee on oven claim AP-9208 — reference should be the claim.
+          I want to submit payment of sixty euros to my card on file for the call-out fee on oven CLAIM-AP-9208 — reference should be the claim.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Charge sixty euros to my card on file for the call-out fee on oven claim AP-9208 — reference should be the claim.
+                I want to submit payment of sixty euros to my card on file for the call-out fee on oven CLAIM-AP-9208 — reference should be the claim.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                EUR 60.00 call-out fee captured for AP-9208; payment id PAY-AP-9208-CO is on your statement description as Toro Appliances.
+                EUR 60.00 call-out fee captured for CLAIM-AP-9208; payment id PAY-AP-9208-CO is on your statement description as Toro Appliances.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Charge sixty euros to my card on file for the call-out fee on oven claim AP-9208 — reference should be the claim.
+                I want to submit payment of sixty euros to my card on file for the call-out fee on oven CLAIM-AP-9208 — reference should be the claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Collect call-out fee linked to AP-9208.","trigger_quote":"call-out fee on oven claim AP-9208","missing_info":null,"confidence":0.9,"tool_args":{"payment_target":"claim_invoice","reference_id":"AP-9208","amount":60.0,"currency":"EUR"}}]}
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Submit payment for call-out fee linked to CLAIM-AP-9208.","trigger_quote":"submit payment for call-out on oven CLAIM-AP-9208","missing_info":null,"confidence":0.9,"tool_args":{"payment_target":"claim_invoice","reference_id":"CLAIM-AP-9208","amount":60.0,"currency":"EUR"}}]}
         agent_response: >
-          EUR 60.00 call-out fee captured for AP-9208; payment id PAY-AP-9208-CO is on your statement description as Toro Appliances.
+          EUR 60.00 call-out fee captured for CLAIM-AP-9208; payment id PAY-AP-9208-CO is on your statement description as Toro Appliances.
         tool_chain: [pay]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1809,13 +2066,13 @@ endusers:
         gen_ai.tool.call.arguments:
           pay:
             payment_target: "claim_invoice"
-            reference_id: "AP-9208"
+            reference_id: "CLAIM-AP-9208"
             amount: 60.0
             currency: "EUR"
         gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-AP-9208-CO"
-            reference_id: "AP-9208"
+            reference_id: "CLAIM-AP-9208"
             status: "captured"
             amount: 60.0
             currency: "EUR"
@@ -1823,7 +2080,7 @@ endusers:
           system_prompt: >
             Appliances MCP; pay with payment_target claim_invoice for call-out.
           output: >
-            PLAN: pay reference_id AP-9208 amount 60 EUR.
+            PLAN: pay reference_id CLAIM-AP-9208 amount 60 EUR.
         response_compose:
           system_prompt: >
             Voice-friendly amount; payment id; statement hint.
@@ -1836,27 +2093,27 @@ endusers:
       - turn_index: 1
         span_plan: *new_claim_span_plan
         vendor.enduser.request.raw: >
-          Please withdraw phone claim PH-9204 — I accidentally submitted twice and the newer PH-9205 is the one I want to keep.
+          Please withdraw phone CLAIM-PH-9204 — I accidentally submitted twice and the newer CLAIM-PH-9205 is the one I want to keep.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Please withdraw phone claim PH-9204 — I accidentally submitted twice and the newer PH-9205 is the one I want to keep.
+                Please withdraw phone CLAIM-PH-9204 — I accidentally submitted twice and the newer CLAIM-PH-9205 is the one I want to keep.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-9204 is cancelled as a duplicate submission. PH-9205 stays active; you can continue photos and booking there.
+                CLAIM-PH-9204 is cancelled as a duplicate submission. CLAIM-PH-9205 stays active; you can continue photos and booking there.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Please withdraw phone claim PH-9204 — I accidentally submitted twice and the newer PH-9205 is the one I want to keep.
+                Please withdraw phone CLAIM-PH-9204 — I accidentally submitted twice and the newer CLAIM-PH-9205 is the one I want to keep.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"User removes duplicate PH-9204; keeps PH-9205.","trigger_quote":"accidentally submitted twice","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-9204","reason":"duplicate_submission"}}]}
+                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"User removes duplicate CLAIM-PH-9204; keeps CLAIM-PH-9205.","trigger_quote":"accidentally submitted twice","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-9204","reason":"duplicate_submission"}}]}
         agent_response: >
-          PH-9204 is cancelled as a duplicate submission. PH-9205 stays active; you can continue photos and booking there.
+          CLAIM-PH-9204 is cancelled as a duplicate submission. CLAIM-PH-9205 stays active; you can continue photos and booking there.
         tool_chain: [cancel_claim]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1867,18 +2124,18 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           cancel_claim:
-            claim_id: "PH-9204"
+            claim_id: "CLAIM-PH-9204"
             reason: "duplicate_submission"
         gen_ai.tool.call.result:
           cancel_claim:
-            claim_id: "PH-9204"
+            claim_id: "CLAIM-PH-9204"
             status: "cancelled"
             cancelled_at: "2026-04-09T16:12:00Z"
         planner:
           system_prompt: >
             Phone MCP; cancel_claim duplicate with sibling claim context in reply only.
           output: >
-            PLAN: cancel_claim PH-9204 reason duplicate_submission.
+            PLAN: cancel_claim CLAIM-PH-9204 reason duplicate_submission.
         response_compose:
           system_prompt: >
-            Confirm cancellation; reassure PH-9205 remains open.
+            Confirm cancellation; reassure CLAIM-PH-9205 remains open.

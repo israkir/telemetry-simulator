@@ -11,7 +11,7 @@
 
 name: multi_appliances_washer_grind_slots_multiturn
 description: >
-  Washer grinding on spin: claim HA-9151 + Wed/Fri morning slots; customer books Wednesday.
+  Washer grinding on spin: CLAIM-HA-9151 + Wed/Fri morning slots; customer books Wednesday.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened a claim for your washer — claim ID HA-9151. I have Wednesday 08:00–12:00 or Friday 08:00–12:00 available. Which morning works better for you?
+                I’ve opened a claim for your washer — claim ID CLAIM-HA-9151. I have Wednesday 08:00–12:00 or Friday 08:00–12:00 available. Which morning works better for you?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Our washer sounds like grinding metal on every spin cycle. Please open a claim and find the earliest morning technician visits this week.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Washer grinding on spin; book visit.", "trigger_quote": "grinding on spin", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "washer", "description": "Loud grinding on spin; customer requests home service.", "incident_date": "2026-05-01"}}, {"tool_name": "get_available_slots", "trigger_summary": "Earliest weekday morning repair windows.", "trigger_quote": "earliest morning visit", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "HA-9151", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-04", "date_range_end": "2026-05-09"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Washer grinding on spin; book visit.", "trigger_quote": "I want to file a claim — grinding on spin", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "washer", "description": "Loud grinding on spin; customer requests home service.", "incident_date": "2026-05-01"}}, {"tool_name": "get_available_slots", "trigger_summary": "Earliest weekday morning repair windows.", "trigger_quote": "earliest morning visit", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "CLAIM-HA-9151", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-04", "date_range_end": "2026-05-09"}}]}
         agent_response: >
-          I’ve opened a claim for your washer — claim ID HA-9151. I have Wednesday 08:00–12:00 or Friday 08:00–12:00 available. Which morning works better for you?
+          I’ve opened a claim for your washer — claim ID CLAIM-HA-9151. I have Wednesday 08:00–12:00 or Friday 08:00–12:00 available. Which morning works better for you?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Loud grinding on spin; customer requests home service."
             incident_date: "2026-05-01"
           get_available_slots:
-            claim_id: "HA-9151"
+            claim_id: "CLAIM-HA-9151"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-04"
             date_range_end: "2026-05-09"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-9151"
+            claim_id: "CLAIM-HA-9151"
             product_type: "washer"
             status: "opened"
             coverage: { type: "appliance_mechanical_breakdown", deductible: 82 }
             notes: "Two morning windows offered."
           get_available_slots:
-            claim_id: "HA-9151"
+            claim_id: "CLAIM-HA-9151"
             slots:
               - { slot_id: "SLOT-2026-05-06T08:00", duration_minutes: 240 }
               - { slot_id: "SLOT-2026-05-08T08:00", duration_minutes: 240 }
@@ -132,10 +132,10 @@ endusers:
           system_prompt: >
             Appliances MCP: washer mechanical intake plus morning slot search.
           output: >
-            PLAN: new_claim HA-9151; get_available_slots authorized_repair_visit mornings.
+            PLAN: new_claim CLAIM-HA-9151; get_available_slots authorized_repair_visit mornings.
         response_compose:
           system_prompt: >
-            Empathetic; HA-9151; offer Wed/Fri 8–12.
+            Empathetic; CLAIM-HA-9151; offer Wed/Fri 8–12.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Booked Wednesday 08:00–12:00 under claim HA-9151. You’ll get confirmation with arrival details.
+                Booked Wednesday 08:00–12:00 under CLAIM-HA-9151. You’ll get confirmation with arrival details.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Wednesday morning is good."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Hold Wednesday morning four-hour window.", "trigger_quote": "Wednesday morning", "missing_info": null, "confidence": 0.94, "tool_args": {"claim_id": "HA-9151", "appointment_id": "APT-HA-9151-HOLD", "slot_id": "SLOT-2026-05-06T08:00", "preferred_time_window": "morning"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Hold Wednesday morning four-hour window.", "trigger_quote":"Wednesday morning", "missing_info": null, "confidence": 0.94, "tool_args": {"claim_id": "CLAIM-HA-9151", "appointment_id": "APT-HA-9151-HOLD", "slot_id": "SLOT-2026-05-06T08:00", "preferred_time_window": "morning"}}]}
         agent_response: >
-          Booked Wednesday 08:00–12:00 under claim HA-9151. You’ll get confirmation with arrival details.
+          Booked Wednesday 08:00–12:00 under CLAIM-HA-9151. You’ll get confirmation with arrival details.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "HA-9151"
+            claim_id: "CLAIM-HA-9151"
             appointment_id: "APT-HA-9151-HOLD"
             slot_id: "SLOT-2026-05-06T08:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "HA-9151"
+            claim_id: "CLAIM-HA-9151"
             appointment_id: "APT-HA-9151-01"
             status: "scheduled"
             scheduled_at: "2026-05-06T08:00:00Z"
         planner:
           system_prompt: >
-            Customer chose Wednesday 08:00 slot for HA-9151.
+            Customer chose Wednesday 08:00 slot for CLAIM-HA-9151.
           output: >
             PLAN: update_appointment SLOT-2026-05-06T08:00 morning.
         response_compose:

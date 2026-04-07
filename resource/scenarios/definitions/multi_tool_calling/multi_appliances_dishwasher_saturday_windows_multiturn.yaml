@@ -3,7 +3,7 @@
 # =============================================================================
 # File: normal/multi_tool_calling/multi_appliances_dishwasher_saturday_windows_multiturn.yaml
 # Endusers: 1 | Conversation threads: 1 | Total user turns: 2
-# MCP: appliances — dishwasher not draining HA-9311; Saturday 9–13 or 13–17
+# MCP: appliances — dishwasher not draining CLAIM-HA-9311; Saturday 9–13 or 13–17
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -11,7 +11,7 @@
 
 name: multi_appliances_dishwasher_saturday_windows_multiturn
 description: >
-  Dishwasher not draining: claim HA-9311; Saturday 9:00–13:00 or 13:00–17:00; customer picks 9–13.
+  Dishwasher not draining: CLAIM-HA-9311; Saturday 9:00–13:00 or 13:00–17:00; customer picks 9–13.
 
 tags:
   - normal
@@ -86,7 +86,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve started a claim for your dishwasher that isn’t draining; your claim ID is HA-9311. On
+                I’ve started a claim for your dishwasher that isn’t draining; your claim ID is CLAIM-HA-9311. On
                 Saturday I can offer 9:00–13:00 or 13:00–17:00. Which time window would you like?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -94,9 +94,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My dishwasher stopped draining. Can somebody come on Saturday? I also need to start a claim.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Dishwasher will not drain; Saturday visit.","trigger_quote":"stopped draining","missing_info":null,"confidence":0.93,"tool_args":{"product_type":"dishwasher","description":"Unit not draining between cycles.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Saturday technician windows.","trigger_quote":"come on Saturday","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"HA-9311","service_type":"authorized_repair_visit","date_range_start":"2026-03-29","date_range_end":"2026-03-29"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Dishwasher will not drain; Saturday visit.", "trigger_quote": "I want to file a claim — stopped draining", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "dishwasher", "description": "Unit not draining between cycles.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Saturday technician windows.", "trigger_quote": "come on Saturday", "missing_info": null, "confidence": 0.91, "tool_args": {"claim_id": "CLAIM-HA-9311", "service_type": "authorized_repair_visit", "date_range_start": "2026-03-29", "date_range_end": "2026-03-29"}}]}
         agent_response: >
-          I’ve started a claim for your dishwasher that isn’t draining; your claim ID is HA-9311. On
+          I’ve started a claim for your dishwasher that isn’t draining; your claim ID is CLAIM-HA-9311. On
           Saturday I can offer 9:00–13:00 or 13:00–17:00. Which time window would you like?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
@@ -113,19 +113,19 @@ endusers:
             description: "Will not drain; customer requests Saturday visit."
             incident_date: "2026-03-22"
           get_available_slots:
-            claim_id: "HA-9311"
+            claim_id: "CLAIM-HA-9311"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-29"
             date_range_end: "2026-03-29"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-9311"
+            claim_id: "CLAIM-HA-9311"
             product_type: "dishwasher"
             status: "opened"
             coverage: { type: "appliance_mechanical_fault", deductible: 40 }
             notes: "Saturday half-day windows listed."
           get_available_slots:
-            claim_id: "HA-9311"
+            claim_id: "CLAIM-HA-9311"
             slots:
               - { slot_id: "SLOT-2026-03-29T09:00", duration_minutes: 240 }
               - { slot_id: "SLOT-2026-03-29T13:00", duration_minutes: 240 }
@@ -134,10 +134,10 @@ endusers:
           system_prompt: >
             Appliances: drain fault claim plus Saturday-only slot query.
           output: >
-            PLAN: new_claim HA-9311; get_available_slots 2026-03-29.
+            PLAN: new_claim CLAIM-HA-9311; get_available_slots 2026-03-29.
         response_compose:
           system_prompt: >
-            HA-9311; two Saturday windows; ask preference.
+            CLAIM-HA-9311; two Saturday windows; ask preference.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -151,16 +151,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Great, I’ve booked a Saturday 9:00–13:00 visit under claim HA-9311. You’ll get a confirmation
+                Great, I’ve booked a Saturday 9:00–13:00 visit under CLAIM-HA-9311. You’ll get a confirmation
                 email with the details.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "9 to 1 works best."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Saturday 9–13 window.","trigger_quote":"9 to 1","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"HA-9311","appointment_id":"APT-HA-9311-HOLD","slot_id":"SLOT-2026-03-29T09:00","preferred_time_window":"morning"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Saturday 9–13 window.","trigger_quote":"9 to 1","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-HA-9311","appointment_id":"APT-HA-9311-HOLD","slot_id":"SLOT-2026-03-29T09:00","preferred_time_window":"morning"}}]}
         agent_response: >
-          Great, I’ve booked a Saturday 9:00–13:00 visit under claim HA-9311. You’ll get a confirmation
+          Great, I’ve booked a Saturday 9:00–13:00 visit under CLAIM-HA-9311. You’ll get a confirmation
           email with the details.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
@@ -173,19 +173,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "HA-9311"
+            claim_id: "CLAIM-HA-9311"
             appointment_id: "APT-HA-9311-HOLD"
             slot_id: "SLOT-2026-03-29T09:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "HA-9311"
+            claim_id: "CLAIM-HA-9311"
             appointment_id: "APT-HA-9311-01"
             status: "scheduled"
             scheduled_at: "2026-03-29T09:00:00Z"
         planner:
           system_prompt: >
-            Customer chose earlier Saturday window for HA-9311.
+            Customer chose earlier Saturday window for CLAIM-HA-9311.
           output: >
             PLAN: update_appointment morning half-day.
         response_compose:

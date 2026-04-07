@@ -80,31 +80,31 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          For claim PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
+          For CLAIM-PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
           What’s open later this week around Holborn?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                For claim PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
+                For CLAIM-PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
                 What’s open later this week around Holborn?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve pulled later-week screen-repair times near Holborn for PH-4412 — including Thursday
+                I’ve pulled later-week screen-repair times near Holborn for CLAIM-PH-4412 — including Thursday
                 sixteen hundred. Tell me which one you want and I’ll move your booking.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                For claim PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
+                For CLAIM-PH-4412 I need to move the screen repair — the slot you sent clashes with work travel.
                 What’s open later this week around Holborn?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Find repair slots later this week near Holborn for reschedule.","trigger_quote":"open later this week around Holborn","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"PH-4412","service_type":"screen_repair_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}}]}
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Find repair slots later this week near Holborn for reschedule.","trigger_quote":"open later this week around Holborn","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-PH-4412","service_type":"screen_repair_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-28"}}]}
         agent_response: >
-          I’ve pulled later-week screen-repair times near Holborn for PH-4412 — including Thursday
+          I’ve pulled later-week screen-repair times near Holborn for CLAIM-PH-4412 — including Thursday
           sixteen hundred. Tell me which one you want and I’ll move your booking.
         tool_chain: [get_available_slots]
         gen_ai.request.type: completion
@@ -117,13 +117,13 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           get_available_slots:
-            claim_id: "PH-4412"
+            claim_id: "CLAIM-PH-4412"
             service_type: "screen_repair_visit"
             date_range_start: "2026-03-24"
             date_range_end: "2026-03-28"
         gen_ai.tool.call.result:
           get_available_slots:
-            claim_id: "PH-4412"
+            claim_id: "CLAIM-PH-4412"
             slots:
               - { slot_id: "SLOT-2026-03-26T11:00", duration_minutes: 90 }
               - { slot_id: "SLOT-2026-03-27T16:00", duration_minutes: 90 }
@@ -131,9 +131,9 @@ endusers:
             timezone: "America/Los_Angeles"
         planner:
           system_prompt: >
-            Toro phone planner: list slots for PH-4412 late week Holborn area; defer booking to next turn.
+            Toro phone planner: list slots for CLAIM-PH-4412 late week Holborn area; defer booking to next turn.
           output: >
-            PLAN: get_available_slots PH-4412 24–28 Mar; offer Thursday 16:00 among options.
+            PLAN: get_available_slots CLAIM-PH-4412 24–28 Mar; offer Thursday 16:00 among options.
         response_compose:
           system_prompt: >
             Voice-friendly; summarize options; ask which slot to book.
@@ -141,13 +141,13 @@ endusers:
       - turn_index: 2
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          Lock Thursday four p.m. for PH-4412 — that’s the one I need.
+          Lock Thursday four p.m. for CLAIM-PH-4412 — that’s the one I need.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Lock Thursday four p.m. for PH-4412 — that’s the one I need.
+                Lock Thursday four p.m. for CLAIM-PH-4412 — that’s the one I need.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
@@ -158,9 +158,9 @@ endusers:
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Lock Thursday four p.m. for PH-4412 — that’s the one I need.
+                Lock Thursday four p.m. for CLAIM-PH-4412 — that’s the one I need.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule to Thursday 16:00 slot from prior listing.","trigger_quote":"Thursday four p.m.","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"PH-4412","appointment_id":"APT-PH-4412-01","slot_id":"SLOT-2026-03-27T16:00","preferred_time_window":"late_afternoon"}}]}
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Reschedule to Thursday 16:00 slot from prior listing.","trigger_quote":"Thursday four p.m.","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-4412","appointment_id":"APT-PH-4412-01","slot_id":"SLOT-2026-03-27T16:00","preferred_time_window":"late_afternoon"}}]}
         agent_response: >
           I’ve moved your booking to Thursday sixteen hundred; you’ll get an updated SMS with the
           arrival window.
@@ -187,13 +187,13 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "PH-4412"
+            claim_id: "CLAIM-PH-4412"
             appointment_id: "APT-PH-4412-01"
             slot_id: "SLOT-2026-03-27T16:00"
             preferred_time_window: "late_afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "PH-4412"
+            claim_id: "CLAIM-PH-4412"
             appointment_id: "APT-PH-4412-02"
             status: "rescheduled"
             scheduled_at: "2026-03-27T16:00:00Z"
@@ -201,7 +201,7 @@ endusers:
           system_prompt: >
             Customer confirms SLOT-2026-03-27T16:00; booking may retry before success.
           output: >
-            PLAN: update_appointment PH-4412 Thursday 16:00; confirm SMS.
+            PLAN: update_appointment CLAIM-PH-4412 Thursday 16:00; confirm SMS.
         response_compose:
           system_prompt: >
             Voice-friendly confirmation; no internal error or retry wording.

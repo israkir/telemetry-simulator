@@ -12,7 +12,7 @@
 name: outlier_appliances_pay_link_instead_of_fridge_visit
 description: >
   Paired flows for the same user wording (fridge not cooling; start claim and send someone). Outlier:
-  assistant runs pay for an unrelated £24 balance on HA-3300 and talks about a payment link. Correct
+  assistant runs pay for an unrelated £24 balance on CLAIM-HA-3300 and talks about a payment link. Correct
   counterpart: new_claim for the fridge fault plus get_available_slots for authorized repair visits.
 
 tags:
@@ -89,7 +89,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve checked your account and you have an outstanding balance of £24 on order HA-3300. I’ve sent
+                I’ve checked your account and you have an outstanding balance of £24 on order CLAIM-HA-3300. I’ve sent
                 you a secure payment link so you can pay now. Once payment is complete, you can check your
                 orders in the app.
           - target_span_class: tools.recommend
@@ -98,9 +98,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My fridge stopped cooling. Please start a claim and arrange someone to come out.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Surface unrelated order balance instead of fridge claim.","trigger_quote":"start a claim and arrange someone","missing_info":null,"confidence":0.74,"tool_args":{"payment_target":"claim_invoice","reference_id":"HA-3300","amount":24.0,"currency":"GBP"}}]}
+                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Surface unrelated order balance instead of fridge claim.","trigger_quote":"start a claim and arrange someone","missing_info":null,"confidence":0.74,"tool_args":{"payment_target":"claim_invoice","reference_id":"CLAIM-HA-3300","amount":24.0,"currency":"GBP"}}]}
         agent_response: >
-          I’ve checked your account and you have an outstanding balance of £24 on order HA-3300. I’ve sent
+          I’ve checked your account and you have an outstanding balance of £24 on order CLAIM-HA-3300. I’ve sent
           you a secure payment link so you can pay now. Once payment is complete, you can check your
           orders in the app.
         tool_chain: [pay]
@@ -115,21 +115,21 @@ endusers:
         gen_ai.tool.call.arguments:
           pay:
             payment_target: "claim_invoice"
-            reference_id: "HA-3300"
+            reference_id: "CLAIM-HA-3300"
             amount: 24.0
             currency: "GBP"
         gen_ai.tool.call.result:
           pay:
             payment_id: "PAY-HA-3300-LINK"
-            reference_id: "HA-3300"
+            reference_id: "CLAIM-HA-3300"
             status: "link_sent"
             amount: 24.0
             currency: "GBP"
         planner:
           system_prompt: >
-            Appliances MCP misroute: user needs fridge claim + visit; planner issues pay for stale invoice HA-3300.
+            Appliances MCP misroute: user needs fridge claim + visit; planner issues pay for stale invoice CLAIM-HA-3300.
           output: >
-            PLAN: pay claim_invoice HA-3300 — wrong tool vs intake and scheduling request.
+            PLAN: pay claim_invoice CLAIM-HA-3300 — wrong tool vs intake and scheduling request.
         response_compose:
           system_prompt: >
             Balance and payment link narrative; omit new_claim and technician slots.
@@ -153,7 +153,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened a claim for your fridge that has stopped cooling — claim ID HA-9155. I can send a
+                I’ve opened a claim for your fridge that has stopped cooling — claim ID CLAIM-HA-9155. I can send a
                 technician on Tuesday 09:00–13:00 or Wednesday 14:00–18:00 next week. Which window should I book?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -161,9 +161,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 My fridge stopped cooling. Please start a claim and arrange someone to come out.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"new_claim","trigger_summary":"Fridge no longer cooling; arrange engineer.","trigger_quote":"fridge stopped cooling","missing_info":null,"confidence":0.95,"tool_args":{"product_type":"fridge","description":"Stopped cooling; food safety risk; customer requests home visit.","incident_date":"2026-03-22"}},{"tool_name":"get_available_slots","trigger_summary":"Authorized repair multi-hour windows after intake.","trigger_quote":"arrange someone to come out","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"HA-9155","service_type":"authorized_repair_visit","date_range_start":"2026-03-25","date_range_end":"2026-03-26"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Fridge no longer cooling; arrange engineer.", "trigger_quote": "I want to file a claim — fridge stopped cooling", "missing_info": null, "confidence": 0.95, "tool_args": {"product_type": "fridge", "description": "Stopped cooling; food safety risk; customer requests home visit.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Authorized repair multi-hour windows after intake.", "trigger_quote": "arrange someone to come out", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-HA-9155", "service_type": "authorized_repair_visit", "date_range_start": "2026-03-25", "date_range_end": "2026-03-26"}}]}
         agent_response: >
-          I’ve opened a claim for your fridge that has stopped cooling — claim ID HA-9155. I can send a
+          I’ve opened a claim for your fridge that has stopped cooling — claim ID CLAIM-HA-9155. I can send a
           technician on Tuesday 09:00–13:00 or Wednesday 14:00–18:00 next week. Which window should I book?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
@@ -180,19 +180,19 @@ endusers:
             description: "Stopped cooling; food safety risk; customer requests home visit."
             incident_date: "2026-03-22"
           get_available_slots:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-25"
             date_range_end: "2026-03-26"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             product_type: "fridge"
             status: "opened"
             coverage: { type: "appliance_cooling_fault", deductible: 40 }
             notes: "Correct path: intake plus two repair windows offered."
           get_available_slots:
-            claim_id: "HA-9155"
+            claim_id: "CLAIM-HA-9155"
             slots:
               - { slot_id: "SLOT-2026-03-25T09:00", duration_minutes: 240 }
               - { slot_id: "SLOT-2026-03-26T14:00", duration_minutes: 240 }
@@ -201,7 +201,58 @@ endusers:
           system_prompt: >
             Appliances MCP; fridge cooling failure — new_claim then list authorized_repair_visit slots.
           output: >
-            PLAN: new_claim HA-9155; get_available_slots Tue/Wed four-hour windows.
+            PLAN: new_claim CLAIM-HA-9155; get_available_slots Tue/Wed four-hour windows.
         response_compose:
           system_prompt: >
             Claim id; two technician windows; invite choice — no payment or unrelated orders.
+
+      - turn_index: 2
+        span_plan: *appliances_span_plan
+        vendor.enduser.request.raw: "Tuesday morning for CLAIM-HA-9155."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Tuesday morning for CLAIM-HA-9155."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: >
+                Tuesday 09:00 is reserved for CLAIM-HA-9155 — calendar details will follow by email.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Tuesday morning for CLAIM-HA-9155."
+              vendor.agent.tool_selection.tool.plan: |
+                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Tue 09:00 authorized fridge visit from listed slots.","trigger_quote":"Tuesday morning","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-HA-9155","appointment_id":"APT-HA-9155-HOLD","slot_id":"SLOT-2026-03-25T09:00","preferred_time_window":"morning"}}]}
+        agent_response: >
+          Tuesday 09:00 is reserved for CLAIM-HA-9155 — calendar details will follow by email.
+        tool_chain: [update_appointment]
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 940
+        gen_ai.usage.output_tokens: 82
+        gentoro.llm.streaming: false
+        gentoro.llm.turn.count: 1
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          update_appointment:
+            claim_id: "CLAIM-HA-9155"
+            appointment_id: "APT-HA-9155-HOLD"
+            slot_id: "SLOT-2026-03-25T09:00"
+            preferred_time_window: "morning"
+        gen_ai.tool.call.result:
+          update_appointment:
+            claim_id: "CLAIM-HA-9155"
+            appointment_id: "APT-HA-9155-01"
+            status: "scheduled"
+            scheduled_at: "2026-03-25T09:00:00Z"
+        planner:
+          system_prompt: >
+            Book Tuesday fridge technician window for CLAIM-HA-9155.
+          output: >
+            PLAN: update_appointment Tue 09:00.
+        response_compose:
+          system_prompt: >
+            Confirm fridge visit booking.

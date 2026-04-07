@@ -11,7 +11,7 @@
 
 name: multi_phone_battery_drain_slots_multiturn
 description: >
-  Rapid drain: PH-9165 + diagnostics visit slots; books later slot.
+  Rapid drain: CLAIM-PH-9165 + diagnostics visit slots; books later slot.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-9165 is recorded. Wednesday 15:30 or Saturday 15:30 this month — which afternoon?
+                CLAIM-PH-9165 is recorded. Wednesday 15:30 or Saturday 15:30 this month — which afternoon?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Battery tanks from full to dead in a few hours on standby — open a claim and offer diagnostic appointments.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Abnormal battery drain.", "trigger_quote": "drains in hours", "missing_info": null, "confidence": 0.87, "tool_args": {"product_type": "phone", "description": "Battery drains in hours idle; suspected hardware fault.", "incident_date": "2026-05-10"}}, {"tool_name": "get_available_slots", "trigger_summary": "Diagnostics visit availability.", "trigger_quote": "technician slot", "missing_info": null, "confidence": 0.85, "tool_args": {"claim_id": "PH-9165", "service_type": "screen_repair_visit", "date_range_start": "2026-05-11", "date_range_end": "2026-05-18"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Abnormal battery drain.", "trigger_quote": "I want to file a claim — drains in hours", "missing_info": null, "confidence": 0.87, "tool_args": {"product_type": "phone", "description": "Battery drains in hours idle; suspected hardware fault.", "incident_date": "2026-05-10"}}, {"tool_name": "get_available_slots", "trigger_summary": "Diagnostics visit availability.", "trigger_quote": "technician slot", "missing_info": null, "confidence": 0.85, "tool_args": {"claim_id": "CLAIM-PH-9165", "service_type": "screen_repair_visit", "date_range_start": "2026-05-11", "date_range_end": "2026-05-18"}}]}
         agent_response: >
-          PH-9165 is recorded. Wednesday 15:30 or Saturday 15:30 this month — which afternoon?
+          CLAIM-PH-9165 is recorded. Wednesday 15:30 or Saturday 15:30 this month — which afternoon?
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "Battery drains in hours idle; suspected hardware fault."
             incident_date: "2026-05-10"
           get_available_slots:
-            claim_id: "PH-9165"
+            claim_id: "CLAIM-PH-9165"
             service_type: "screen_repair_visit"
             date_range_start: "2026-05-11"
             date_range_end: "2026-05-18"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-9165"
+            claim_id: "CLAIM-PH-9165"
             product_type: "phone"
             status: "opened"
             coverage: { type: "phone_mechanical_breakdown", deductible: 65 }
             notes: "Battery module check."
           get_available_slots:
-            claim_id: "PH-9165"
+            claim_id: "CLAIM-PH-9165"
             slots:
               - { slot_id: "SLOT-2026-05-13T15:30", duration_minutes: 90 }
               - { slot_id: "SLOT-2026-05-16T15:30", duration_minutes: 90 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; slots Wed/Sat PM.
         response_compose:
           system_prompt: >
-            PH-9165; manage expectations.
+            CLAIM-PH-9165; manage expectations.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Saturday 15:30 is booked for PH-9165 battery diagnostics.
+                Saturday 15:30 is booked for CLAIM-PH-9165 battery diagnostics.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Saturday afternoon slot."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Saturday afternoon diagnostic.", "trigger_quote": "Saturday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "PH-9165", "appointment_id": "APT-PH-9165-HOLD", "slot_id": "SLOT-2026-05-16T15:30", "preferred_time_window": "afternoon"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Saturday afternoon diagnostic.", "trigger_quote":"Saturday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-PH-9165", "appointment_id": "APT-PH-9165-HOLD", "slot_id": "SLOT-2026-05-16T15:30", "preferred_time_window": "afternoon"}}]}
         agent_response: >
-          Saturday 15:30 is booked for PH-9165 battery diagnostics.
+          Saturday 15:30 is booked for CLAIM-PH-9165 battery diagnostics.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "PH-9165"
+            claim_id: "CLAIM-PH-9165"
             appointment_id: "APT-PH-9165-HOLD"
             slot_id: "SLOT-2026-05-16T15:30"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "PH-9165"
+            claim_id: "CLAIM-PH-9165"
             appointment_id: "APT-PH-9165-01"
             status: "scheduled"
             scheduled_at: "2026-05-16T15:30:00Z"
         planner:
           system_prompt: >
-            Saturday PM for PH-9165.
+            Saturday PM for CLAIM-PH-9165.
           output: >
             PLAN: update_appointment.
         response_compose:

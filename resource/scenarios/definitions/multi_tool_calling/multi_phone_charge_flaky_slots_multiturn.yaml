@@ -11,7 +11,7 @@
 
 name: multi_phone_charge_flaky_slots_multiturn
 description: >
-  Intermittent port charge: PH-9163 + slots; books Wednesday.
+  Intermittent port charge: CLAIM-PH-9163 + slots; books Wednesday.
 
 tags:
   - normal
@@ -86,16 +86,16 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                PH-9163 logged. Available: Monday 09:00 or Thursday 09:00 one-hour bays — pick one.
+                CLAIM-PH-9163 logged. Available: Monday 09:00 or Thursday 09:00 one-hour bays — pick one.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
                 Charging cuts out unless I hold the cable just so — need a claim and a service slot.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Charge port intermittent.", "trigger_quote": "charging drops", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "phone", "description": "USB-C port loose; charging drops unless cable angled.", "incident_date": "2026-05-08"}}, {"tool_name": "get_available_slots", "trigger_summary": "Service center hourly windows.", "trigger_quote": "repair appointment", "missing_info": null, "confidence": 0.87, "tool_args": {"claim_id": "PH-9163", "service_type": "screen_repair_visit", "date_range_start": "2026-05-09", "date_range_end": "2026-05-15"}}]}
+                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Charge port intermittent.", "trigger_quote": "I want to file a claim — charging drops", "missing_info": null, "confidence": 0.9, "tool_args": {"product_type": "phone", "description": "USB-C port loose; charging drops unless cable angled.", "incident_date": "2026-05-08"}}, {"tool_name": "get_available_slots", "trigger_summary": "Service center hourly windows.", "trigger_quote": "repair appointment", "missing_info": null, "confidence": 0.87, "tool_args": {"claim_id": "CLAIM-PH-9163", "service_type": "screen_repair_visit", "date_range_start": "2026-05-09", "date_range_end": "2026-05-15"}}]}
         agent_response: >
-          PH-9163 logged. Available: Monday 09:00 or Thursday 09:00 one-hour bays — pick one.
+          CLAIM-PH-9163 logged. Available: Monday 09:00 or Thursday 09:00 one-hour bays — pick one.
         tool_chain: [new_claim, get_available_slots]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -111,19 +111,19 @@ endusers:
             description: "USB-C port loose; charging drops unless cable angled."
             incident_date: "2026-05-08"
           get_available_slots:
-            claim_id: "PH-9163"
+            claim_id: "CLAIM-PH-9163"
             service_type: "screen_repair_visit"
             date_range_start: "2026-05-09"
             date_range_end: "2026-05-15"
         gen_ai.tool.call.result:
           new_claim:
-            claim_id: "PH-9163"
+            claim_id: "CLAIM-PH-9163"
             product_type: "phone"
             status: "opened"
             coverage: { type: "phone_physical_damage", deductible: 68 }
             notes: "Port service."
           get_available_slots:
-            claim_id: "PH-9163"
+            claim_id: "CLAIM-PH-9163"
             slots:
               - { slot_id: "SLOT-2026-05-11T09:00", duration_minutes: 60 }
               - { slot_id: "SLOT-2026-05-14T09:00", duration_minutes: 60 }
@@ -135,7 +135,7 @@ endusers:
             PLAN: new_claim; get slots.
         response_compose:
           system_prompt: >
-            PH-9163; two mornings.
+            CLAIM-PH-9163; two mornings.
 
       - turn_index: 2
         span_plan: *phone_span_plan
@@ -149,15 +149,15 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Monday 09:00 is booked on PH-9163 for port inspection.
+                Monday 09:00 is booked on CLAIM-PH-9163 for port inspection.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: "Monday morning."
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary": "Monday 09:00 service bay.", "trigger_quote": "Monday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "PH-9163", "appointment_id": "APT-PH-9163-HOLD", "slot_id": "SLOT-2026-05-11T09:00", "preferred_time_window": "morning"}}]}
+                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Monday 09:00 service bay.", "trigger_quote":"Monday morning", "missing_info": null, "confidence": 0.95, "tool_args": {"claim_id": "CLAIM-PH-9163", "appointment_id": "APT-PH-9163-HOLD", "slot_id": "SLOT-2026-05-11T09:00", "preferred_time_window": "morning"}}]}
         agent_response: >
-          Monday 09:00 is booked on PH-9163 for port inspection.
+          Monday 09:00 is booked on CLAIM-PH-9163 for port inspection.
         tool_chain: [update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -169,19 +169,19 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           update_appointment:
-            claim_id: "PH-9163"
+            claim_id: "CLAIM-PH-9163"
             appointment_id: "APT-PH-9163-HOLD"
             slot_id: "SLOT-2026-05-11T09:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
           update_appointment:
-            claim_id: "PH-9163"
+            claim_id: "CLAIM-PH-9163"
             appointment_id: "APT-PH-9163-01"
             status: "scheduled"
             scheduled_at: "2026-05-11T09:00:00Z"
         planner:
           system_prompt: >
-            Monday bay for PH-9163.
+            Monday bay for CLAIM-PH-9163.
           output: >
             PLAN: update_appointment.
         response_compose:
