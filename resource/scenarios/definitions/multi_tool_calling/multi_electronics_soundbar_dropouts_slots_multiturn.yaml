@@ -2,7 +2,7 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_electronics_soundbar_dropouts_slots_multiturn.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
 # MCP: electronics — new_claim + get_available_slots, then update_appointment
 #
 # --- LLM / MAINTAINER ---
@@ -11,7 +11,7 @@
 
 name: multi_electronics_soundbar_dropouts_slots_multiturn
 description: >
-  Soundbar eARC dropouts: CLAIM-EL-9172 + visit slots; picks second date.
+  Soundbar eARC dropouts: claim CLAIM-EL-9172 + visit slots; picks second date.
 
 tags:
   - normal
@@ -29,18 +29,18 @@ trace_interval_deviation_ms: 52
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2140, deviation: 620 }
-      planner: { mean: 520, deviation: 165 }
-      llm.call: { mean: 655, deviation: 200 }
-      task.execute: { mean: 740, deviation: 250 }
-      tools.recommend: { mean: 54, deviation: 22 }
-      mcp.tool.execute: { mean: 245, deviation: 110 }
-      response.compose: { mean: 368, deviation: 115 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2140, deviation: 620}
+      planner: {mean: 520, deviation: 165}
+      llm.call: {mean: 655, deviation: 200}
+      task.execute: {mean: 740, deviation: 250}
+      tools.recommend: {mean: 54, deviation: 22}
+      mcp.tool.execute: {mean: 245, deviation: 110}
+      response.compose: {mean: 368, deviation: 115}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -72,37 +72,55 @@ endusers:
     channel: app_chat
     mcp_server: electronics
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          Soundbar keeps dropping eARC audio randomly. Open a claim and show me engineer slots next week.
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "Soundbar keeps dropping eARC audio randomly.
+          Open a claim and show me engineer slots next week.\n\nMonday afternoon."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                Soundbar keeps dropping eARC audio randomly. Open a claim and show me engineer slots next week.
+              vendor.enduser.request.raw: "Soundbar keeps dropping eARC audio randomly.
+                Open a claim and show me engineer slots next week.\n\nMonday afternoon."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-EL-9172 is live. Friday 14:00–16:00 or Monday 14:00–16:00 — which works?
+                Monday 14:00–16:00 is scheduled under claim CLAIM-EL-9172.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                Soundbar keeps dropping eARC audio randomly. Open a claim and show me engineer slots next week.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — eARC dropout fault.", "trigger_quote": "I want to file a claim — audio cuts out", "missing_info": null, "confidence": 0.88, "tool_args": {"product_type": "soundbar", "description": "Intermittent eARC audio blackouts with known-good cable.", "incident_date": "2026-05-12"}}, {"tool_name": "get_available_slots", "trigger_summary": "Afternoon engineer windows.", "trigger_quote": "send an engineer", "missing_info": null, "confidence": 0.87, "tool_args": {"claim_id": "CLAIM-EL-9172", "service_type": "engineer_home_visit", "date_range_start": "2026-05-13", "date_range_end": "2026-05-20"}}]}
+              vendor.agent.tool_selection.input.raw: "Soundbar keeps dropping eARC
+                audio randomly. Open a claim and show me engineer slots next week.\n\
+                \nMonday afternoon.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                eARC dropout fault.\",\"trigger_quote\":\"I want to file a claim \\
+                u2014 audio cuts out\",\"missing_info\":null,\"confidence\":0.88,\"\
+                tool_args\":{\"product_type\":\"soundbar\",\"description\":\"Intermittent
+                eARC audio blackouts with known-good cable.\",\"incident_date\":\"\
+                2026-05-12\"}},{\"tool_name\":\"get_available_slots\",\"trigger_summary\"\
+                :\"Afternoon engineer windows.\",\"trigger_quote\":\"send an engineer\"\
+                ,\"missing_info\":null,\"confidence\":0.87,\"tool_args\":{\"claim_id\"\
+                :\"CLAIM-EL-9172\",\"service_type\":\"engineer_home_visit\",\"date_range_start\"\
+                :\"2026-05-13\",\"date_range_end\":\"2026-05-20\"}},{\"tool_name\"\
+                :\"update_appointment\",\"trigger_summary\":\"Monday PM engineer.\"\
+                ,\"trigger_quote\":\"Monday afternoon\",\"missing_info\":null,\"confidence\"\
+                :0.92,\"tool_args\":{\"claim_id\":\"CLAIM-EL-9172\",\"appointment_id\"\
+                :\"APT-EL-9172-HOLD\",\"slot_id\":\"SLOT-2026-05-18T14:00\",\"preferred_time_window\"\
+                :\"afternoon\"}}]}\n"
         agent_response: >
-          CLAIM-EL-9172 is live. Friday 14:00–16:00 or Monday 14:00–16:00 — which works?
-        tool_chain: [new_claim, get_available_slots]
+          Monday 14:00–16:00 is scheduled under claim CLAIM-EL-9172.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1030
-        gen_ai.usage.output_tokens: 188
+        gen_ai.usage.input_tokens: 1830
+        gen_ai.usage.output_tokens: 260
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -115,75 +133,35 @@ endusers:
             service_type: "engineer_home_visit"
             date_range_start: "2026-05-13"
             date_range_end: "2026-05-20"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-EL-9172"
-            product_type: "soundbar"
-            status: "opened"
-            coverage: { type: "electronics_electrical_fault", deductible: 78 }
-            notes: "AV bench check at home."
-          get_available_slots:
-            claim_id: "CLAIM-EL-9172"
-            slots:
-              - { slot_id: "SLOT-2026-05-15T14:00", duration_minutes: 120 }
-              - { slot_id: "SLOT-2026-05-18T14:00", duration_minutes: 120 }
-            timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Electronics soundbar + visits.
-          output: >
-            PLAN: new_claim CLAIM-EL-9172; slots.
-        response_compose:
-          system_prompt: >
-            CLAIM-EL-9172; two PM bands.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Monday afternoon."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Monday afternoon."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Monday 14:00–16:00 is scheduled under CLAIM-EL-9172.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Monday afternoon."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Monday PM engineer.", "trigger_quote":"Monday afternoon", "missing_info": null, "confidence": 0.92, "tool_args": {"claim_id": "CLAIM-EL-9172", "appointment_id": "APT-EL-9172-HOLD", "slot_id": "SLOT-2026-05-18T14:00", "preferred_time_window": "afternoon"}}]}
-        agent_response: >
-          Monday 14:00–16:00 is scheduled under CLAIM-EL-9172.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 800
-        gen_ai.usage.output_tokens: 72
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-EL-9172"
             appointment_id: "APT-EL-9172-HOLD"
             slot_id: "SLOT-2026-05-18T14:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-EL-9172"
+            product_type: "soundbar"
+            status: "opened"
+            coverage:
+              type: "electronics_electrical_fault"
+              deductible: 78
+            notes: "AV bench check at home."
+          get_available_slots:
+            claim_id: "CLAIM-EL-9172"
+            slots:
+              - slot_id: "SLOT-2026-05-15T14:00"
+                duration_minutes: 120
+              - slot_id: "SLOT-2026-05-18T14:00"
+                duration_minutes: 120
+            timezone: "Europe/London"
           update_appointment:
             claim_id: "CLAIM-EL-9172"
             appointment_id: "APT-EL-9172-01"
             status: "scheduled"
             scheduled_at: "2026-05-18T14:00:00Z"
         planner:
-          system_prompt: >
-            Monday PM chosen.
-          output: >
-            PLAN: update_appointment.
+          system_prompt: "Electronics soundbar + visits.\n\nMonday PM chosen."
+          output: "PLAN: new_claim CLAIM-EL-9172; slots.\n\nPLAN: update_appointment."
         response_compose:
-          system_prompt: >
-            AV context brief.
+          system_prompt: "claim CLAIM-EL-9172; two PM bands.\n\nAV context brief."

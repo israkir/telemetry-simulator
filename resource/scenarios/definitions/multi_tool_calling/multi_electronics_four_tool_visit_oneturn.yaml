@@ -13,7 +13,7 @@
 
 name: multi_electronics_four_tool_visit_oneturn
 description: >
-  Single chat message on CLAIM-EL-HT-8844: confirm HDMI-board assessor note matches the file, register
+  Single chat message on claim CLAIM-EL-HT-8844: confirm HDMI-board assessor note matches the file, register
   uploaded packaging photos, offer North-1 engineer home visits Tue–Thu, book Wednesday 9–12 if available.
 
 tags:
@@ -79,7 +79,7 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          CLAIM-EL-HT-8844 for my soundbar — the assessor wrote that the HDMI board is dead. Please confirm that’s
+          For claim CLAIM-EL-HT-8844 for my soundbar — the assessor wrote that the HDMI board is dead. Please confirm that’s
           what your claim shows, ingest the carton photos I uploaded about an hour ago, list engineer
           home visits in North-1 from Tuesday through Thursday next week, and book the Wednesday 9–12 window if
           it’s still open.
@@ -88,7 +88,7 @@ endusers:
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                CLAIM-EL-HT-8844 for my soundbar — the assessor wrote that the HDMI board is dead. Please confirm that’s
+                For claim CLAIM-EL-HT-8844 for my soundbar — the assessor wrote that the HDMI board is dead. Please confirm that’s
                 what your claim shows, ingest the carton photos I uploaded about an hour ago, list engineer
                 home visits in North-1 from Tuesday through Thursday next week, and book the Wednesday 9–12 window if
                 it’s still open.
@@ -96,21 +96,21 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-EL-HT-8844 matches the assessor: HDMI mainboard failure. Your photos are on file and the
+                claim CLAIM-EL-HT-8844 matches the assessor: HDMI mainboard failure. Your photos are on file and the
                 Wednesday 09:00–12:00 engineer visit is booked — you’ll get a confirmation email with the
                 arrival window shortly.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                CLAIM-EL-HT-8844 for my soundbar — the assessor wrote that the HDMI board is dead. Please confirm that’s
+                For claim CLAIM-EL-HT-8844 for my soundbar — the assessor wrote that the HDMI board is dead. Please confirm that’s
                 what your claim shows, ingest the carton photos I uploaded about an hour ago, list engineer
                 home visits in North-1 from Tuesday through Thursday next week, and book the Wednesday 9–12 window if
                 it’s still open.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Verify assessor HDMI board note on CLAIM-EL-HT-8844.","trigger_quote":"CLAIM-EL-HT-8844","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"CLAIM-EL-HT-8844"}},{"tool_name":"upload_documents","trigger_summary":"Register recently uploaded packaging photos.","trigger_quote":"carton photos I uploaded","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-EL-HT-8844","document_types":["photo_packaging","assessor_email_ref"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Engineer home visits North-1 Tue–Thu next week.","trigger_quote":"Tuesday through Thursday next week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-EL-HT-8844","service_type":"engineer_home_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-26"}},{"tool_name":"update_appointment","trigger_summary":"Book Wednesday 09:00–12:00 engineer window.","trigger_quote":"Wednesday 9–12","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"CLAIM-EL-HT-8844","appointment_id":"APT-EL-8844-HOLD","slot_id":"SLOT-2026-03-25T09:00","preferred_time_window":"morning"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Verify assessor HDMI board note on claim CLAIM-EL-HT-8844.","trigger_quote":"For claim CLAIM-EL-HT-8844 for my soundbar","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"CLAIM-EL-HT-8844"}},{"tool_name":"upload_documents","trigger_summary":"Register recently uploaded packaging photos.","trigger_quote":"carton photos I uploaded","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-EL-HT-8844","document_types":["photo_packaging","assessor_email_ref"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Engineer home visits North-1 Tue–Thu next week.","trigger_quote":"Tuesday through Thursday next week","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-EL-HT-8844","service_type":"engineer_home_visit","date_range_start":"2026-03-24","date_range_end":"2026-03-26"}},{"tool_name":"update_appointment","trigger_summary":"Book Wednesday 09:00–12:00 engineer window.","trigger_quote":"Wednesday 9–12","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"CLAIM-EL-HT-8844","appointment_id":"APT-EL-8844-HOLD","slot_id":"SLOT-2026-03-25T09:00","preferred_time_window":"morning"}}]}
         agent_response: >
-          CLAIM-EL-HT-8844 matches the assessor: HDMI mainboard failure. Your photos are on file and the
+          claim CLAIM-EL-HT-8844 matches the assessor: HDMI mainboard failure. Your photos are on file and the
           Wednesday 09:00–12:00 engineer visit is booked — you’ll get a confirmation email with the
           arrival window shortly.
         tool_chain:
@@ -170,7 +170,7 @@ endusers:
             scheduled_at: "2026-03-25T09:00:00Z"
         planner:
           system_prompt: >
-            Electronics MCP: one message on CLAIM-EL-HT-8844 — confirm file vs assessor, ingest evidence, list
+            Electronics MCP: one message on claim CLAIM-EL-HT-8844 — confirm file vs assessor, ingest evidence, list
             North-1 engineer slots, book Wednesday morning.
           output: >
             PLAN: claim_status; upload_documents; get_available_slots North-1 Tue–Thu;

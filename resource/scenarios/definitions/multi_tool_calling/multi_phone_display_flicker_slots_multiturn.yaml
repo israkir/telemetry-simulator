@@ -2,7 +2,7 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_phone_display_flicker_slots_multiturn.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
 # MCP: phone — new_claim + get_available_slots, then update_appointment
 #
 # --- LLM / MAINTAINER ---
@@ -11,7 +11,7 @@
 
 name: multi_phone_display_flicker_slots_multiturn
 description: >
-  Brightness flicker: CLAIM-PH-9164 + slots; customer picks Thursday.
+  Brightness flicker: claim CLAIM-PH-9164 + slots; customer picks Thursday.
 
 tags:
   - normal
@@ -29,18 +29,18 @@ trace_interval_deviation_ms: 52
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2020, deviation: 620 }
-      planner: { mean: 520, deviation: 165 }
-      llm.call: { mean: 655, deviation: 200 }
-      task.execute: { mean: 740, deviation: 250 }
-      tools.recommend: { mean: 54, deviation: 22 }
-      mcp.tool.execute: { mean: 245, deviation: 110 }
-      response.compose: { mean: 368, deviation: 115 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2020, deviation: 620}
+      planner: {mean: 520, deviation: 165}
+      llm.call: {mean: 655, deviation: 200}
+      task.execute: {mean: 740, deviation: 250}
+      tools.recommend: {mean: 54, deviation: 22}
+      mcp.tool.execute: {mean: 245, deviation: 110}
+      response.compose: {mean: 368, deviation: 115}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -72,37 +72,58 @@ endusers:
     channel: voice
     mcp_server: phone
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          My phone screen flickers when brightness is low ever since I dropped it. File a claim and find afternoon repairs.
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "My phone screen flickers when brightness is low
+          ever since I dropped it. File a claim and find afternoon repairs.\n\nWednesday
+          noon slot."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                My phone screen flickers when brightness is low ever since I dropped it. File a claim and find afternoon repairs.
+              vendor.enduser.request.raw: "My phone screen flickers when brightness
+                is low ever since I dropped it. File a claim and find afternoon repairs.\n\
+                \nWednesday noon slot."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-9164 is open. Wednesday noon or Friday noon slots — ninety minutes each.
+                Wednesday 12:00 is secured on claim CLAIM-PH-9164 — we’ll confirm
+                by text.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                My phone screen flickers when brightness is low ever since I dropped it. File a claim and find afternoon repairs.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Low-brightness flicker fault.", "trigger_quote": "I want to file a claim — screen flickers", "missing_info": null, "confidence": 0.89, "tool_args": {"product_type": "phone", "description": "Panel flickers at low brightness after minor drop.", "incident_date": "2026-05-09"}}, {"tool_name": "get_available_slots", "trigger_summary": "Midweek repair slots.", "trigger_quote": "book repair", "missing_info": null, "confidence": 0.86, "tool_args": {"claim_id": "CLAIM-PH-9164", "service_type": "screen_repair_visit", "date_range_start": "2026-05-10", "date_range_end": "2026-05-16"}}]}
+              vendor.agent.tool_selection.input.raw: "My phone screen flickers when
+                brightness is low ever since I dropped it. File a claim and find afternoon
+                repairs.\n\nWednesday noon slot.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                Low-brightness flicker fault.\",\"trigger_quote\":\"I want to file
+                a claim \\u2014 screen flickers\",\"missing_info\":null,\"confidence\"\
+                :0.89,\"tool_args\":{\"product_type\":\"phone\",\"description\":\"\
+                Panel flickers at low brightness after minor drop.\",\"incident_date\"\
+                :\"2026-05-09\"}},{\"tool_name\":\"get_available_slots\",\"trigger_summary\"\
+                :\"Midweek repair slots.\",\"trigger_quote\":\"book repair\",\"missing_info\"\
+                :null,\"confidence\":0.86,\"tool_args\":{\"claim_id\":\"CLAIM-PH-9164\"\
+                ,\"service_type\":\"screen_repair_visit\",\"date_range_start\":\"\
+                2026-05-10\",\"date_range_end\":\"2026-05-16\"}},{\"tool_name\":\"\
+                update_appointment\",\"trigger_summary\":\"Wednesday noon repair.\"\
+                ,\"trigger_quote\":\"Wednesday noon\",\"missing_info\":null,\"confidence\"\
+                :0.94,\"tool_args\":{\"claim_id\":\"CLAIM-PH-9164\",\"appointment_id\"\
+                :\"APT-PH-9164-HOLD\",\"slot_id\":\"SLOT-2026-05-13T12:00\",\"preferred_time_window\"\
+                :\"afternoon\"}}]}\n"
         agent_response: >
-          CLAIM-PH-9164 is open. Wednesday noon or Friday noon slots — ninety minutes each.
-        tool_chain: [new_claim, get_available_slots]
+          Wednesday 12:00 is secured on claim CLAIM-PH-9164 — we’ll confirm by text.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 970
-        gen_ai.usage.output_tokens: 180
+        gen_ai.usage.input_tokens: 1720
+        gen_ai.usage.output_tokens: 248
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -115,75 +136,36 @@ endusers:
             service_type: "screen_repair_visit"
             date_range_start: "2026-05-10"
             date_range_end: "2026-05-16"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-PH-9164"
-            product_type: "phone"
-            status: "opened"
-            coverage: { type: "phone_display_damage", deductible: 72 }
-            notes: "Display stack."
-          get_available_slots:
-            claim_id: "CLAIM-PH-9164"
-            slots:
-              - { slot_id: "SLOT-2026-05-13T12:00", duration_minutes: 90 }
-              - { slot_id: "SLOT-2026-05-15T12:00", duration_minutes: 90 }
-            timezone: "Europe/Oslo"
-        planner:
-          system_prompt: >
-            Phone voice flicker intake.
-          output: >
-            PLAN: new_claim + slots Wed/Fri noon.
-        response_compose:
-          system_prompt: >
-            Speak clearly; CLAIM-PH-9164.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Wednesday noon slot."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Wednesday noon slot."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Wednesday 12:00 is secured on CLAIM-PH-9164 — we’ll confirm by text.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Wednesday noon slot."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Wednesday noon repair.", "trigger_quote":"Wednesday noon", "missing_info": null, "confidence": 0.94, "tool_args": {"claim_id": "CLAIM-PH-9164", "appointment_id": "APT-PH-9164-HOLD", "slot_id": "SLOT-2026-05-13T12:00", "preferred_time_window": "afternoon"}}]}
-        agent_response: >
-          Wednesday 12:00 is secured on CLAIM-PH-9164 — we’ll confirm by text.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 750
-        gen_ai.usage.output_tokens: 68
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-PH-9164"
             appointment_id: "APT-PH-9164-HOLD"
             slot_id: "SLOT-2026-05-13T12:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-PH-9164"
+            product_type: "phone"
+            status: "opened"
+            coverage:
+              type: "phone_display_damage"
+              deductible: 72
+            notes: "Display stack."
+          get_available_slots:
+            claim_id: "CLAIM-PH-9164"
+            slots:
+              - slot_id: "SLOT-2026-05-13T12:00"
+                duration_minutes: 90
+              - slot_id: "SLOT-2026-05-15T12:00"
+                duration_minutes: 90
+            timezone: "Europe/Oslo"
           update_appointment:
             claim_id: "CLAIM-PH-9164"
             appointment_id: "APT-PH-9164-01"
             status: "scheduled"
             scheduled_at: "2026-05-13T12:00:00Z"
         planner:
-          system_prompt: >
-            Wednesday for CLAIM-PH-9164.
-          output: >
-            PLAN: update_appointment noon.
+          system_prompt: "Phone voice flicker intake.\n\nWednesday for claim CLAIM-PH-9164."
+          output: "PLAN: new_claim + slots Wed/Fri noon.\n\nPLAN: update_appointment
+            noon."
         response_compose:
-          system_prompt: >
-            Text confirm.
+          system_prompt: "Speak clearly; claim CLAIM-PH-9164.\n\nText confirm."

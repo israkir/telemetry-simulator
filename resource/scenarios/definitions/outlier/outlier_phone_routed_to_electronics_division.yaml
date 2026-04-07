@@ -11,8 +11,10 @@
 
 name: outlier_phone_routed_to_electronics_division
 description: >
-  Paired flows for the same user wording (phone camera won’t focus; fix under cover). Outlier: assistant
-  opens a home-electronics claim (CLAIM-EV-5510) and discusses TVs/sound/streaming. Correct counterpart: phone MCP
+  Paired flows for the same user wording (phone camera won’t focus; fix under cover).
+  Outlier: assistant
+  opens a home-electronics claim (claim CLAIM-EV-5510) and discusses TVs/sound/streaming.
+  Correct counterpart: phone MCP
   intake plus get_available_slots for a handset repair visit.
 
 tags:
@@ -32,18 +34,18 @@ trace_interval_deviation_ms: 48
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 1880, deviation: 535 }
-      planner: { mean: 468, deviation: 144 }
-      llm.call: { mean: 586, deviation: 182 }
-      task.execute: { mean: 678, deviation: 230 }
-      tools.recommend: { mean: 52, deviation: 20 }
-      mcp.tool.execute: { mean: 218, deviation: 94 }
-      response.compose: { mean: 334, deviation: 106 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 1880, deviation: 535}
+      planner: {mean: 468, deviation: 144}
+      llm.call: {mean: 586, deviation: 182}
+      task.execute: {mean: 678, deviation: 230}
+      tools.recommend: {mean: 52, deviation: 20}
+      mcp.tool.execute: {mean: 218, deviation: 94}
+      response.compose: {mean: 334, deviation: 106}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -78,19 +80,23 @@ endusers:
       - turn_index: 1
         span_plan: *span_plan
         vendor.enduser.request.raw: >
-          Please file this on my policy — My phone camera stopped focusing and I need to get it fixed under my cover.
+          Please file this on my policy — My phone camera stopped focusing and I need
+          to get it fixed under my cover.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Please file this on my policy — My phone camera stopped focusing and I need to get it fixed under my cover.
+                Please file this on my policy — My phone camera stopped focusing and
+                I need to get it fixed under my cover.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve started a Home electronics claim for your device; your claim ID is CLAIM-EV-5510. I can help you
-                with TVs, sound systems, and streaming devices under this claim. Do you want to add your TV to
+                I’ve started a Home electronics claim for your device; your claim
+                ID is claim CLAIM-EV-5510. I can help you
+                with TVs, sound systems, and streaming devices under this claim. Do
+                you want to add your TV to
                 the same claim as well?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -100,8 +106,10 @@ endusers:
               vendor.agent.tool_selection.tool.plan: |
                 {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Misroute mobile camera fault to electronics catalog.", "trigger_quote": "phone camera stopped focusing", "missing_info": null, "confidence": 0.76, "tool_args": {"product_type": "smartphone", "description": "Camera autofocus failure; user cites mobile cover — filed on electronics line.", "incident_date": "2026-03-22"}}]}
         agent_response: >
-          I’ve started a Home electronics claim for your device; your claim ID is CLAIM-EV-5510. I can help you
-          with TVs, sound systems, and streaming devices under this claim. Do you want to add your TV to
+          I’ve started a Home electronics claim for your device; your claim ID is
+          claim CLAIM-EV-5510. I can help you
+          with TVs, sound systems, and streaming devices under this claim. Do you
+          want to add your TV to
           the same claim as well?
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -115,146 +123,134 @@ endusers:
         gen_ai.tool.call.arguments:
           new_claim:
             product_type: "smartphone"
-            description: "Camera autofocus failure; user cites mobile cover — filed on electronics line."
+            description: "Camera autofocus failure; user cites mobile cover — filed
+              on electronics line."
             incident_date: "2026-03-22"
         gen_ai.tool.call.result:
           new_claim:
             claim_id: "CLAIM-EV-5510"
             product_type: "smartphone"
             status: "opened"
-            coverage: { type: "home_electronics_misc_device", deductible: 60 }
+            coverage: {type: "home_electronics_misc_device", deductible: 60}
             notes: "Wrong MCP: phone symptom routed through electronics server."
         planner:
           system_prompt: >
-            Electronics MCP misroute: user clearly on mobile cover; planner still selects new_claim here.
+            Electronics MCP misroute: user clearly on mobile cover; planner still
+            selects new_claim here.
           output: >
-            PLAN: new_claim CLAIM-EV-5510 on electronics — incorrect division vs phone MCP.
+            PLAN: new_claim CLAIM-EV-5510 on electronics — incorrect division vs phone
+            MCP.
         response_compose:
           system_prompt: >
-            Home electronics framing; TV/soundbar/streaming upsell — not mobile repair intake.
+            Home electronics framing; TV/soundbar/streaming upsell — not mobile repair
+            intake.
 
   - id: correct_phone_camera_claim_and_repair_slots
     vendor.enduser.pseudo.id: "user_correct_div_ph_07"
     channel: web_chat
     mcp_server: phone
     turns:
-      - turn_index: 1
-        span_plan: *span_plan
-        vendor.enduser.request.raw: >
-          Starting a claim — My phone camera stopped focusing and I need to get it fixed under my cover.
+      - span_plan: *span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "Starting a claim — My phone camera stopped focusing
+          and I need to get it fixed under my cover.\n\nThursday 10:00 for claim CLAIM-PH-8890
+          works."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                Starting a claim — My phone camera stopped focusing and I need to get it fixed under my cover.
+              vendor.enduser.request.raw: "Starting a claim — My phone camera stopped
+                focusing and I need to get it fixed under my cover.\n\nThursday 10:00
+                for claim CLAIM-PH-8890 works."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened a phone claim for the camera focus issue — claim ID CLAIM-PH-8890. I can offer repair
-                visits on Thursday 10:00, Friday 14:00, or Monday 09:30. Would you like me to book one of
-                these, or compare times later?
+                Thursday 10:00 is locked for claim CLAIM-PH-8890 — you’ll get check-in
+                details by SMS.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                Please record a breakdown — My phone camera stopped focusing and I need to get it fixed under my cover.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Handset camera autofocus fault under mobile cover.", "trigger_quote": "phone camera stopped focusing", "missing_info": null, "confidence": 0.95, "tool_args": {"product_type": "phone", "description": "Rear camera will not focus; customer requests repair under mobile policy.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "In-store or service-center style repair slots after intake.", "trigger_quote": "get it fixed under my cover", "missing_info": null, "confidence": 0.92, "tool_args": {"claim_id": "CLAIM-PH-8890", "service_type": "screen_repair_visit", "date_range_start": "2026-03-27", "date_range_end": "2026-03-31"}}]}
+              vendor.agent.tool_selection.input.raw: "Starting a claim — My phone
+                camera stopped focusing and I need to get it fixed under my cover.\n\
+                \nThursday 10:00 for claim CLAIM-PH-8890 works.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"Handset camera autofocus fault
+                under mobile cover.\",\"trigger_quote\":\"phone camera stopped focusing\"\
+                ,\"missing_info\":null,\"confidence\":0.95,\"tool_args\":{\"product_type\"\
+                :\"phone\",\"description\":\"Rear camera will not focus; customer
+                requests repair under mobile policy.\",\"incident_date\":\"2026-03-22\"\
+                }},{\"tool_name\":\"get_available_slots\",\"trigger_summary\":\"In-store
+                or service-center style repair slots after intake.\",\"trigger_quote\"\
+                :\"get it fixed under my cover\",\"missing_info\":null,\"confidence\"\
+                :0.92,\"tool_args\":{\"claim_id\":\"CLAIM-PH-8890\",\"service_type\"\
+                :\"screen_repair_visit\",\"date_range_start\":\"2026-03-27\",\"date_range_end\"\
+                :\"2026-03-31\"}},{\"tool_name\":\"update_appointment\",\"trigger_summary\"\
+                :\"Book Thu 10:00 screen repair from listed slots.\",\"trigger_quote\"\
+                :\"Thursday 10:00\",\"missing_info\":null,\"confidence\":0.93,\"tool_args\"\
+                :{\"claim_id\":\"CLAIM-PH-8890\",\"appointment_id\":\"APT-PH-8890-HOLD\"\
+                ,\"slot_id\":\"SLOT-2026-03-27T10:00\",\"preferred_time_window\":\"\
+                morning\"}}]}\n"
         agent_response: >
-          I’ve opened a phone claim for the camera focus issue — claim ID CLAIM-PH-8890. I can offer repair
-          visits on Thursday 10:00, Friday 14:00, or Monday 09:30. Would you like me to book one of
-          these, or compare times later?
-        tool_chain: [new_claim, get_available_slots]
+          Thursday 10:00 is locked for claim CLAIM-PH-8890 — you’ll get check-in details
+          by SMS.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1020
-        gen_ai.usage.output_tokens: 178
+        gen_ai.usage.input_tokens: 1920
+        gen_ai.usage.output_tokens: 254
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           new_claim:
             product_type: "phone"
-            description: "Rear camera will not focus; customer requests repair under mobile policy."
+            description: "Rear camera will not focus; customer requests repair under
+              mobile policy."
             incident_date: "2026-03-22"
           get_available_slots:
             claim_id: "CLAIM-PH-8890"
             service_type: "screen_repair_visit"
             date_range_start: "2026-03-27"
             date_range_end: "2026-03-31"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-PH-8890"
-            product_type: "phone"
-            status: "opened"
-            coverage: { type: "phone_camera_module", deductible: 45 }
-            notes: "Correct division: phone MCP for handset camera fault."
-          get_available_slots:
-            claim_id: "CLAIM-PH-8890"
-            slots:
-              - { slot_id: "SLOT-2026-03-27T10:00", duration_minutes: 90 }
-              - { slot_id: "SLOT-2026-03-28T14:00", duration_minutes: 90 }
-              - { slot_id: "SLOT-2026-03-31T09:30", duration_minutes: 90 }
-            timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Phone MCP; mobile camera defect — new_claim then screen_repair_visit slots (service-center path).
-          output: >
-            PLAN: new_claim CLAIM-PH-8890; get_available_slots end of month window.
-        response_compose:
-          system_prompt: >
-            CLAIM-PH-8890; three repair times; no electronics or TV cross-sell.
-
-      - turn_index: 2
-        span_plan: *span_plan
-        vendor.enduser.request.raw: "Thursday 10:00 for CLAIM-PH-8890 works."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Thursday 10:00 for CLAIM-PH-8890 works."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Thursday 10:00 is locked for CLAIM-PH-8890 — you’ll get check-in details by SMS.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Thursday 10:00 for CLAIM-PH-8890 works."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Thu 10:00 screen repair from listed slots.","trigger_quote":"Thursday 10:00","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-8890","appointment_id":"APT-PH-8890-HOLD","slot_id":"SLOT-2026-03-27T10:00","preferred_time_window":"morning"}}]}
-        agent_response: >
-          Thursday 10:00 is locked for CLAIM-PH-8890 — you’ll get check-in details by SMS.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 900
-        gen_ai.usage.output_tokens: 76
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-PH-8890"
             appointment_id: "APT-PH-8890-HOLD"
             slot_id: "SLOT-2026-03-27T10:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-PH-8890"
+            product_type: "phone"
+            status: "opened"
+            coverage:
+              type: "phone_camera_module"
+              deductible: 45
+            notes: "Correct division: phone MCP for handset camera fault."
+          get_available_slots:
+            claim_id: "CLAIM-PH-8890"
+            slots:
+              - slot_id: "SLOT-2026-03-27T10:00"
+                duration_minutes: 90
+              - slot_id: "SLOT-2026-03-28T14:00"
+                duration_minutes: 90
+              - slot_id: "SLOT-2026-03-31T09:30"
+                duration_minutes: 90
+            timezone: "Europe/London"
           update_appointment:
             claim_id: "CLAIM-PH-8890"
             appointment_id: "APT-PH-8890-01"
             status: "scheduled"
             scheduled_at: "2026-03-27T10:00:00Z"
         planner:
-          system_prompt: >
-            Book handset repair slot for CLAIM-PH-8890.
-          output: >
-            PLAN: update_appointment Thu 10:00.
+          system_prompt: "Phone MCP; mobile camera defect — new_claim then screen_repair_visit
+            slots (service-center path).\n\nBook handset repair slot for claim CLAIM-PH-8890."
+          output: "PLAN: new_claim CLAIM-PH-8890; get_available_slots end of month
+            window.\n\nPLAN: update_appointment Thu 10:00."
         response_compose:
-          system_prompt: >
-            Confirm booking; SMS expectation.
+          system_prompt: "claim CLAIM-PH-8890; three repair times; no electronics
+            or TV cross-sell.\n\nConfirm booking; SMS expectation."

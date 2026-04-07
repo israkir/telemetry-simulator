@@ -2,10 +2,9 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_phone_upload_retry_then_slots.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 3
-# Interaction model: multi-turn — confirm claim gate and register photos (upload retries once),
-#   then customer asks for pickup-repair availability in a separate message.
-# MCP: phone — claim_status → upload_documents (2 attempts), then get_available_slots → update_appointment
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: single-turn — one user message; full tool chain in one orchestration
+# MCP: phone — claim_status → upload_documents (2 attempts) → get_available_slots → update_appointment
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -13,8 +12,9 @@
 
 name: multi_phone_upload_retry_then_slots
 description: >
-  Phone glass CLAIM-PH-GL-9903: first message confirms “awaiting photos” and ingests new damage and
-  IMEI images after one failed upload attempt; second message lists pickup-repair slots through Sunday.
+  Phone glass claim CLAIM-PH-GL-9903: one message confirms photo gate, ingests damage
+  and IMEI images after one failed upload attempt, lists pickup-repair slots through
+  Sunday, and books Thursday 11:30.
 
 tags:
   - normal
@@ -32,18 +32,18 @@ trace_interval_deviation_ms: 50
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2140, deviation: 620 }
-      planner: { mean: 520, deviation: 170 }
-      llm.call: { mean: 662, deviation: 205 }
-      task.execute: { mean: 765, deviation: 255 }
-      tools.recommend: { mean: 55, deviation: 22 }
-      mcp.tool.execute: { mean: 262, deviation: 118 }
-      response.compose: { mean: 366, deviation: 118 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2140, deviation: 620}
+      planner: {mean: 520, deviation: 170}
+      llm.call: {mean: 662, deviation: 205}
+      task.execute: {mean: 765, deviation: 255}
+      tools.recommend: {mean: 55, deviation: 22}
+      mcp.tool.execute: {mean: 262, deviation: 118}
+      response.compose: {mean: 366, deviation: 118}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -75,36 +75,67 @@ endusers:
     channel: app_chat
     mcp_server: phone
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          CLAIM-PH-GL-9903 still says waiting on pictures in my app. I just added three shots — cracked lens,
-          IMEI screen, and the back glass angle. Can you make sure they’re actually on the claim?
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "For claim CLAIM-PH-GL-9903 still says waiting
+          on pictures in my app. I just added three shots — cracked lens, IMEI screen,
+          and the back glass angle. Can you make sure they’re actually on the claim?\n\
+          \nYes — show pickup-repair slots from tomorrow through Sunday, whatever’s
+          left this week.\n\nBook Thursday 11:30 for claim CLAIM-PH-GL-9903 please."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                CLAIM-PH-GL-9903 still says waiting on pictures in my app. I just added three shots — cracked lens,
-                IMEI screen, and the back glass angle. Can you make sure they’re actually on the claim?
+              vendor.enduser.request.raw: "For claim CLAIM-PH-GL-9903 still says waiting
+                on pictures in my app. I just added three shots — cracked lens, IMEI
+                screen, and the back glass angle. Can you make sure they’re actually
+                on the claim?\n\nYes — show pickup-repair slots from tomorrow through
+                Sunday, whatever’s left this week.\n\nBook Thursday 11:30 for claim
+                CLAIM-PH-GL-9903 please."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-GL-9903 was still in “awaiting photos,” but your new damage and IMEI images are received
-                now after a quick retry on our side. Want me to pull pickup-repair times next?
+                Thursday 11:30 collection is confirmed for claim CLAIM-PH-GL-9903
+                — you’ll get the usual SMS with the
+                driver window.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                CLAIM-PH-GL-9903 still says waiting on pictures in my app. I just added three shots — cracked lens,
-                IMEI screen, and the back glass angle. Can you make sure they’re actually on the claim?
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim vs photo gate before ingest.","trigger_quote":"CLAIM-PH-GL-9903","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-PH-GL-9903"}},{"tool_name":"upload_documents","trigger_summary":"Register new damage and IMEI captures.","trigger_quote":"three shots","missing_info":null,"confidence":0.89,"tool_args":{"claim_id":"CLAIM-PH-GL-9903","document_types":["photo_damage","photo_imei_screen"],"expected_count":3}}]}
+              vendor.agent.tool_selection.input.raw: "For claim CLAIM-PH-GL-9903 still
+                says waiting on pictures in my app. I just added three shots — cracked
+                lens, IMEI screen, and the back glass angle. Can you make sure they’re
+                actually on the claim?\n\nYes — show pickup-repair slots from tomorrow
+                through Sunday, whatever’s left this week.\n\nBook Thursday 11:30
+                for claim CLAIM-PH-GL-9903 please.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"claim_status\",\"trigger_summary\":\"Confirm claim vs photo gate
+                before ingest.\",\"trigger_quote\":\"For claim CLAIM-PH-GL-9903 still
+                says waiting on pictures\",\"missing_info\":null,\"confidence\":0.92,\"\
+                tool_args\":{\"claim_id\":\"CLAIM-PH-GL-9903\"}},{\"tool_name\":\"\
+                upload_documents\",\"trigger_summary\":\"Register new damage and IMEI
+                captures.\",\"trigger_quote\":\"three shots\",\"missing_info\":null,\"\
+                confidence\":0.89,\"tool_args\":{\"claim_id\":\"CLAIM-PH-GL-9903\"\
+                ,\"document_types\":[\"photo_damage\",\"photo_imei_screen\"],\"expected_count\"\
+                :3}},{\"tool_name\":\"get_available_slots\",\"trigger_summary\":\"\
+                Collection repair availability after photos cleared.\",\"trigger_quote\"\
+                :\"tomorrow through Sunday\",\"missing_info\":null,\"confidence\"\
+                :0.9,\"tool_args\":{\"claim_id\":\"CLAIM-PH-GL-9903\",\"service_type\"\
+                :\"repair_collection\",\"date_range_start\":\"2026-03-23\",\"date_range_end\"\
+                :\"2026-03-29\"}},{\"tool_name\":\"update_appointment\",\"trigger_summary\"\
+                :\"Book Thu 11:30 repair_collection from listed slots.\",\"trigger_quote\"\
+                :\"Thursday 11:30\",\"missing_info\":null,\"confidence\":0.92,\"tool_args\"\
+                :{\"claim_id\":\"CLAIM-PH-GL-9903\",\"appointment_id\":\"APT-PH-9903-HOLD\"\
+                ,\"slot_id\":\"SLOT-2026-03-28T11:30\",\"preferred_time_window\":\"\
+                late_morning\"}}]}\n"
         agent_response: >
-          CLAIM-PH-GL-9903 was still in “awaiting photos,” but your new damage and IMEI images are received
-          now after a quick retry on our side. Want me to pull pickup-repair times next?
-        tool_chain: [claim_status, upload_documents]
+          Thursday 11:30 collection is confirmed for claim CLAIM-PH-GL-9903 — you’ll
+          get the usual SMS with the driver window.
+        tool_chain:
+          - claim_status
+          - upload_documents
+          - get_available_slots
+          - update_appointment
         mcp_tool_retries:
           upload_documents:
             policy: exponential_jitter
@@ -115,10 +146,10 @@ endusers:
                 gentoro.retry.backoff.ms: 280
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1320
-        gen_ai.usage.output_tokens: 285
+        gen_ai.usage.input_tokens: 3280
+        gen_ai.usage.output_tokens: 551
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 4
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -126,8 +157,20 @@ endusers:
             claim_id: "CLAIM-PH-GL-9903"
           upload_documents:
             claim_id: "CLAIM-PH-GL-9903"
-            document_types: ["photo_damage", "photo_imei_screen"]
+            document_types:
+              - "photo_damage"
+              - "photo_imei_screen"
             expected_count: 3
+          get_available_slots:
+            claim_id: "CLAIM-PH-GL-9903"
+            service_type: "repair_collection"
+            date_range_start: "2026-03-23"
+            date_range_end: "2026-03-29"
+          update_appointment:
+            claim_id: "CLAIM-PH-GL-9903"
+            appointment_id: "APT-PH-9903-HOLD"
+            slot_id: "SLOT-2026-03-28T11:30"
+            preferred_time_window: "late_morning"
         gen_ai.tool.call.result:
           claim_status:
             claim_id: "CLAIM-PH-GL-9903"
@@ -141,124 +184,30 @@ endusers:
             upload_batch_id: "UPL-CLAIM-PH-9903-07"
             pending_count: 0
             status: "received"
-        planner:
-          system_prompt: >
-            Toro phone planner: status then upload_documents with possible transient retry.
-          output: >
-            PLAN: claim_status CLAIM-PH-GL-9903; upload_documents damage + IMEI; offer slots on follow-up.
-        response_compose:
-          system_prompt: >
-            Short app-chat tone; reassure uploads landed without internal error codes.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          Yes — show pickup-repair slots from tomorrow through Sunday, whatever’s left this week.
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: >
-                Yes — show pickup-repair slots from tomorrow through Sunday, whatever’s left this week.
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Here are authorized pickup-repair windows for CLAIM-PH-GL-9903 through Sunday — pick one in the app
-                or tell me which you prefer and I’ll hold it.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: |
-                Yes — show pickup-repair slots from tomorrow through Sunday, whatever’s left this week.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Collection repair availability after photos cleared.","trigger_quote":"tomorrow through Sunday","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-PH-GL-9903","service_type":"repair_collection","date_range_start":"2026-03-23","date_range_end":"2026-03-29"}}]}
-        agent_response: >
-          Here are authorized pickup-repair windows for CLAIM-PH-GL-9903 through Sunday — pick one in the app
-          or tell me which you prefer and I’ll hold it.
-        tool_chain: [get_available_slots]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1020
-        gen_ai.usage.output_tokens: 178
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
-          get_available_slots:
-            claim_id: "CLAIM-PH-GL-9903"
-            service_type: "repair_collection"
-            date_range_start: "2026-03-23"
-            date_range_end: "2026-03-29"
-        gen_ai.tool.call.result:
           get_available_slots:
             claim_id: "CLAIM-PH-GL-9903"
             slots:
-              - { slot_id: "SLOT-2026-03-24T09:00", duration_minutes: 60 }
-              - { slot_id: "SLOT-2026-03-25T14:00", duration_minutes: 60 }
-              - { slot_id: "SLOT-2026-03-28T11:30", duration_minutes: 60 }
+              - slot_id: "SLOT-2026-03-24T09:00"
+                duration_minutes: 60
+              - slot_id: "SLOT-2026-03-25T14:00"
+                duration_minutes: 60
+              - slot_id: "SLOT-2026-03-28T11:30"
+                duration_minutes: 60
             timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Customer wants repair_collection slots Wed–Sun window for CLAIM-PH-GL-9903.
-          output: >
-            PLAN: get_available_slots 23–29 Mar; list concrete times.
-        response_compose:
-          system_prompt: >
-            List slot options; invite explicit selection.
-
-      - turn_index: 3
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          Book Thursday 11:30 for CLAIM-PH-GL-9903 please.
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: >
-                Book Thursday 11:30 for CLAIM-PH-GL-9903 please.
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Thursday 11:30 collection is confirmed for CLAIM-PH-GL-9903 — you’ll get the usual SMS with the
-                driver window.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: |
-                Book Thursday 11:30 for CLAIM-PH-GL-9903 please.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Thu 11:30 repair_collection from listed slots.","trigger_quote":"Thursday 11:30","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-PH-GL-9903","appointment_id":"APT-PH-9903-HOLD","slot_id":"SLOT-2026-03-28T11:30","preferred_time_window":"late_morning"}}]}
-        agent_response: >
-          Thursday 11:30 collection is confirmed for CLAIM-PH-GL-9903 — you’ll get the usual SMS with the driver window.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 940
-        gen_ai.usage.output_tokens: 88
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
-          update_appointment:
-            claim_id: "CLAIM-PH-GL-9903"
-            appointment_id: "APT-PH-9903-HOLD"
-            slot_id: "SLOT-2026-03-28T11:30"
-            preferred_time_window: "late_morning"
-        gen_ai.tool.call.result:
           update_appointment:
             claim_id: "CLAIM-PH-GL-9903"
             appointment_id: "APT-PH-9903-COL"
             status: "scheduled"
             scheduled_at: "2026-03-28T11:30:00Z"
         planner:
-          system_prompt: >
-            Book chosen slot after listing for CLAIM-PH-GL-9903.
-          output: >
-            PLAN: update_appointment Thu 11:30.
+          system_prompt: "Toro phone planner: status then upload_documents with possible
+            transient retry.\n\nCustomer wants repair_collection slots Wed–Sun window
+            for claim CLAIM-PH-GL-9903.\n\nBook chosen slot after listing for claim
+            CLAIM-PH-GL-9903."
+          output: "PLAN: claim_status CLAIM-PH-GL-9903; upload_documents damage +
+            IMEI; offer slots on follow-up.\n\nPLAN: get_available_slots 23–29 Mar;
+            list concrete times.\n\nPLAN: update_appointment Thu 11:30."
         response_compose:
-          system_prompt: >
-            Confirm collection time; SMS expectation.
+          system_prompt: "Short app-chat tone; reassure uploads landed without internal
+            error codes.\n\nList slot options; invite explicit selection.\n\nConfirm
+            collection time; SMS expectation."

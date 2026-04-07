@@ -13,7 +13,7 @@
 
 name: multi_phone_five_tool_visit_oneturn
 description: >
-  Single mobile-app message on CLAIM-PH-5522 after assessor approval: confirm file shows ready-to-book glass work,
+  Single mobile-app message on claim CLAIM-PH-5522 after assessor approval: confirm file shows ready-to-book glass work,
   attach IMEI and damage photos the customer just added, show repair-collection slots Mon–Wed, book
   Tuesday 14:00, submit payment of £50 to Visa on file.
 
@@ -80,7 +80,7 @@ endusers:
       - turn_index: 1
         span_plan: *phone_span_plan
         vendor.enduser.request.raw: >
-          CLAIM-PH-5522 glass repair is approved on my side — please confirm your system shows ready to schedule,
+          For claim CLAIM-PH-5522 — glass repair is approved on my side — please confirm your system shows ready to schedule,
           pull in the IMEI strip and crack photos I just uploaded, show collection repair slots Monday to
           Wednesday next week, book Tuesday at 2pm if that slot exists, and I want to submit payment of £50 to my Visa
           on file.
@@ -89,7 +89,7 @@ endusers:
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                CLAIM-PH-5522 glass repair is approved on my side — please confirm your system shows ready to schedule,
+                For claim CLAIM-PH-5522 — glass repair is approved on my side — please confirm your system shows ready to schedule,
                 pull in the IMEI strip and crack photos I just uploaded, show collection repair slots Monday to
                 Wednesday next week, book Tuesday at 2pm if that slot exists, and I want to submit payment of £50 to my Visa
                 on file.
@@ -97,21 +97,21 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-5522 shows approved glass work and your photos are linked. Tuesday 14:00 collection is
+                claim CLAIM-PH-5522 shows approved glass work and your photos are linked. Tuesday 14:00 collection is
                 booked and the £50 excess has been charged to your card on file — you’ll get the usual
                 confirmation shortly.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                CLAIM-PH-5522 glass repair is approved on my side — please confirm your system shows ready to schedule,
+                For claim CLAIM-PH-5522 — glass repair is approved on my side — please confirm your system shows ready to schedule,
                 pull in the IMEI strip and crack photos I just uploaded, show collection repair slots Monday to
                 Wednesday next week, book Tuesday at 2pm if that slot exists, and I want to submit payment of £50 to my Visa
                 on file.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm CLAIM-PH-5522 approved for glass scheduling.","trigger_quote":"CLAIM-PH-5522","missing_info":null,"confidence":0.96,"tool_args":{"claim_id":"CLAIM-PH-5522"}},{"tool_name":"upload_documents","trigger_summary":"Register IMEI and crack photos from app upload.","trigger_quote":"IMEI strip and crack photos","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-5522","document_types":["photo_imei","photo_damage"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Repair collection Mon–Wed next week.","trigger_quote":"Monday to Wednesday next week","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-PH-5522","service_type":"repair_collection","date_range_start":"2026-03-23","date_range_end":"2026-03-25"}},{"tool_name":"update_appointment","trigger_summary":"Book Tuesday 14:00 collection if available.","trigger_quote":"Tuesday at 2pm","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-PH-5522","appointment_id":"APT-PH-5522-HOLD","slot_id":"SLOT-2026-03-24T14:00","preferred_time_window":"afternoon"}},{"tool_name":"pay","trigger_summary":"Submit payment of £50 glass excess on saved Visa.","trigger_quote":"submit payment of £50","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"CLAIM-PH-5522","amount":50.0,"currency":"GBP"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim CLAIM-PH-5522 approved for glass scheduling.","trigger_quote":"For claim CLAIM-PH-5522 — glass repair is approved on my side","missing_info":null,"confidence":0.96,"tool_args":{"claim_id":"CLAIM-PH-5522"}},{"tool_name":"upload_documents","trigger_summary":"Register IMEI and crack photos from app upload.","trigger_quote":"IMEI strip and crack photos","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-5522","document_types":["photo_imei","photo_damage"],"expected_count":3}},{"tool_name":"get_available_slots","trigger_summary":"Repair collection Mon–Wed next week.","trigger_quote":"Monday to Wednesday next week","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-PH-5522","service_type":"repair_collection","date_range_start":"2026-03-23","date_range_end":"2026-03-25"}},{"tool_name":"update_appointment","trigger_summary":"Book Tuesday 14:00 collection if available.","trigger_quote":"Tuesday at 2pm","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-PH-5522","appointment_id":"APT-PH-5522-HOLD","slot_id":"SLOT-2026-03-24T14:00","preferred_time_window":"afternoon"}},{"tool_name":"pay","trigger_summary":"Submit payment of £50 glass excess on saved Visa.","trigger_quote":"submit payment of £50","missing_info":null,"confidence":0.94,"tool_args":{"payment_target":"excess","reference_id":"CLAIM-PH-5522","amount":50.0,"currency":"GBP"}}]}
         agent_response: >
-          CLAIM-PH-5522 shows approved glass work and your photos are linked. Tuesday 14:00 collection is
+          claim CLAIM-PH-5522 shows approved glass work and your photos are linked. Tuesday 14:00 collection is
           booked and the £50 excess has been charged to your card on file — you’ll get the usual
           confirmation shortly.
         tool_chain:
@@ -183,7 +183,7 @@ endusers:
             currency: "GBP"
         planner:
           system_prompt: >
-            Phone MCP: single message bundles repair readiness, evidence, collection booking, and excess on CLAIM-PH-5522.
+            Phone MCP: single message bundles repair readiness, evidence, collection booking, and excess on claim CLAIM-PH-5522.
           output: >
             PLAN: claim_status; upload_documents; get_available_slots repair_collection;
             update_appointment Tue 14:00; submit payment 50 GBP.

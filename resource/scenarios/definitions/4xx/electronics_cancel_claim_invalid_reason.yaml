@@ -83,30 +83,30 @@ endusers:
       - turn_index: 1
         span_plan: *full_dp_span_plan
         vendor.enduser.request.raw: >
-          Please cancel my soundbar CLAIM-EL-9333 — I do not need the repair anymore. Use whatever
+          Please cancel my soundbar claim CLAIM-EL-9333 — I do not need the repair anymore. Use whatever
           reason code is fastest; I just need it gone today.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Please cancel my soundbar CLAIM-EL-9333 — I do not need the repair anymore. Use whatever
+                Please cancel my soundbar claim CLAIM-EL-9333 — I do not need the repair anymore. Use whatever
                 reason code is fastest; I just need it gone today.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I was not able to cancel CLAIM-EL-9333 yet. I still need a short, plain reason from you
+                I was not able to cancel claim CLAIM-EL-9333 yet. I still need a short, plain reason from you
                 — for example that you sold the soundbar or you no longer want the repair. Once you say
                 which applies, I will try again right away.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Please cancel my soundbar CLAIM-EL-9333 — I do not need the repair anymore. Use whatever
+                Please cancel my soundbar claim CLAIM-EL-9333 — I do not need the repair anymore. Use whatever
                 reason code is fastest; I just need it gone today.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"User wants CLAIM-EL-9333 cancelled urgently.","trigger_quote":"cancel my soundbar CLAIM-EL-9333","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-EL-9333","reason":""}}]}
+                {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"User wants claim CLAIM-EL-9333 cancelled urgently.","trigger_quote":"cancel my soundbar claim CLAIM-EL-9333","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-EL-9333","reason":""}}]}
           - target_span_class: mcp.tool.execute
             name: gentoro.mcp.tool.call.failed
             attributes:
@@ -120,7 +120,7 @@ endusers:
               vendor.block.http.status_code: 400
               vendor.block.http.error_type: bad_request
         agent_response: >
-          I was not able to cancel CLAIM-EL-9333 yet. I still need a short, plain reason from you
+          I was not able to cancel claim CLAIM-EL-9333 yet. I still need a short, plain reason from you
           — for example that you sold the soundbar or you no longer want the repair. Once you say
           which applies, I will try again right away.
         tool_chain: [cancel_claim]
@@ -143,9 +143,9 @@ endusers:
             cancelled_at: "2026-03-22T10:00:00Z"
         planner:
           system_prompt: >
-            Electronics MCP: user wants CLAIM-EL-9333 cancelled; tool cancel_claim.
+            Electronics MCP: user wants claim CLAIM-EL-9333 cancelled; tool cancel_claim.
           output: >
-            PLAN: cancel_claim for CLAIM-EL-9333; user asked for fastest reason — map to policy reason code.
+            PLAN: cancel_claim for claim CLAIM-EL-9333; user asked for fastest reason — map to policy reason code.
         response_compose:
           system_prompt: >
             If cancellation did not go through, speak in everyday language only: no MCP, APIs,

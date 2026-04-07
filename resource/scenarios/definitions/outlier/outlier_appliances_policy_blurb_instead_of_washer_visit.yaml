@@ -11,8 +11,10 @@
 
 name: outlier_appliances_policy_blurb_instead_of_washer_visit
 description: >
-  Paired flows for the same user wording (washing machine banging; send someone). Outlier: assistant
-  answers with generic policy coverage text and never calls MCP tools. Correct counterpart: new_claim for
+  Paired flows for the same user wording (washing machine banging; send someone).
+  Outlier: assistant
+  answers with generic policy coverage text and never calls MCP tools. Correct counterpart:
+  new_claim for
   the washer fault plus get_available_slots for technician windows.
 
 tags:
@@ -32,18 +34,18 @@ trace_interval_deviation_ms: 47
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 1180, deviation: 250 }
-      planner: { mean: 360, deviation: 88 }
-      llm.call: { mean: 520, deviation: 118 }
-      task.execute: { mean: 480, deviation: 110 }
-      tools.recommend: { mean: 42, deviation: 13 }
-      mcp.tool.execute: { mean: 195, deviation: 53 }
-      response.compose: { mean: 265, deviation: 65 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 1180, deviation: 250}
+      planner: {mean: 360, deviation: 88}
+      llm.call: {mean: 520, deviation: 118}
+      task.execute: {mean: 480, deviation: 110}
+      tools.recommend: {mean: 42, deviation: 13}
+      mcp.tool.execute: {mean: 195, deviation: 53}
+      response.compose: {mean: 265, deviation: 65}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -78,20 +80,25 @@ endusers:
       - turn_index: 1
         span_plan: *appliances_span_plan
         vendor.enduser.request.raw: >
-          I need a claim number — My washing machine is making a loud banging noise. Can you get someone to look at it?
+          I need a claim number — My washing machine is making a loud banging noise.
+          Can you get someone to look at it?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I need a claim number — My washing machine is making a loud banging noise. Can you get someone to look at it?
+                I need a claim number — My washing machine is making a loud banging
+                noise. Can you get someone to look at it?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                For appliance issues, our policy generally covers mechanical breakdown, accidental damage, and
-                call-out fees subject to your policy limits and excess. You can read your full terms in the
-                policy documents in your account. Is there anything else I can help you with?
+                For appliance issues, our policy generally covers mechanical breakdown,
+                accidental damage, and
+                call-out fees subject to your policy limits and excess. You can read
+                your full terms in the
+                policy documents in your account. Is there anything else I can help
+                you with?
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
@@ -100,9 +107,12 @@ endusers:
               vendor.agent.tool_selection.tool.plan: |
                 {"tool_plan":[]}
         agent_response: >
-          For appliance issues, our policy generally covers mechanical breakdown, accidental damage, and
-          call-out fees subject to your policy limits and excess. You can read your full terms in the
-          policy documents in your account. Is there anything else I can help you with?
+          For appliance issues, our policy generally covers mechanical breakdown,
+          accidental damage, and
+          call-out fees subject to your policy limits and excess. You can read your
+          full terms in the
+          policy documents in your account. Is there anything else I can help you
+          with?
         tool_chain: []
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -114,53 +124,73 @@ endusers:
         gentoro.llm.content.redaction.enabled: false
         planner:
           system_prompt: >
-            Appliances misroute: user requests a visit; planner produces policy FAQ only — no MCP tools.
+            Appliances misroute: user requests a visit; planner produces policy FAQ
+            only — no MCP tools.
           output: >
             PLAN: no tool_plan entries; answer from static coverage summary only.
         response_compose:
           system_prompt: >
-            Generic policy wording; defer to documents; do not open a claim or list technicians.
+            Generic policy wording; defer to documents; do not open a claim or list
+            technicians.
 
   - id: correct_washer_banging_claim_and_visit_slots
     vendor.enduser.pseudo.id: "user_correct_ap_washer_06"
     channel: web_chat
     mcp_server: appliances
     turns:
-      - turn_index: 1
-        span_plan: *appliances_span_plan
-        vendor.enduser.request.raw: >
-          Policy claim — My washing machine is making a loud banging noise. Can you get someone to look at it?
+      - span_plan: *appliances_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "Policy claim — My washing machine is making a
+          loud banging noise. Can you get someone to look at it?\n\nMonday morning
+          for claim CLAIM-HA-6610 please."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                Policy claim — My washing machine is making a loud banging noise. Can you get someone to look at it?
+              vendor.enduser.request.raw: "Policy claim — My washing machine is making
+                a loud banging noise. Can you get someone to look at it?\n\nMonday
+                morning for claim CLAIM-HA-6610 please."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened CLAIM-HA-6610 for your washing machine’s loud banging during the cycle. I can book
-                an authorized technician on Monday 08:00–12:00 or Tuesday 13:00–17:00 next week. Which window
-                works better for you?
+                Monday 08:00 is booked for claim CLAIM-HA-6610 — you’ll get the four-hour
+                band confirmation shortly.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                Breakdown on my plan — My washing machine is making a loud banging noise. Can you get someone to look at it?
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "Washer loud banging; customer wants inspection.", "trigger_quote": "loud banging noise", "missing_info": null, "confidence": 0.94, "tool_args": {"product_type": "washer", "description": "Loud banging during cycle; suspected mechanical fault.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Authorized repair visit slots after intake.", "trigger_quote": "get someone to look at it", "missing_info": null, "confidence": 0.92, "tool_args": {"claim_id": "CLAIM-HA-6610", "service_type": "authorized_repair_visit", "date_range_start": "2026-03-24", "date_range_end": "2026-03-25"}}]}
+              vendor.agent.tool_selection.input.raw: "Policy claim — My washing machine
+                is making a loud banging noise. Can you get someone to look at it?\n\
+                \nMonday morning for claim CLAIM-HA-6610 please.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"Washer loud banging; customer
+                wants inspection.\",\"trigger_quote\":\"loud banging noise\",\"missing_info\"\
+                :null,\"confidence\":0.94,\"tool_args\":{\"product_type\":\"washer\"\
+                ,\"description\":\"Loud banging during cycle; suspected mechanical
+                fault.\",\"incident_date\":\"2026-03-22\"}},{\"tool_name\":\"get_available_slots\"\
+                ,\"trigger_summary\":\"Authorized repair visit slots after intake.\"\
+                ,\"trigger_quote\":\"get someone to look at it\",\"missing_info\"\
+                :null,\"confidence\":0.92,\"tool_args\":{\"claim_id\":\"CLAIM-HA-6610\"\
+                ,\"service_type\":\"authorized_repair_visit\",\"date_range_start\"\
+                :\"2026-03-24\",\"date_range_end\":\"2026-03-25\"}},{\"tool_name\"\
+                :\"update_appointment\",\"trigger_summary\":\"Book Mon 08:00 authorized
+                visit from listed slots.\",\"trigger_quote\":\"Monday morning\",\"\
+                missing_info\":null,\"confidence\":0.92,\"tool_args\":{\"claim_id\"\
+                :\"CLAIM-HA-6610\",\"appointment_id\":\"APT-HA-6610-HOLD\",\"slot_id\"\
+                :\"SLOT-2026-03-24T08:00\",\"preferred_time_window\":\"morning\"}}]}\n"
         agent_response: >
-          I’ve opened CLAIM-HA-6610 for your washing machine’s loud banging during the cycle. I can book
-          an authorized technician on Monday 08:00–12:00 or Tuesday 13:00–17:00 next week. Which window
-          works better for you?
-        tool_chain: [new_claim, get_available_slots]
+          Monday 08:00 is booked for claim CLAIM-HA-6610 — you’ll get the four-hour
+          band confirmation shortly.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1040
-        gen_ai.usage.output_tokens: 188
+        gen_ai.usage.input_tokens: 1960
+        gen_ai.usage.output_tokens: 268
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -173,75 +203,39 @@ endusers:
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-24"
             date_range_end: "2026-03-25"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-HA-6610"
-            product_type: "washer"
-            status: "opened"
-            coverage: { type: "appliance_mechanical_fault", deductible: 35 }
-            notes: "Correct path: intake plus two technician windows."
-          get_available_slots:
-            claim_id: "CLAIM-HA-6610"
-            slots:
-              - { slot_id: "SLOT-2026-03-24T08:00", duration_minutes: 240 }
-              - { slot_id: "SLOT-2026-03-25T13:00", duration_minutes: 240 }
-            timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Appliances MCP; washer mechanical noise — new_claim then list authorized_repair_visit slots.
-          output: >
-            PLAN: new_claim CLAIM-HA-6610; get_available_slots Mon/Tue four-hour windows.
-        response_compose:
-          system_prompt: >
-            Claim id; two visit options; invite choice — no generic policy essay.
-
-      - turn_index: 2
-        span_plan: *appliances_span_plan
-        vendor.enduser.request.raw: "Monday morning for CLAIM-HA-6610 please."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Monday morning for CLAIM-HA-6610 please."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Monday 08:00 is booked for CLAIM-HA-6610 — you’ll get the four-hour band confirmation shortly.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Monday morning for CLAIM-HA-6610 please."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Mon 08:00 authorized visit from listed slots.","trigger_quote":"Monday morning","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-HA-6610","appointment_id":"APT-HA-6610-HOLD","slot_id":"SLOT-2026-03-24T08:00","preferred_time_window":"morning"}}]}
-        agent_response: >
-          Monday 08:00 is booked for CLAIM-HA-6610 — you’ll get the four-hour band confirmation shortly.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 920
-        gen_ai.usage.output_tokens: 80
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-HA-6610"
             appointment_id: "APT-HA-6610-HOLD"
             slot_id: "SLOT-2026-03-24T08:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-HA-6610"
+            product_type: "washer"
+            status: "opened"
+            coverage:
+              type: "appliance_mechanical_fault"
+              deductible: 35
+            notes: "Correct path: intake plus two technician windows."
+          get_available_slots:
+            claim_id: "CLAIM-HA-6610"
+            slots:
+              - slot_id: "SLOT-2026-03-24T08:00"
+                duration_minutes: 240
+              - slot_id: "SLOT-2026-03-25T13:00"
+                duration_minutes: 240
+            timezone: "Europe/London"
           update_appointment:
             claim_id: "CLAIM-HA-6610"
             appointment_id: "APT-HA-6610-01"
             status: "scheduled"
             scheduled_at: "2026-03-24T08:00:00Z"
         planner:
-          system_prompt: >
-            Book Monday washer technician window for CLAIM-HA-6610.
-          output: >
-            PLAN: update_appointment Mon 08:00.
+          system_prompt: "Appliances MCP; washer mechanical noise — new_claim then
+            list authorized_repair_visit slots.\n\nBook Monday washer technician window
+            for claim CLAIM-HA-6610."
+          output: "PLAN: new_claim CLAIM-HA-6610; get_available_slots Mon/Tue four-hour
+            windows.\n\nPLAN: update_appointment Mon 08:00."
         response_compose:
-          system_prompt: >
-            Confirm visit band.
+          system_prompt: "Claim id; two visit options; invite choice — no generic
+            policy essay.\n\nConfirm visit band."

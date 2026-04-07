@@ -50,6 +50,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "mypy>=1.8.0",
     "types-PyYAML>=6.0",
+    "ruamel.yaml>=0.18",
 ]
 
 [project.scripts]

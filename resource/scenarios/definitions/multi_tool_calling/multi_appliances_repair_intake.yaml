@@ -2,8 +2,8 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_appliances_repair_intake.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 3
-# Interaction model: multi-turn voice-style — confirm claim and landlord paperwork,
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: single-turn — one user message; full tool chain in one orchestration
 #   register new photos and list slots, then book a chosen time.
 # MCP: appliances — claim_status → upload_documents + get_available_slots → update_appointment
 # Data plane: full span_plan (planner → llm.call → tools.recommend → mcp… → compose)
@@ -14,8 +14,10 @@
 
 name: multi_appliances_repair_intake
 description: >
-  Washer CLAIM-AP-WA-5544 in three turns: confirm status and landlord leak letter, ingest fresh
-  floor and hose photos plus technician availability, then confirm Tuesday 13:00 with NordicFix.
+  Washer claim CLAIM-AP-WA-5544 in three turns: confirm status and landlord leak letter,
+  ingest fresh
+  floor and hose photos plus technician availability, then confirm Tuesday 13:00 with
+  NordicFix.
 
 tags:
   - normal
@@ -33,18 +35,18 @@ trace_interval_deviation_ms: 55
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 1980, deviation: 390 }
-      planner: { mean: 495, deviation: 112 }
-      llm.call: { mean: 610, deviation: 138 }
-      task.execute: { mean: 670, deviation: 152 }
-      tools.recommend: { mean: 50, deviation: 16 }
-      mcp.tool.execute: { mean: 198, deviation: 54 }
-      response.compose: { mean: 330, deviation: 80 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 1980, deviation: 390}
+      planner: {mean: 495, deviation: 112}
+      llm.call: {mean: 610, deviation: 138}
+      task.execute: {mean: 670, deviation: 152}
+      tools.recommend: {mean: 50, deviation: 16}
+      mcp.tool.execute: {mean: 198, deviation: 54}
+      response.compose: {mean: 330, deviation: 80}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -76,47 +78,95 @@ endusers:
     channel: voice
     mcp_server: appliances
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          I’m calling about washer CLAIM-AP-WA-5544 — it still won’t drain after the first visit note.
-          Did the landlord’s leak letter actually get attached?
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "I'm calling about claim CLAIM-AP-WA-5544 for
+          my washer — it still won’t drain after the first visit note. Did the landlord’s
+          leak letter actually get attached?\n\nI just uploaded floor and hose photos.
+          Can you pull Mon–Wed authorized tech slots? I’d like Tuesday 1pm if it’s
+          open.\n\nYes — lock Tuesday at one p.m."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                I’m calling about washer CLAIM-AP-WA-5544 — it still won’t drain after the first visit note.
-                Did the landlord’s leak letter actually get attached?
+              vendor.enduser.request.raw: "I'm calling about claim CLAIM-AP-WA-5544
+                for my washer — it still won’t drain after the first visit note. Did
+                the landlord’s leak letter actually get attached?\n\nI just uploaded
+                floor and hose photos. Can you pull Mon–Wed authorized tech slots?
+                I’d like Tuesday 1pm if it’s open.\n\nYes — lock Tuesday at one p.m."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-AP-WA-5544 is in review, and yes — the landlord leak letter is on file. If you have more
-                photos, add them in the app and I can register them on the next message.
+                Tuesday 13:00 is confirmed with NordicFix for claim CLAIM-AP-WA-5544.
+                You’ll get the calendar invite and
+                SMS with the arrival window.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                I’m calling about washer CLAIM-AP-WA-5544 — it still won’t drain after the first visit note.
-                Did the landlord’s leak letter actually get attached?
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Confirm claim state and landlord documentation present.","trigger_quote":"CLAIM-AP-WA-5544","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-AP-WA-5544"}}]}
+              vendor.agent.tool_selection.input.raw: "I'm calling about claim CLAIM-AP-WA-5544
+                for my washer — it still won’t drain after the first visit note. Did
+                the landlord’s leak letter actually get attached?\n\nI just uploaded
+                floor and hose photos. Can you pull Mon–Wed authorized tech slots?
+                I’d like Tuesday 1pm if it’s open.\n\nYes — lock Tuesday at one p.m.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"claim_status\",\"trigger_summary\":\"Confirm claim state and landlord
+                documentation present.\",\"trigger_quote\":\"claim CLAIM-AP-WA-5544\"\
+                ,\"missing_info\":null,\"confidence\":0.93,\"tool_args\":{\"claim_id\"\
+                :\"CLAIM-AP-WA-5544\"}},{\"tool_name\":\"upload_documents\",\"trigger_summary\"\
+                :\"Register floor and hose photos; landlord letter already on file.\"\
+                ,\"trigger_quote\":\"floor and hose photos\",\"missing_info\":null,\"\
+                confidence\":0.9,\"tool_args\":{\"claim_id\":\"CLAIM-AP-WA-5544\"\
+                ,\"document_types\":[\"photo_floor\",\"photo_hose\",\"landlord_leak_letter\"\
+                ],\"expected_count\":4}},{\"tool_name\":\"get_available_slots\",\"\
+                trigger_summary\":\"Mon\\u2013Wed tech availability for authorized
+                repair.\",\"trigger_quote\":\"Mon\\u2013Wed authorized tech slots\"\
+                ,\"missing_info\":null,\"confidence\":0.88,\"tool_args\":{\"claim_id\"\
+                :\"CLAIM-AP-WA-5544\",\"service_type\":\"authorized_repair_visit\"\
+                ,\"date_range_start\":\"2026-03-23\",\"date_range_end\":\"2026-03-25\"\
+                }},{\"tool_name\":\"update_appointment\",\"trigger_summary\":\"Book
+                Tuesday 13:00 slot offered in prior turn.\",\"trigger_quote\":\"Tuesday
+                at one p.m.\",\"missing_info\":null,\"confidence\":0.91,\"tool_args\"\
+                :{\"claim_id\":\"CLAIM-AP-WA-5544\",\"appointment_id\":\"APT-AP-5544-TMP\"\
+                ,\"slot_id\":\"SLOT-2026-03-24T13:00\",\"preferred_time_window\":\"\
+                early_afternoon\"}}]}\n"
         agent_response: >
-          CLAIM-AP-WA-5544 is in review, and yes — the landlord leak letter is on file. If you have more
-          photos, add them in the app and I can register them on the next message.
-        tool_chain: [claim_status]
+          Tuesday 13:00 is confirmed with NordicFix for claim CLAIM-AP-WA-5544. You’ll
+          get the calendar invite and
+          SMS with the arrival window.
+        tool_chain:
+          - claim_status
+          - upload_documents
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 920
-        gen_ai.usage.output_tokens: 165
+        gen_ai.usage.input_tokens: 3040
+        gen_ai.usage.output_tokens: 528
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
+        gentoro.llm.turn.count: 4
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
             claim_id: "CLAIM-AP-WA-5544"
+          upload_documents:
+            claim_id: "CLAIM-AP-WA-5544"
+            document_types:
+              - "photo_floor"
+              - "photo_hose"
+              - "landlord_leak_letter"
+            expected_count: 4
+          get_available_slots:
+            claim_id: "CLAIM-AP-WA-5544"
+            service_type: "authorized_repair_visit"
+            date_range_start: "2026-03-23"
+            date_range_end: "2026-03-25"
+          update_appointment:
+            claim_id: "CLAIM-AP-WA-5544"
+            appointment_id: "APT-AP-5544-TMP"
+            slot_id: "SLOT-2026-03-24T13:00"
+            preferred_time_window: "early_afternoon"
         gen_ai.tool.call.result:
           claim_status:
             claim_id: "CLAIM-AP-WA-5544"
@@ -126,64 +176,6 @@ endusers:
               - intake_complete
               - landlord_document_received
               - awaiting_technician_schedule
-        planner:
-          system_prompt: >
-            Toro appliances planner: voice caller asks only whether landlord letter is attached.
-          output: >
-            PLAN: claim_status CLAIM-AP-WA-5544; confirm landlord_document_received.
-        response_compose:
-          system_prompt: >
-            Voice-IVR friendly; reassure documentation; cue uploads if needed.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          I just uploaded floor and hose photos. Can you pull Mon–Wed authorized tech slots? I’d like
-          Tuesday 1pm if it’s open.
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: >
-                I just uploaded floor and hose photos. Can you pull Mon–Wed authorized tech slots? I’d like
-                Tuesday 1pm if it’s open.
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Your floor and hose photos are registered on CLAIM-AP-WA-5544. Authorized tech has Tuesday 13:00,
-                Monday 09:00, and Wednesday 10:00 open — want me to lock Tuesday 1pm?
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: |
-                I just uploaded floor and hose photos. Can you pull Mon–Wed authorized tech slots? I’d like
-                Tuesday 1pm if it’s open.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"upload_documents","trigger_summary":"Register floor and hose photos; landlord letter already on file.","trigger_quote":"floor and hose photos","missing_info":null,"confidence":0.9,"tool_args":{"claim_id":"CLAIM-AP-WA-5544","document_types":["photo_floor","photo_hose","landlord_leak_letter"],"expected_count":4}},{"tool_name":"get_available_slots","trigger_summary":"Mon–Wed tech availability for authorized repair.","trigger_quote":"Mon–Wed authorized tech slots","missing_info":null,"confidence":0.88,"tool_args":{"claim_id":"CLAIM-AP-WA-5544","service_type":"authorized_repair_visit","date_range_start":"2026-03-23","date_range_end":"2026-03-25"}}]}
-        agent_response: >
-          Your floor and hose photos are registered on CLAIM-AP-WA-5544. Authorized tech has Tuesday 13:00,
-          Monday 09:00, and Wednesday 10:00 open — want me to lock Tuesday 1pm?
-        tool_chain: [upload_documents, get_available_slots]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1240
-        gen_ai.usage.output_tokens: 268
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
-          upload_documents:
-            claim_id: "CLAIM-AP-WA-5544"
-            document_types: ["photo_floor", "photo_hose", "landlord_leak_letter"]
-            expected_count: 4
-          get_available_slots:
-            claim_id: "CLAIM-AP-WA-5544"
-            service_type: "authorized_repair_visit"
-            date_range_start: "2026-03-23"
-            date_range_end: "2026-03-25"
-        gen_ai.tool.call.result:
           upload_documents:
             claim_id: "CLAIM-AP-WA-5544"
             upload_batch_id: "UPL-CLAIM-AP-5544-03"
@@ -192,68 +184,27 @@ endusers:
           get_available_slots:
             claim_id: "CLAIM-AP-WA-5544"
             slots:
-              - { slot_id: "SLOT-2026-03-24T09:00", duration_minutes: 120 }
-              - { slot_id: "SLOT-2026-03-24T13:00", duration_minutes: 120 }
-              - { slot_id: "SLOT-2026-03-25T10:00", duration_minutes: 120 }
+              - slot_id: "SLOT-2026-03-24T09:00"
+                duration_minutes: 120
+              - slot_id: "SLOT-2026-03-24T13:00"
+                duration_minutes: 120
+              - slot_id: "SLOT-2026-03-25T10:00"
+                duration_minutes: 120
             timezone: "Europe/Oslo"
-        planner:
-          system_prompt: >
-            Toro appliances: ingest new photos then list Mon–Wed NordicFix-style slots.
-          output: >
-            PLAN: upload_documents CLAIM-AP-WA-5544; get_available_slots Mon–Wed; surface Tuesday 13:00.
-        response_compose:
-          system_prompt: >
-            Summarize slot options; ask explicit yes for preferred time.
-
-      - turn_index: 3
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Yes — lock Tuesday at one p.m."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Yes — lock Tuesday at one p.m."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Tuesday 13:00 is confirmed with NordicFix for CLAIM-AP-WA-5544. You’ll get the calendar invite and
-                SMS with the arrival window.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Yes — lock Tuesday at one p.m."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Tuesday 13:00 slot offered in prior turn.","trigger_quote":"Tuesday at one p.m.","missing_info":null,"confidence":0.91,"tool_args":{"claim_id":"CLAIM-AP-WA-5544","appointment_id":"APT-AP-5544-TMP","slot_id":"SLOT-2026-03-24T13:00","preferred_time_window":"early_afternoon"}}]}
-        agent_response: >
-          Tuesday 13:00 is confirmed with NordicFix for CLAIM-AP-WA-5544. You’ll get the calendar invite and
-          SMS with the arrival window.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 880
-        gen_ai.usage.output_tokens: 95
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
-          update_appointment:
-            claim_id: "CLAIM-AP-WA-5544"
-            appointment_id: "APT-AP-5544-TMP"
-            slot_id: "SLOT-2026-03-24T13:00"
-            preferred_time_window: "early_afternoon"
-        gen_ai.tool.call.result:
           update_appointment:
             claim_id: "CLAIM-AP-WA-5544"
             appointment_id: "APT-AP-5544-BOOK"
             status: "scheduled"
             scheduled_at: "2026-03-24T13:00:00Z"
         planner:
-          system_prompt: >
-            Voice confirmation: book SLOT-2026-03-24T13:00 for CLAIM-AP-WA-5544.
-          output: >
-            PLAN: update_appointment Tuesday 13:00 NordicFix.
+          system_prompt: "Toro appliances planner: voice caller asks only whether
+            landlord letter is attached.\n\nToro appliances: ingest new photos then
+            list Mon–Wed NordicFix-style slots.\n\nVoice confirmation: book SLOT-2026-03-24T13:00
+            for claim CLAIM-AP-WA-5544."
+          output: "PLAN: claim_status CLAIM-AP-WA-5544; confirm landlord_document_received.\n\
+            \nPLAN: upload_documents claim CLAIM-AP-WA-5544; get_available_slots Mon–Wed;
+            surface Tuesday 13:00.\n\nPLAN: update_appointment Tuesday 13:00 NordicFix."
         response_compose:
-          system_prompt: >
-            Close with confirmation and messaging expectations.
+          system_prompt: "Voice-IVR friendly; reassure documentation; cue uploads
+            if needed.\n\nSummarize slot options; ask explicit yes for preferred time.\n\
+            \nClose with confirmation and messaging expectations."

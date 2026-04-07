@@ -2,7 +2,7 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_phone_evening_slot_book_multiturn.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
 # Interaction model: turn 1 — new_claim + get_available_slots; turn 2 — update_appointment
 # MCP: phone
 #
@@ -12,7 +12,8 @@
 
 name: multi_phone_evening_slot_book_multiturn
 description: >
-  Phone shattered screen: open CLAIM-PH-9012, offer Thursday 18:00 and Friday 18:30 evening slots,
+  Phone shattered screen: open claim CLAIM-PH-9012, offer Thursday 18:00 and Friday
+  18:30 evening slots,
   then book Friday 18:30 after the customer chooses.
 
 tags:
@@ -31,18 +32,18 @@ trace_interval_deviation_ms: 52
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2000, deviation: 400 }
-      planner: { mean: 500, deviation: 115 }
-      llm.call: { mean: 620, deviation: 140 }
-      task.execute: { mean: 680, deviation: 155 }
-      tools.recommend: { mean: 52, deviation: 17 }
-      mcp.tool.execute: { mean: 200, deviation: 55 }
-      response.compose: { mean: 340, deviation: 82 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2000, deviation: 400}
+      planner: {mean: 500, deviation: 115}
+      llm.call: {mean: 620, deviation: 140}
+      task.execute: {mean: 680, deviation: 155}
+      tools.recommend: {mean: 52, deviation: 17}
+      mcp.tool.execute: {mean: 200, deviation: 55}
+      response.compose: {mean: 340, deviation: 82}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -74,44 +75,61 @@ endusers:
     channel: app_chat
     mcp_server: phone
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          I dropped my phone on the pavement and the screen shattered. Can you start a claim and get me
-          an evening repair slot?
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "I dropped my phone on the pavement and the screen
+          shattered. Can you start a claim and get me an evening repair slot?\n\n\
+          Friday 18:30 works."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                I dropped my phone on the pavement and the screen shattered. Can you start a claim and get me
-                an evening repair slot?
+              vendor.enduser.request.raw: "I dropped my phone on the pavement and
+                the screen shattered. Can you start a claim and get me an evening
+                repair slot?\n\nFriday 18:30 works."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’m sorry about your phone. I’ve created a claim for your device and noted the shattered screen.
-                Your claim ID is CLAIM-PH-9012. I’ve checked our schedule and the next evening slots are Thursday 18:00
-                and Friday 18:30. Which of those works for you?
+                Got it — I’ve booked your repair for Friday at 18:30 under claim CLAIM-PH-9012.
+                You’ll receive a
+                confirmation email with the appointment details.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                I dropped my phone on the pavement and the screen shattered. Can you start a claim and get me
-                an evening repair slot?
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Pavement drop; shattered screen; evening repair.", "trigger_quote": "I want to file a claim — screen shattered", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "phone", "description": "Dropped on pavement; screen shattered.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Evening repair availability for new claim.", "trigger_quote": "evening repair slot", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "CLAIM-PH-9012", "service_type": "screen_repair_visit", "date_range_start": "2026-03-27", "date_range_end": "2026-03-28"}}]}
+              vendor.agent.tool_selection.input.raw: "I dropped my phone on the pavement
+                and the screen shattered. Can you start a claim and get me an evening
+                repair slot?\n\nFriday 18:30 works.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                Pavement drop; shattered screen; evening repair.\",\"trigger_quote\"\
+                :\"I want to file a claim \\u2014 screen shattered\",\"missing_info\"\
+                :null,\"confidence\":0.93,\"tool_args\":{\"product_type\":\"phone\"\
+                ,\"description\":\"Dropped on pavement; screen shattered.\",\"incident_date\"\
+                :\"2026-03-22\"}},{\"tool_name\":\"get_available_slots\",\"trigger_summary\"\
+                :\"Evening repair availability for new claim.\",\"trigger_quote\"\
+                :\"evening repair slot\",\"missing_info\":null,\"confidence\":0.9,\"\
+                tool_args\":{\"claim_id\":\"CLAIM-PH-9012\",\"service_type\":\"screen_repair_visit\"\
+                ,\"date_range_start\":\"2026-03-27\",\"date_range_end\":\"2026-03-28\"\
+                }},{\"tool_name\":\"update_appointment\",\"trigger_summary\":\"Book
+                Friday 18:30 evening slot.\",\"trigger_quote\":\"Friday 18:30 works\"\
+                ,\"missing_info\":null,\"confidence\":0.94,\"tool_args\":{\"claim_id\"\
+                :\"CLAIM-PH-9012\",\"appointment_id\":\"APT-PH-9012-HOLD\",\"slot_id\"\
+                :\"SLOT-2026-03-28T18:30\",\"preferred_time_window\":\"evening\"}}]}\n"
         agent_response: >
-          I’m sorry about your phone. I’ve created a claim for your device and noted the shattered screen.
-          Your claim ID is CLAIM-PH-9012. I’ve checked our schedule and the next evening slots are Thursday 18:00
-          and Friday 18:30. Which of those works for you?
-        tool_chain: [new_claim, get_available_slots]
+          Got it — I’ve booked your repair for Friday at 18:30 under claim CLAIM-PH-9012.
+          You’ll receive a
+          confirmation email with the appointment details.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1180
-        gen_ai.usage.output_tokens: 220
+        gen_ai.usage.input_tokens: 2100
+        gen_ai.usage.output_tokens: 315
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -124,77 +142,41 @@ endusers:
             service_type: "screen_repair_visit"
             date_range_start: "2026-03-27"
             date_range_end: "2026-03-28"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-PH-9012"
-            product_type: "phone"
-            status: "opened"
-            coverage: { type: "phone_screen_damage", deductible: 75 }
-            notes: "Evening repair slots offered; awaiting customer selection."
-          get_available_slots:
-            claim_id: "CLAIM-PH-9012"
-            slots:
-              - { slot_id: "SLOT-2026-03-27T18:00", duration_minutes: 90 }
-              - { slot_id: "SLOT-2026-03-28T18:30", duration_minutes: 90 }
-            timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Toro phone planner: turn 1 of chat — open a screen-damage claim then list evening repair slots.
-          output: >
-            PLAN: new_claim phone pavement drop; get_available_slots for CLAIM-PH-9012 evening window Thu–Fri.
-        response_compose:
-          system_prompt: >
-            Empathetic tone; give CLAIM-PH-9012; quote Thursday 18:00 and Friday 18:30; ask which works.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Friday 18:30 works."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Friday 18:30 works."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Got it — I’ve booked your repair for Friday at 18:30 under CLAIM-PH-9012. You’ll receive a
-                confirmation email with the appointment details.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Friday 18:30 works."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Friday 18:30 evening slot.","trigger_quote":"Friday 18:30 works","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-9012","appointment_id":"APT-PH-9012-HOLD","slot_id":"SLOT-2026-03-28T18:30","preferred_time_window":"evening"}}]}
-        agent_response: >
-          Got it — I’ve booked your repair for Friday at 18:30 under CLAIM-PH-9012. You’ll receive a
-          confirmation email with the appointment details.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 920
-        gen_ai.usage.output_tokens: 95
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-PH-9012"
             appointment_id: "APT-PH-9012-HOLD"
             slot_id: "SLOT-2026-03-28T18:30"
             preferred_time_window: "evening"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-PH-9012"
+            product_type: "phone"
+            status: "opened"
+            coverage:
+              type: "phone_screen_damage"
+              deductible: 75
+            notes: "Evening repair slots offered; awaiting customer selection."
+          get_available_slots:
+            claim_id: "CLAIM-PH-9012"
+            slots:
+              - slot_id: "SLOT-2026-03-27T18:00"
+                duration_minutes: 90
+              - slot_id: "SLOT-2026-03-28T18:30"
+                duration_minutes: 90
+            timezone: "Europe/London"
           update_appointment:
             claim_id: "CLAIM-PH-9012"
             appointment_id: "APT-PH-9012-01"
             status: "scheduled"
             scheduled_at: "2026-03-28T18:30:00Z"
         planner:
-          system_prompt: >
-            Same session; customer chose Friday 18:30 for CLAIM-PH-9012.
-          output: >
-            PLAN: update_appointment to SLOT-2026-03-28T18:30; confirm email.
+          system_prompt: "Toro phone planner: turn 1 of chat — open a screen-damage
+            claim then list evening repair slots.\n\nSame session; customer chose
+            Friday 18:30 for claim CLAIM-PH-9012."
+          output: "PLAN: new_claim phone pavement drop; get_available_slots for claim
+            CLAIM-PH-9012 evening window Thu–Fri.\n\nPLAN: update_appointment to SLOT-2026-03-28T18:30;
+            confirm email."
         response_compose:
-          system_prompt: >
-            Short confirmation with claim id and 18:30 Friday.
+          system_prompt: "Empathetic tone; give claim CLAIM-PH-9012; quote Thursday
+            18:00 and Friday 18:30; ask which works.\n\nShort confirmation with claim
+            id and 18:30 Friday."

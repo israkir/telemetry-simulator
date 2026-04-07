@@ -24,7 +24,7 @@ name: peak_upstream_degraded
 description: >
   Twenty independent status-check conversations during peak upstream degradation
   (same latency profile and higher-latency orchestration attributes on every trace).
-  User messages are realistic claim follow-ups (travel, repair shop coordination, roaming, etc.).
+  User messages are realistic claim follow-ups (repair shop coordination, status checks, etc.).
 
 tags:
   - latency
@@ -101,27 +101,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Status on CLAIM-PH-LAT-9101 please.
+          Status on claim CLAIM-PH-LAT-9101 please.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Status on CLAIM-PH-LAT-9101 please.
+                Status on claim CLAIM-PH-LAT-9101 please.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9101 is still in review; photos cleared fraud checks. Expect an update SMS overnight.
+                claim CLAIM-PH-LAT-9101 is still in review; photos cleared fraud checks. Expect an update SMS overnight.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Status on CLAIM-PH-LAT-9101 please.
+                Status on claim CLAIM-PH-LAT-9101 please.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for CLAIM-PH-LAT-9101.","trigger_quote":"CLAIM-PH-LAT-9101","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9101"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for claim CLAIM-PH-LAT-9101.","trigger_quote":"claim CLAIM-PH-LAT-9101","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9101"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9101 is still in review; photos cleared fraud checks. Expect an update SMS overnight.
+          claim CLAIM-PH-LAT-9101 is still in review; photos cleared fraud checks. Expect an update SMS overnight.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -150,7 +150,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9101; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9101; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9101; no promises outside tool result.
 
   - id: peak_deg_02
     vendor.enduser.pseudo.id: "user_peak_deg_02"
@@ -159,27 +159,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          I'm on the train home — can you check CLAIM-PH-LAT-9102?
+          Can you check claim CLAIM-PH-LAT-9102?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I'm on the train home — can you check CLAIM-PH-LAT-9102?
+                Can you check claim CLAIM-PH-LAT-9102?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9102 is pending_info: we still need a readable IMEI photo. Upload from the link in your last SMS.
+                claim CLAIM-PH-LAT-9102 is pending_info: we still need a readable IMEI photo. Upload from the link in your last SMS.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I'm on the train home — can you check CLAIM-PH-LAT-9102?
+                Can you check claim CLAIM-PH-LAT-9102?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for CLAIM-PH-LAT-9102.","trigger_quote":"CLAIM-PH-LAT-9102","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9102"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for claim CLAIM-PH-LAT-9102.","trigger_quote":"Can you check claim CLAIM-PH-LAT-9102?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9102"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9102 is pending_info: we still need a readable IMEI photo. Upload from the link in your last SMS.
+          claim CLAIM-PH-LAT-9102 is pending_info: we still need a readable IMEI photo. Upload from the link in your last SMS.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -207,7 +207,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9102; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9102; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9102; no promises outside tool result.
 
   - id: peak_deg_03
     vendor.enduser.pseudo.id: "user_peak_deg_03"
@@ -216,27 +216,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          My teenager dropped her phone again. Where do things stand on CLAIM-PH-LAT-9103?
+          Where do things stand on claim CLAIM-PH-LAT-9103?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                My teenager dropped her phone again. Where do things stand on CLAIM-PH-LAT-9103?
+                Where do things stand on claim CLAIM-PH-LAT-9103?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9103 is in_review with an assessor assigned; no decision yet. You will get push + email when it posts.
+                claim CLAIM-PH-LAT-9103 is in_review with an assessor assigned; no decision yet. You will get push + email when it posts.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                My teenager dropped her phone again. Where do things stand on CLAIM-PH-LAT-9103?
+                Where do things stand on claim CLAIM-PH-LAT-9103?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Parent checking CLAIM-PH-LAT-9103 after repeat damage.","trigger_quote":"CLAIM-PH-LAT-9103","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9103"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for claim CLAIM-PH-LAT-9103.","trigger_quote":"Where do things stand on claim CLAIM-PH-LAT-9103?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9103"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9103 is in_review with an assessor assigned; no decision yet. You will get push + email when it posts.
+          claim CLAIM-PH-LAT-9103 is in_review with an assessor assigned; no decision yet. You will get push + email when it posts.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -265,7 +265,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9103; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9103; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9103; no promises outside tool result.
 
   - id: peak_deg_04
     vendor.enduser.pseudo.id: "user_peak_deg_04"
@@ -274,27 +274,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          The repair shop said they're waiting on the insurer. Is CLAIM-PH-LAT-9104 actually moving?
+          Is claim CLAIM-PH-LAT-9104 actually moving?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                The repair shop said they're waiting on the insurer. Is CLAIM-PH-LAT-9104 actually moving?
+                Is claim CLAIM-PH-LAT-9104 actually moving?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9104 is approved_for_repair; authorization was sent to NordicFix Oslo ten minutes ago. The shop should see it shortly.
+                claim CLAIM-PH-LAT-9104 is approved_for_repair; authorization was sent to NordicFix Oslo ten minutes ago. The shop should see it shortly.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                The repair shop said they're waiting on the insurer. Is CLAIM-PH-LAT-9104 actually moving?
+                Is claim CLAIM-PH-LAT-9104 actually moving?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Customer verifying CLAIM-PH-LAT-9104 authorization visibility at repair partner.","trigger_quote":"CLAIM-PH-LAT-9104","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9104"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Customer verifying claim CLAIM-PH-LAT-9104 authorization visibility at repair partner.","trigger_quote":"Is claim CLAIM-PH-LAT-9104 actually moving?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9104"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9104 is approved_for_repair; authorization was sent to NordicFix Oslo ten minutes ago. The shop should see it shortly.
+          claim CLAIM-PH-LAT-9104 is approved_for_repair; authorization was sent to NordicFix Oslo ten minutes ago. The shop should see it shortly.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -323,7 +323,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9104; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9104; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9104; no promises outside tool result.
 
   - id: peak_deg_05
     vendor.enduser.pseudo.id: "user_peak_deg_05"
@@ -332,27 +332,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Please tell me the status of CLAIM-PH-LAT-9105.
+          Please tell me the status of claim CLAIM-PH-LAT-9105.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Please tell me the status of CLAIM-PH-LAT-9105.
+                Please tell me the status of claim CLAIM-PH-LAT-9105.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9105 is closed_paid; excess was settled and the case archived on Monday. Receipt is in your email.
+                claim CLAIM-PH-LAT-9105 is closed_paid; excess was settled and the case archived on Monday. Receipt is in your email.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Please tell me the status of CLAIM-PH-LAT-9105.
+                Please tell me the status of claim CLAIM-PH-LAT-9105.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for closed CLAIM-PH-LAT-9105.","trigger_quote":"CLAIM-PH-LAT-9105","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9105"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for closed claim CLAIM-PH-LAT-9105.","trigger_quote":"claim CLAIM-PH-LAT-9105","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9105"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9105 is closed_paid; excess was settled and the case archived on Monday. Receipt is in your email.
+          claim CLAIM-PH-LAT-9105 is closed_paid; excess was settled and the case archived on Monday. Receipt is in your email.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -381,7 +381,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9105; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9105; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9105; no promises outside tool result.
 
   - id: peak_deg_06
     vendor.enduser.pseudo.id: "user_peak_deg_06"
@@ -390,27 +390,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          I fly tomorrow morning. Please confirm if CLAIM-PH-LAT-9106 can be expedited.
+          Please confirm if claim CLAIM-PH-LAT-9106 can be expedited.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I fly tomorrow morning. Please confirm if CLAIM-PH-LAT-9106 can be expedited.
+                Please confirm if claim CLAIM-PH-LAT-9106 can be expedited.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9106 is in_review under standard SLA; we logged your travel note. No expedite flag yet, but the queue is moving.
+                claim CLAIM-PH-LAT-9106 is in_review under standard SLA. No expedite flag yet, but the queue is moving.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I fly tomorrow morning. Please confirm if CLAIM-PH-LAT-9106 can be expedited.
+                Please confirm if claim CLAIM-PH-LAT-9106 can be expedited.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Travel urgency; expedite CLAIM-PH-LAT-9106 if possible.","trigger_quote":"CLAIM-PH-LAT-9106","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9106"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Expedite check for claim CLAIM-PH-LAT-9106 if possible.","trigger_quote":"Please confirm if claim CLAIM-PH-LAT-9106 can be expedited","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9106"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9106 is in_review under standard SLA; we logged your travel note. No expedite flag yet, but the queue is moving.
+          claim CLAIM-PH-LAT-9106 is in_review under standard SLA. No expedite flag yet, but the queue is moving.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -430,7 +430,6 @@ endusers:
             last_updated: "2026-03-21T17:42:00Z"
             milestones:
               - intake_complete
-              - travel_note_added
               - standard_queue
         planner:
           system_prompt: >
@@ -439,7 +438,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9106; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9106; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9106; no promises outside tool result.
 
   - id: peak_deg_07
     vendor.enduser.pseudo.id: "user_peak_deg_07"
@@ -448,27 +447,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          An assessor was supposed to call me about CLAIM-PH-LAT-9107. Did anything change on your side?
+          An assessor was supposed to call me about claim CLAIM-PH-LAT-9107. Did anything change on your side?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                An assessor was supposed to call me about CLAIM-PH-LAT-9107. Did anything change on your side?
+                An assessor was supposed to call me about claim CLAIM-PH-LAT-9107. Did anything change on your side?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9107 is pending_info: outbound assessor call is scheduled for Thursday 11:00. Please keep the line free.
+                claim CLAIM-PH-LAT-9107 is pending_info: outbound assessor call is scheduled for Thursday 11:00. Please keep the line free.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                An assessor was supposed to call me about CLAIM-PH-LAT-9107. Did anything change on your side?
+                An assessor was supposed to call me about claim CLAIM-PH-LAT-9107. Did anything change on your side?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Callback scheduling status for CLAIM-PH-LAT-9107.","trigger_quote":"CLAIM-PH-LAT-9107","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9107"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Callback scheduling status for claim CLAIM-PH-LAT-9107.","trigger_quote":"claim CLAIM-PH-LAT-9107","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9107"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9107 is pending_info: outbound assessor call is scheduled for Thursday 11:00. Please keep the line free.
+          claim CLAIM-PH-LAT-9107 is pending_info: outbound assessor call is scheduled for Thursday 11:00. Please keep the line free.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -496,7 +495,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9107; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9107; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9107; no promises outside tool result.
 
   - id: peak_deg_08
     vendor.enduser.pseudo.id: "user_peak_deg_08"
@@ -505,27 +504,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Liquid damage last week — is CLAIM-PH-LAT-9108 still in the drying hold period?
+          Liquid damage last week — is claim CLAIM-PH-LAT-9108 still in the drying hold period?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Liquid damage last week — is CLAIM-PH-LAT-9108 still in the drying hold period?
+                Liquid damage last week — is claim CLAIM-PH-LAT-9108 still in the drying hold period?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9108 is in_review; drying hold ended yesterday. Next step is lab moisture clearance — expect an update within two business days.
+                claim CLAIM-PH-LAT-9108 is in_review; drying hold ended yesterday. Next step is lab moisture clearance — expect an update within two business days.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Liquid damage last week — is CLAIM-PH-LAT-9108 still in the drying hold period?
+                Liquid damage last week — is claim CLAIM-PH-LAT-9108 still in the drying hold period?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Liquid CLAIM-PH-LAT-9108 after drying window.","trigger_quote":"CLAIM-PH-LAT-9108","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9108"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Liquid-damage claim CLAIM-PH-LAT-9108 after drying window.","trigger_quote":"claim CLAIM-PH-LAT-9108","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9108"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9108 is in_review; drying hold ended yesterday. Next step is lab moisture clearance — expect an update within two business days.
+          claim CLAIM-PH-LAT-9108 is in_review; drying hold ended yesterday. Next step is lab moisture clearance — expect an update within two business days.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -554,7 +553,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9108; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9108; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9108; no promises outside tool result.
 
   - id: peak_deg_09
     vendor.enduser.pseudo.id: "user_peak_deg_09"
@@ -563,27 +562,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Apple trade-in is blocked until this clears. What's the real status of CLAIM-PH-LAT-9109?
+          What's the real status of claim CLAIM-PH-LAT-9109?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Apple trade-in is blocked until this clears. What's the real status of CLAIM-PH-LAT-9109?
+                What's the real status of claim CLAIM-PH-LAT-9109?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9109 is approved; you can screenshot this thread for trade-in. Formal letter hits your inbox within an hour.
+                claim CLAIM-PH-LAT-9109 is approved. Formal letter hits your inbox within an hour.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Apple trade-in is blocked until this clears. What's the real status of CLAIM-PH-LAT-9109?
+                What's the real status of claim CLAIM-PH-LAT-9109?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Trade-in dependency status for CLAIM-PH-LAT-9109.","trigger_quote":"CLAIM-PH-LAT-9109","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9109"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for claim CLAIM-PH-LAT-9109.","trigger_quote":"What's the real status of claim CLAIM-PH-LAT-9109?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9109"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9109 is approved; you can screenshot this thread for trade-in. Formal letter hits your inbox within an hour.
+          claim CLAIM-PH-LAT-9109 is approved. Formal letter hits your inbox within an hour.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -612,7 +611,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9109; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9109; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9109; no promises outside tool result.
 
   - id: peak_deg_10
     vendor.enduser.pseudo.id: "user_peak_deg_10"
@@ -621,27 +620,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          This is fleet support for Acme Logistics — status on employee handset CLAIM-PH-LAT-9110?
+          Status on claim CLAIM-PH-LAT-9110 for the employee handset?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                This is fleet support for Acme Logistics — status on employee handset CLAIM-PH-LAT-9110?
+                Status on claim CLAIM-PH-LAT-9110 for the employee handset?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9110 is in_review under corporate policy; HR reference ACM-FLT-441 is linked. Billing stays with the fleet master account.
+                claim CLAIM-PH-LAT-9110 is in_review under corporate policy; HR reference ACM-FLT-441 is linked. Billing stays with the fleet master account.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                This is fleet support for Acme Logistics — status on employee handset CLAIM-PH-LAT-9110?
+                Status on claim CLAIM-PH-LAT-9110 for the employee handset?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Corporate fleet lookup for CLAIM-PH-LAT-9110.","trigger_quote":"CLAIM-PH-LAT-9110","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9110"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Corporate fleet lookup for claim CLAIM-PH-LAT-9110.","trigger_quote":"Status on claim CLAIM-PH-LAT-9110 for the employee handset?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9110"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9110 is in_review under corporate policy; HR reference ACM-FLT-441 is linked. Billing stays with the fleet master account.
+          claim CLAIM-PH-LAT-9110 is in_review under corporate policy; HR reference ACM-FLT-441 is linked. Billing stays with the fleet master account.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -670,7 +669,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9110; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9110; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9110; no promises outside tool result.
 
   - id: peak_deg_11
     vendor.enduser.pseudo.id: "user_peak_deg_11"
@@ -679,27 +678,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          I'm not great with apps. In simple words — what is happening with CLAIM-PH-LAT-9111?
+          What is happening with claim CLAIM-PH-LAT-9111?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I'm not great with apps. In simple words — what is happening with CLAIM-PH-LAT-9111?
+                What is happening with claim CLAIM-PH-LAT-9111?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9111 means we are checking your cracked screen photos. When we finish, we text you yes or no for repair.
+                claim CLAIM-PH-LAT-9111 means we are checking your cracked screen photos. When we finish, we text you yes or no for repair.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I'm not great with apps. In simple words — what is happening with CLAIM-PH-LAT-9111?
+                What is happening with claim CLAIM-PH-LAT-9111?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Plain-language status for CLAIM-PH-LAT-9111.","trigger_quote":"CLAIM-PH-LAT-9111","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9111"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Plain-language status for claim CLAIM-PH-LAT-9111.","trigger_quote":"What is happening with claim CLAIM-PH-LAT-9111?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9111"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9111 means we are checking your cracked screen photos. When we finish, we text you yes or no for repair.
+          claim CLAIM-PH-LAT-9111 means we are checking your cracked screen photos. When we finish, we text you yes or no for repair.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -727,7 +726,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9111; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9111; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9111; no promises outside tool result.
 
   - id: peak_deg_12
     vendor.enduser.pseudo.id: "user_peak_deg_12"
@@ -736,27 +735,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Please give me CLAIM-PH-LAT-9112 status.
+          Please give me claim CLAIM-PH-LAT-9112 status.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Please give me CLAIM-PH-LAT-9112 status.
+                Please give me claim CLAIM-PH-LAT-9112 status.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9112 is pending_info: please re-upload the receipt — the last image was blurry. Sorry for the loop.
+                claim CLAIM-PH-LAT-9112 is pending_info: please re-upload the receipt — the last image was blurry. Sorry for the loop.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Please give me CLAIM-PH-LAT-9112 status.
+                Please give me claim CLAIM-PH-LAT-9112 status.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for CLAIM-PH-LAT-9112.","trigger_quote":"CLAIM-PH-LAT-9112","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9112"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for claim CLAIM-PH-LAT-9112.","trigger_quote":"claim CLAIM-PH-LAT-9112","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9112"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9112 is pending_info: please re-upload the receipt — the last image was blurry. Sorry for the loop.
+          claim CLAIM-PH-LAT-9112 is pending_info: please re-upload the receipt — the last image was blurry. Sorry for the loop.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -784,7 +783,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9112; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9112; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9112; no promises outside tool result.
 
   - id: peak_deg_13
     vendor.enduser.pseudo.id: "user_peak_deg_13"
@@ -793,27 +792,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          I think I filed twice by mistake. Which claim is live — CLAIM-PH-LAT-9113 or the old draft?
+          I think I filed twice by mistake. Which claim is live — claim CLAIM-PH-LAT-9113 or the old draft?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I think I filed twice by mistake. Which claim is live — CLAIM-PH-LAT-9113 or the old draft?
+                I think I filed twice by mistake. Which claim is live — claim CLAIM-PH-LAT-9113 or the old draft?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9113 is the active claim; the duplicate draft was withdrawn this morning. Only follow CLAIM-PH-LAT-9113 going forward.
+                claim CLAIM-PH-LAT-9113 is the active claim; the duplicate draft was withdrawn this morning. Only follow claim CLAIM-PH-LAT-9113 going forward.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I think I filed twice by mistake. Which claim is live — CLAIM-PH-LAT-9113 or the old draft?
+                I think I filed twice by mistake. Which claim is live — claim CLAIM-PH-LAT-9113 or the old draft?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Clarify active CLAIM-PH-LAT-9113 vs duplicate.","trigger_quote":"CLAIM-PH-LAT-9113","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9113"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Clarify active claim CLAIM-PH-LAT-9113 vs duplicate.","trigger_quote":"claim CLAIM-PH-LAT-9113","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9113"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9113 is the active claim; the duplicate draft was withdrawn this morning. Only follow CLAIM-PH-LAT-9113 going forward.
+          claim CLAIM-PH-LAT-9113 is the active claim; the duplicate draft was withdrawn this morning. Only follow claim CLAIM-PH-LAT-9113 going forward.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -842,7 +841,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9113; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9113; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9113; no promises outside tool result.
 
   - id: peak_deg_14
     vendor.enduser.pseudo.id: "user_peak_deg_14"
@@ -851,27 +850,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          My policy renews Friday. Is CLAIM-PH-LAT-9114 going to roll into the new term or close first?
+          My policy renews Friday. Is claim CLAIM-PH-LAT-9114 going to roll into the new term or close first?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                My policy renews Friday. Is CLAIM-PH-LAT-9114 going to roll into the new term or close first?
+                My policy renews Friday. Is claim CLAIM-PH-LAT-9114 going to roll into the new term or close first?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9114 is in_review; renewal proceeds independently. If still open at renewal, coverage continues under continuity rules in your policy PDF.
+                claim CLAIM-PH-LAT-9114 is in_review; renewal proceeds independently. If still open at renewal, coverage continues under continuity rules in your policy PDF.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                My policy renews Friday. Is CLAIM-PH-LAT-9114 going to roll into the new term or close first?
+                My policy renews Friday. Is claim CLAIM-PH-LAT-9114 going to roll into the new term or close first?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Renewal interaction with open CLAIM-PH-LAT-9114.","trigger_quote":"CLAIM-PH-LAT-9114","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9114"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Renewal interaction with open claim CLAIM-PH-LAT-9114.","trigger_quote":"claim CLAIM-PH-LAT-9114","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9114"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9114 is in_review; renewal proceeds independently. If still open at renewal, coverage continues under continuity rules in your policy PDF.
+          claim CLAIM-PH-LAT-9114 is in_review; renewal proceeds independently. If still open at renewal, coverage continues under continuity rules in your policy PDF.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -899,7 +898,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9114; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9114; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9114; no promises outside tool result.
 
   - id: peak_deg_15
     vendor.enduser.pseudo.id: "user_peak_deg_15"
@@ -908,27 +907,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Authorized service center says parts are on back order. Does CLAIM-PH-LAT-9115 reflect that?
+          Authorized service center says parts are on back order. Does claim CLAIM-PH-LAT-9115 reflect that?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Authorized service center says parts are on back order. Does CLAIM-PH-LAT-9115 reflect that?
+                Authorized service center says parts are on back order. Does claim CLAIM-PH-LAT-9115 reflect that?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9115 is approved_for_repair with a parts_back_order note until April 2. No action needed from you unless we text.
+                claim CLAIM-PH-LAT-9115 is approved_for_repair with a parts_back_order note until April 2. No action needed from you unless we text.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Authorized service center says parts are on back order. Does CLAIM-PH-LAT-9115 reflect that?
+                Authorized service center says parts are on back order. Does claim CLAIM-PH-LAT-9115 reflect that?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Parts delay visibility for CLAIM-PH-LAT-9115.","trigger_quote":"CLAIM-PH-LAT-9115","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9115"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Parts delay visibility for claim CLAIM-PH-LAT-9115.","trigger_quote":"claim CLAIM-PH-LAT-9115","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9115"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9115 is approved_for_repair with a parts_back_order note until April 2. No action needed from you unless we text.
+          claim CLAIM-PH-LAT-9115 is approved_for_repair with a parts_back_order note until April 2. No action needed from you unless we text.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -957,7 +956,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9115; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9115; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9115; no promises outside tool result.
 
   - id: peak_deg_16
     vendor.enduser.pseudo.id: "user_peak_deg_16"
@@ -966,27 +965,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Shop can't pull up my file — can you confirm CLAIM-PH-LAT-9116 is visible on their side now?
+          Can you confirm claim CLAIM-PH-LAT-9116 is visible on the repair partner side now?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Shop can't pull up my file — can you confirm CLAIM-PH-LAT-9116 is visible on their side now?
+                Can you confirm claim CLAIM-PH-LAT-9116 is visible on the repair partner side now?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9116 was synced to partner API at 17:48; ask them to refresh the Toro connector. Your claim id is CLAIM-PH-LAT-9116.
+                claim CLAIM-PH-LAT-9116 was synced to partner API at 17:48; ask them to refresh the Toro connector. Your claim id is claim CLAIM-PH-LAT-9116.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Shop can't pull up my file — can you confirm CLAIM-PH-LAT-9116 is visible on their side now?
+                Can you confirm claim CLAIM-PH-LAT-9116 is visible on the repair partner side now?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Partner visibility confirmation CLAIM-PH-LAT-9116.","trigger_quote":"CLAIM-PH-LAT-9116","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9116"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Partner visibility confirmation for claim CLAIM-PH-LAT-9116.","trigger_quote":"Can you confirm claim CLAIM-PH-LAT-9116 is visible on the repair partner side now?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9116"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9116 was synced to partner API at 17:48; ask them to refresh the Toro connector. Your claim id is CLAIM-PH-LAT-9116.
+          claim CLAIM-PH-LAT-9116 was synced to partner API at 17:48; ask them to refresh the Toro connector. Your claim id is claim CLAIM-PH-LAT-9116.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1014,7 +1013,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9116; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9116; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9116; no promises outside tool result.
 
   - id: peak_deg_17
     vendor.enduser.pseudo.id: "user_peak_deg_17"
@@ -1023,27 +1022,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Why was I charged €75 if CLAIM-PH-LAT-9117 isn't finished yet?
+          Why was I charged €75 if claim CLAIM-PH-LAT-9117 isn't finished yet?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Why was I charged €75 if CLAIM-PH-LAT-9117 isn't finished yet?
+                Why was I charged €75 if claim CLAIM-PH-LAT-9117 isn't finished yet?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9117 shows excess_payment_captured while repair is still scheduled; that is normal. Repair completion is separate from deductible collection.
+                claim CLAIM-PH-LAT-9117 shows excess_payment_captured while repair is still scheduled; that is normal. Repair completion is separate from deductible collection.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Why was I charged €75 if CLAIM-PH-LAT-9117 isn't finished yet?
+                Why was I charged €75 if claim CLAIM-PH-LAT-9117 isn't finished yet?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Billing confusion on CLAIM-PH-LAT-9117 excess vs completion.","trigger_quote":"CLAIM-PH-LAT-9117","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9117"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Billing confusion on claim CLAIM-PH-LAT-9117 excess vs completion.","trigger_quote":"claim CLAIM-PH-LAT-9117","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9117"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9117 shows excess_payment_captured while repair is still scheduled; that is normal. Repair completion is separate from deductible collection.
+          claim CLAIM-PH-LAT-9117 shows excess_payment_captured while repair is still scheduled; that is normal. Repair completion is separate from deductible collection.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1071,7 +1070,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9117; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9117; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9117; no promises outside tool result.
 
   - id: peak_deg_18
     vendor.enduser.pseudo.id: "user_peak_deg_18"
@@ -1080,27 +1079,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Office is closed for the holiday — I'm checking from the car. Status on CLAIM-PH-LAT-9118?
+          Status on claim CLAIM-PH-LAT-9118?
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Office is closed for the holiday — I'm checking from the car. Status on CLAIM-PH-LAT-9118?
+                Status on claim CLAIM-PH-LAT-9118?
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9118 is in_review; holiday does not pause automated processing. Next milestone is assessor sign-off by Tuesday.
+                claim CLAIM-PH-LAT-9118 is in_review; holiday does not pause automated processing. Next milestone is assessor sign-off by Tuesday.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Office is closed for the holiday — I'm checking from the car. Status on CLAIM-PH-LAT-9118?
+                Status on claim CLAIM-PH-LAT-9118?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Holiday-weekend status check CLAIM-PH-LAT-9118.","trigger_quote":"CLAIM-PH-LAT-9118","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9118"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status check for claim CLAIM-PH-LAT-9118.","trigger_quote":"Status on claim CLAIM-PH-LAT-9118?","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9118"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9118 is in_review; holiday does not pause automated processing. Next milestone is assessor sign-off by Tuesday.
+          claim CLAIM-PH-LAT-9118 is in_review; holiday does not pause automated processing. Next milestone is assessor sign-off by Tuesday.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1129,7 +1128,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9118; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9118; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9118; no promises outside tool result.
 
   - id: peak_deg_19
     vendor.enduser.pseudo.id: "user_peak_deg_19"
@@ -1138,27 +1137,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          I'm roaming — please look up CLAIM-PH-LAT-9119.
+          Please look up claim CLAIM-PH-LAT-9119.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                I'm roaming — please look up CLAIM-PH-LAT-9119.
+                Please look up claim CLAIM-PH-LAT-9119.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9119 is pending_info: roaming can delay uploads; we need the front-glass photo retaken when you're on Wi‑Fi.
+                claim CLAIM-PH-LAT-9119 is pending_info: we need the front-glass photo retaken with clearer lighting.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                I'm roaming — please look up CLAIM-PH-LAT-9119.
+                Please look up claim CLAIM-PH-LAT-9119.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for CLAIM-PH-LAT-9119; pending better photos.","trigger_quote":"CLAIM-PH-LAT-9119","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9119"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Status for claim CLAIM-PH-LAT-9119; pending better photos.","trigger_quote":"Please look up claim CLAIM-PH-LAT-9119.","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9119"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9119 is pending_info: roaming can delay uploads; we need the front-glass photo retaken when you're on Wi‑Fi.
+          claim CLAIM-PH-LAT-9119 is pending_info: we need the front-glass photo retaken with clearer lighting.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1186,7 +1185,7 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9119; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9119; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9119; no promises outside tool result.
 
   - id: peak_deg_20
     vendor.enduser.pseudo.id: "user_peak_deg_20"
@@ -1195,27 +1194,27 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Did the final payment for CLAIM-PH-LAT-9120 actually post? Bank feed looks odd.
+          Did the final payment for claim CLAIM-PH-LAT-9120 actually post? Bank feed looks odd.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                Did the final payment for CLAIM-PH-LAT-9120 actually post? Bank feed looks odd.
+                Did the final payment for claim CLAIM-PH-LAT-9120 actually post? Bank feed looks odd.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-LAT-9120 is closed_paid; settlement reference PAY-PH-9120-FINAL cleared yesterday 16:12 CET. Allow 24h for your bank to show it.
+                claim CLAIM-PH-LAT-9120 is closed_paid; settlement reference PAY-PH-9120-FINAL cleared yesterday 16:12 CET. Allow 24h for your bank to show it.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
               vendor.agent.tool_selection.input.raw: |
-                Did the final payment for CLAIM-PH-LAT-9120 actually post? Bank feed looks odd.
+                Did the final payment for claim CLAIM-PH-LAT-9120 actually post? Bank feed looks odd.
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Settlement verification for CLAIM-PH-LAT-9120.","trigger_quote":"CLAIM-PH-LAT-9120","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9120"}}]}
+                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Settlement verification for claim CLAIM-PH-LAT-9120.","trigger_quote":"claim CLAIM-PH-LAT-9120","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-PH-LAT-9120"}}]}
         agent_response: >
-          CLAIM-PH-LAT-9120 is closed_paid; settlement reference PAY-PH-9120-FINAL cleared yesterday 16:12 CET. Allow 24h for your bank to show it.
+          claim CLAIM-PH-LAT-9120 is closed_paid; settlement reference PAY-PH-9120-FINAL cleared yesterday 16:12 CET. Allow 24h for your bank to show it.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -1244,5 +1243,5 @@ endusers:
             PLAN: claim_status CLAIM-PH-LAT-9120; reflect current milestone story.
         response_compose:
           system_prompt: >
-            Clear, calm; cite claim id CLAIM-PH-LAT-9120; no promises outside tool result.
+            Clear, calm; cite claim id claim CLAIM-PH-LAT-9120; no promises outside tool result.
 

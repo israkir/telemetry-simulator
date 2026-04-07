@@ -11,8 +11,10 @@
 
 name: outlier_appliances_dishwasher_claim_no_slots_offer
 description: >
-  Paired flows for the same user wording (dishwasher overflowing; start claim and send someone). Outlier:
-  assistant opens CLAIM-HA-9930 and adds urgent notes but never calls get_available_slots. Correct counterpart:
+  Paired flows for the same user wording (dishwasher overflowing; start claim and
+  send someone). Outlier:
+  assistant opens claim CLAIM-HA-9930 and adds urgent notes but never calls get_available_slots.
+  Correct counterpart:
   new_claim plus get_available_slots for authorized repair visits.
 
 tags:
@@ -32,18 +34,18 @@ trace_interval_deviation_ms: 49
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 1820, deviation: 520 }
-      planner: { mean: 478, deviation: 146 }
-      llm.call: { mean: 610, deviation: 178 }
-      task.execute: { mean: 700, deviation: 225 }
-      tools.recommend: { mean: 53, deviation: 21 }
-      mcp.tool.execute: { mean: 224, deviation: 96 }
-      response.compose: { mean: 342, deviation: 108 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 1820, deviation: 520}
+      planner: {mean: 478, deviation: 146}
+      llm.call: {mean: 610, deviation: 178}
+      task.execute: {mean: 700, deviation: 225}
+      tools.recommend: {mean: 53, deviation: 21}
+      mcp.tool.execute: {mean: 224, deviation: 96}
+      response.compose: {mean: 342, deviation: 108}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -78,19 +80,23 @@ endusers:
       - turn_index: 1
         span_plan: *appliances_span_plan
         vendor.enduser.request.raw: >
-          My dishwasher is overflowing with water. Please start a claim and send someone out.
+          My dishwasher is overflowing with water. Please start a claim and send someone
+          out.
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
               vendor.enduser.request.raw: >
-                My dishwasher is overflowing with water. Please start a claim and send someone out.
+                My dishwasher is overflowing with water. Please start a claim and
+                send someone out.
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened a claim for your dishwasher overflow. Your claim ID is CLAIM-HA-9930. I’ve added notes
-                that water is spilling onto the floor and marked it as urgent. You can view all the details in
+                I’ve opened a claim for your dishwasher overflow. Your claim ID is
+                claim CLAIM-HA-9930. I’ve added notes
+                that water is spilling onto the floor and marked it as urgent. You
+                can view all the details in
                 your app.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -100,8 +106,10 @@ endusers:
               vendor.agent.tool_selection.tool.plan: |
                 {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Dishwasher overflow; urgency notes only.", "trigger_quote": "I want to file a claim — overflowing with water", "missing_info": null, "confidence": 0.82, "tool_args": {"product_type": "dishwasher", "description": "Overflow; water spilling onto floor; customer requests visit.", "incident_date": "2026-03-22"}}]}
         agent_response: >
-          I’ve opened a claim for your dishwasher overflow. Your claim ID is CLAIM-HA-9930. I’ve added notes
-          that water is spilling onto the floor and marked it as urgent. You can view all the details in
+          I’ve opened a claim for your dishwasher overflow. Your claim ID is claim
+          CLAIM-HA-9930. I’ve added notes
+          that water is spilling onto the floor and marked it as urgent. You can view
+          all the details in
           your app.
         tool_chain: [new_claim]
         gen_ai.request.type: completion
@@ -122,13 +130,16 @@ endusers:
             claim_id: "CLAIM-HA-9930"
             product_type: "dishwasher"
             status: "opened"
-            coverage: { type: "appliance_water_leak", deductible: 40 }
-            notes: "Urgent flag and floor-water notes only; no technician slots offered in-channel."
+            coverage: {type: "appliance_water_leak", deductible: 40}
+            notes: "Urgent flag and floor-water notes only; no technician slots offered
+              in-channel."
         planner:
           system_prompt: >
-            Appliances misroute: user asked for someone to attend; planner stops after new_claim CLAIM-HA-9930.
+            Appliances misroute: user asked for someone to attend; planner stops after
+            new_claim CLAIM-HA-9930.
           output: >
-            PLAN: new_claim only — missing get_available_slots despite send someone out.
+            PLAN: new_claim only — missing get_available_slots despite send someone
+            out.
         response_compose:
           system_prompt: >
             Claim id + urgency + app self-serve; omit concrete visit windows.
@@ -138,41 +149,60 @@ endusers:
     channel: web_chat
     mcp_server: appliances
     turns:
-      - turn_index: 1
-        span_plan: *appliances_span_plan
-        vendor.enduser.request.raw: >
-          My dishwasher is overflowing with water. Please start a claim and send someone out.
+      - span_plan: *appliances_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "My dishwasher is overflowing with water. Please
+          start a claim and send someone out.\n\nWednesday morning for claim CLAIM-HA-9941
+          — urgent."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                My dishwasher is overflowing with water. Please start a claim and send someone out.
+              vendor.enduser.request.raw: "My dishwasher is overflowing with water.
+                Please start a claim and send someone out.\n\nWednesday morning for
+                claim CLAIM-HA-9941 — urgent."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened CLAIM-HA-9941 for your overflowing dishwasher and flagged it urgent with floor-water
-                notes. I can book a technician on Wednesday 08:00–12:00 or Friday 13:00–17:00 next week. Which
-                window should I reserve?
+                Wednesday 08:00 is locked for claim CLAIM-HA-9941 with urgent notes
+                — you’ll get SMS when the tech is en route.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                My dishwasher is overflowing with water. Please start a claim and send someone out.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Dishwasher overflow onto floor; urgent visit.", "trigger_quote": "I want to file a claim — overflowing with water", "missing_info": null, "confidence": 0.95, "tool_args": {"product_type": "dishwasher", "description": "Active overflow; water on floor; urgent authorized repair.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Technician windows after intake.", "trigger_quote": "send someone out", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-HA-9941", "service_type": "authorized_repair_visit", "date_range_start": "2026-03-26", "date_range_end": "2026-03-28"}}]}
+              vendor.agent.tool_selection.input.raw: "My dishwasher is overflowing
+                with water. Please start a claim and send someone out.\n\nWednesday
+                morning for claim CLAIM-HA-9941 — urgent.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                Dishwasher overflow onto floor; urgent visit.\",\"trigger_quote\"\
+                :\"I want to file a claim \\u2014 overflowing with water\",\"missing_info\"\
+                :null,\"confidence\":0.95,\"tool_args\":{\"product_type\":\"dishwasher\"\
+                ,\"description\":\"Active overflow; water on floor; urgent authorized
+                repair.\",\"incident_date\":\"2026-03-22\"}},{\"tool_name\":\"get_available_slots\"\
+                ,\"trigger_summary\":\"Technician windows after intake.\",\"trigger_quote\"\
+                :\"send someone out\",\"missing_info\":null,\"confidence\":0.93,\"\
+                tool_args\":{\"claim_id\":\"CLAIM-HA-9941\",\"service_type\":\"authorized_repair_visit\"\
+                ,\"date_range_start\":\"2026-03-26\",\"date_range_end\":\"2026-03-28\"\
+                }},{\"tool_name\":\"update_appointment\",\"trigger_summary\":\"Book
+                Wed 08:00 urgent visit from listed slots.\",\"trigger_quote\":\"Wednesday
+                morning\",\"missing_info\":null,\"confidence\":0.94,\"tool_args\"\
+                :{\"claim_id\":\"CLAIM-HA-9941\",\"appointment_id\":\"APT-HA-9941-HOLD\"\
+                ,\"slot_id\":\"SLOT-2026-03-26T08:00\",\"preferred_time_window\":\"\
+                morning\"}}]}\n"
         agent_response: >
-          I’ve opened CLAIM-HA-9941 for your overflowing dishwasher and flagged it urgent with floor-water
-          notes. I can book a technician on Wednesday 08:00–12:00 or Friday 13:00–17:00 next week. Which
-          window should I reserve?
-        tool_chain: [new_claim, get_available_slots]
+          Wednesday 08:00 is locked for claim CLAIM-HA-9941 with urgent notes — you’ll
+          get SMS when the tech is en route.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1120
-        gen_ai.usage.output_tokens: 198
+        gen_ai.usage.input_tokens: 2080
+        gen_ai.usage.output_tokens: 282
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -185,75 +215,39 @@ endusers:
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-26"
             date_range_end: "2026-03-28"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-HA-9941"
-            product_type: "dishwasher"
-            status: "opened"
-            coverage: { type: "appliance_water_leak", deductible: 40 }
-            notes: "Correct path: urgent notes plus slots surfaced in reply."
-          get_available_slots:
-            claim_id: "CLAIM-HA-9941"
-            slots:
-              - { slot_id: "SLOT-2026-03-26T08:00", duration_minutes: 240 }
-              - { slot_id: "SLOT-2026-03-28T13:00", duration_minutes: 240 }
-            timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Appliances MCP; overflow + send someone — new_claim then get_available_slots for CLAIM-HA-9941.
-          output: >
-            PLAN: new_claim dishwasher; get_available_slots Wed/Fri four-hour windows.
-        response_compose:
-          system_prompt: >
-            CLAIM-HA-9941; urgency; two concrete technician windows; ask which to book.
-
-      - turn_index: 2
-        span_plan: *appliances_span_plan
-        vendor.enduser.request.raw: "Wednesday morning for CLAIM-HA-9941 — urgent."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Wednesday morning for CLAIM-HA-9941 — urgent."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Wednesday 08:00 is locked for CLAIM-HA-9941 with urgent notes — you’ll get SMS when the tech is en route.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Wednesday morning for CLAIM-HA-9941 — urgent."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book Wed 08:00 urgent visit from listed slots.","trigger_quote":"Wednesday morning","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-HA-9941","appointment_id":"APT-HA-9941-HOLD","slot_id":"SLOT-2026-03-26T08:00","preferred_time_window":"morning"}}]}
-        agent_response: >
-          Wednesday 08:00 is locked for CLAIM-HA-9941 with urgent notes — you’ll get SMS when the tech is en route.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 960
-        gen_ai.usage.output_tokens: 84
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-HA-9941"
             appointment_id: "APT-HA-9941-HOLD"
             slot_id: "SLOT-2026-03-26T08:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-HA-9941"
+            product_type: "dishwasher"
+            status: "opened"
+            coverage:
+              type: "appliance_water_leak"
+              deductible: 40
+            notes: "Correct path: urgent notes plus slots surfaced in reply."
+          get_available_slots:
+            claim_id: "CLAIM-HA-9941"
+            slots:
+              - slot_id: "SLOT-2026-03-26T08:00"
+                duration_minutes: 240
+              - slot_id: "SLOT-2026-03-28T13:00"
+                duration_minutes: 240
+            timezone: "Europe/London"
           update_appointment:
             claim_id: "CLAIM-HA-9941"
             appointment_id: "APT-HA-9941-01"
             status: "scheduled"
             scheduled_at: "2026-03-26T08:00:00Z"
         planner:
-          system_prompt: >
-            Book urgent Wednesday dishwasher visit for CLAIM-HA-9941.
-          output: >
-            PLAN: update_appointment Wed 08:00.
+          system_prompt: "Appliances MCP; overflow + send someone — new_claim then
+            get_available_slots for claim CLAIM-HA-9941.\n\nBook urgent Wednesday
+            dishwasher visit for claim CLAIM-HA-9941."
+          output: "PLAN: new_claim dishwasher; get_available_slots Wed/Fri four-hour
+            windows.\n\nPLAN: update_appointment Wed 08:00."
         response_compose:
-          system_prompt: >
-            Confirm urgent booking.
+          system_prompt: "claim CLAIM-HA-9941; urgency; two concrete technician windows;
+            ask which to book.\n\nConfirm urgent booking."

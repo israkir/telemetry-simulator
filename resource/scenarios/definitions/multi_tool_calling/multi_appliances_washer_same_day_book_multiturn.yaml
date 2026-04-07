@@ -2,8 +2,8 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_appliances_washer_same_day_book_multiturn.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
-# MCP: appliances — washer won’t spin CLAIM-HA-6055; same-day 16–20 vs next-day 9–13
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# MCP: appliances — washer won’t spin claim CLAIM-HA-6055; same-day 16–20 vs next-day 9–13
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -11,7 +11,8 @@
 
 name: multi_appliances_washer_same_day_book_multiturn
 description: >
-  Washer not spinning: CLAIM-HA-6055; same-day 16:00–20:00 or tomorrow 9:00–13:00; customer takes same-day.
+  Washer not spinning: claim CLAIM-HA-6055; same-day 16:00–20:00 or tomorrow 9:00–13:00;
+  customer takes same-day.
 
 tags:
   - normal
@@ -29,18 +30,18 @@ trace_interval_deviation_ms: 52
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2250, deviation: 720 }
-      planner: { mean: 545, deviation: 185 }
-      llm.call: { mean: 674, deviation: 225 }
-      task.execute: { mean: 785, deviation: 280 }
-      tools.recommend: { mean: 57, deviation: 24 }
-      mcp.tool.execute: { mean: 260, deviation: 122 }
-      response.compose: { mean: 388, deviation: 128 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2250, deviation: 720}
+      planner: {mean: 545, deviation: 185}
+      llm.call: {mean: 674, deviation: 225}
+      task.execute: {mean: 785, deviation: 280}
+      tools.recommend: {mean: 57, deviation: 24}
+      mcp.tool.execute: {mean: 260, deviation: 122}
+      response.compose: {mean: 388, deviation: 128}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -72,41 +73,60 @@ endusers:
     channel: app_chat
     mcp_server: appliances
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          My washing machine won’t spin. Is there any chance of a same-day visit, and can you open a claim for it?
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "My washing machine won’t spin. Is there any chance
+          of a same-day visit, and can you open a claim for it?\n\nToday 4–8 is fine."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                My washing machine won’t spin. Is there any chance of a same-day visit, and can you open a claim for it?
+              vendor.enduser.request.raw: "My washing machine won’t spin. Is there
+                any chance of a same-day visit, and can you open a claim for it?\n\
+                \nToday 4–8 is fine."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                I’ve opened a claim for your washing machine that isn’t spinning; your claim ID is CLAIM-HA-6055.
-                I’ve checked for same-day availability and can offer today 16:00–20:00, or if that’s too late,
-                tomorrow 9:00–13:00. Which works better for you?
+                I’ve booked a same-day visit for 16:00–20:00 today under claim CLAIM-HA-6055.
+                You’ll get a confirmation
+                with all the details shortly.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                My washing machine won’t spin. Is there any chance of a same-day visit, and can you open a claim for it?
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Washer drum not spinning.", "trigger_quote": "I want to file a claim — won’t spin", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "washer", "description": "Spin cycle not engaging.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Same-day vs next-morning technician windows.", "trigger_quote": "same-day visit", "missing_info": null, "confidence": 0.91, "tool_args": {"claim_id": "CLAIM-HA-6055", "service_type": "authorized_repair_visit", "date_range_start": "2026-03-22", "date_range_end": "2026-03-23"}}]}
+              vendor.agent.tool_selection.input.raw: "My washing machine won’t spin.
+                Is there any chance of a same-day visit, and can you open a claim
+                for it?\n\nToday 4–8 is fine.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                Washer drum not spinning.\",\"trigger_quote\":\"I want to file a claim
+                \\u2014 won\\u2019t spin\",\"missing_info\":null,\"confidence\":0.93,\"\
+                tool_args\":{\"product_type\":\"washer\",\"description\":\"Spin cycle
+                not engaging.\",\"incident_date\":\"2026-03-22\"}},{\"tool_name\"\
+                :\"get_available_slots\",\"trigger_summary\":\"Same-day vs next-morning
+                technician windows.\",\"trigger_quote\":\"same-day visit\",\"missing_info\"\
+                :null,\"confidence\":0.91,\"tool_args\":{\"claim_id\":\"CLAIM-HA-6055\"\
+                ,\"service_type\":\"authorized_repair_visit\",\"date_range_start\"\
+                :\"2026-03-22\",\"date_range_end\":\"2026-03-23\"}},{\"tool_name\"\
+                :\"update_appointment\",\"trigger_summary\":\"Book same-day 16\\u201320
+                window.\",\"trigger_quote\":\"Today 4\\u20138\",\"missing_info\":null,\"\
+                confidence\":0.94,\"tool_args\":{\"claim_id\":\"CLAIM-HA-6055\",\"\
+                appointment_id\":\"APT-HA-6055-HOLD\",\"slot_id\":\"SLOT-2026-03-22T16:00\"\
+                ,\"preferred_time_window\":\"evening\"}}]}\n"
         agent_response: >
-          I’ve opened a claim for your washing machine that isn’t spinning; your claim ID is CLAIM-HA-6055.
-          I’ve checked for same-day availability and can offer today 16:00–20:00, or if that’s too late,
-          tomorrow 9:00–13:00. Which works better for you?
-        tool_chain: [new_claim, get_available_slots]
+          I’ve booked a same-day visit for 16:00–20:00 today under claim CLAIM-HA-6055.
+          You’ll get a confirmation
+          with all the details shortly.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1200
-        gen_ai.usage.output_tokens: 225
+        gen_ai.usage.input_tokens: 2080
+        gen_ai.usage.output_tokens: 313
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -119,77 +139,38 @@ endusers:
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-22"
             date_range_end: "2026-03-23"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-HA-6055"
-            product_type: "washer"
-            status: "opened"
-            coverage: { type: "appliance_mechanical_fault", deductible: 40 }
-            notes: "Evening same-day and next-morning windows available."
-          get_available_slots:
-            claim_id: "CLAIM-HA-6055"
-            slots:
-              - { slot_id: "SLOT-2026-03-22T16:00", duration_minutes: 240 }
-              - { slot_id: "SLOT-2026-03-23T09:00", duration_minutes: 240 }
-            timezone: "Europe/Oslo"
-        planner:
-          system_prompt: >
-            Appliances: washer claim plus today/tomorrow slot sweep.
-          output: >
-            PLAN: new_claim CLAIM-HA-6055; get_available_slots today through tomorrow morning.
-        response_compose:
-          system_prompt: >
-            CLAIM-HA-6055; present same-day evening vs next morning; ask preference.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Today 4–8 is fine."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Today 4–8 is fine."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                I’ve booked a same-day visit for 16:00–20:00 today under CLAIM-HA-6055. You’ll get a confirmation
-                with all the details shortly.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Today 4–8 is fine."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Book same-day 16–20 window.","trigger_quote":"Today 4–8","missing_info":null,"confidence":0.94,"tool_args":{"claim_id":"CLAIM-HA-6055","appointment_id":"APT-HA-6055-HOLD","slot_id":"SLOT-2026-03-22T16:00","preferred_time_window":"evening"}}]}
-        agent_response: >
-          I’ve booked a same-day visit for 16:00–20:00 today under CLAIM-HA-6055. You’ll get a confirmation
-          with all the details shortly.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 880
-        gen_ai.usage.output_tokens: 88
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-HA-6055"
             appointment_id: "APT-HA-6055-HOLD"
             slot_id: "SLOT-2026-03-22T16:00"
             preferred_time_window: "evening"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-HA-6055"
+            product_type: "washer"
+            status: "opened"
+            coverage:
+              type: "appliance_mechanical_fault"
+              deductible: 40
+            notes: "Evening same-day and next-morning windows available."
+          get_available_slots:
+            claim_id: "CLAIM-HA-6055"
+            slots:
+              - slot_id: "SLOT-2026-03-22T16:00"
+                duration_minutes: 240
+              - slot_id: "SLOT-2026-03-23T09:00"
+                duration_minutes: 240
+            timezone: "Europe/Oslo"
           update_appointment:
             claim_id: "CLAIM-HA-6055"
             appointment_id: "APT-HA-6055-01"
             status: "scheduled"
             scheduled_at: "2026-03-22T16:00:00Z"
         planner:
-          system_prompt: >
-            Customer took same-day evening window for CLAIM-HA-6055.
-          output: >
-            PLAN: update_appointment SLOT-2026-03-22T16:00.
+          system_prompt: "Appliances: washer claim plus today/tomorrow slot sweep.\n\
+            \nCustomer took same-day evening window for claim CLAIM-HA-6055."
+          output: "PLAN: new_claim CLAIM-HA-6055; get_available_slots today through
+            tomorrow morning.\n\nPLAN: update_appointment SLOT-2026-03-22T16:00."
         response_compose:
-          system_prompt: >
-            Confirm same-day booking and outbound message.
+          system_prompt: "claim CLAIM-HA-6055; present same-day evening vs next morning;
+            ask preference.\n\nConfirm same-day booking and outbound message."

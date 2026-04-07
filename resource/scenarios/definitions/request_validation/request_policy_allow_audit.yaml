@@ -60,7 +60,7 @@ endusers:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: "I am traveling and need to file a phone damage claim from a new location."
+              vendor.enduser.request.raw: "I need to file a phone damage claim."
           - target_span_class: request.validation
             name: gentoro.request.allowed
             attributes:
@@ -89,4 +89,4 @@ endusers:
               vendor.augment.request_id.action: created
               vendor.augment.enduser_id.action: propagated
               vendor.augment.target_agent_id.action: attached
-        vendor.enduser.request.raw: "I am traveling and need to file a phone damage claim from a new location."
+        vendor.enduser.request.raw: "I need to file a phone damage claim."

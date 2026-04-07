@@ -1,7 +1,8 @@
 name: extreme_incident_spike_window
 description: >
   Rare severe latency incident during a constrained weekday window, modeled as a transient
-  failover plus queue saturation event. Interactions reflect realistic urgent intents while
+  failover plus queue saturation event. Interactions reflect realistic urgent intents
+  while
   preserving successful user outcomes with extreme tail latency and jitter.
 
 tags:
@@ -31,18 +32,18 @@ workload_schedule:
 latency_profiles:
   extreme_incident:
     span_durations_ms:
-      request.validation: { mean: 19, deviation: 8.5 }
-      payload.validation: { mean: 15, deviation: 6.2 }
-      policy.validation: { mean: 31, deviation: 12.5 }
-      augmentation.validation: { mean: 18, deviation: 7.5 }
-      a2a.orchestrate: { mean: 19100, deviation: 5200 }
-      planner: { mean: 1200, deviation: 430 }
-      llm.call: { mean: 8350, deviation: 2950 }
-      task.execute: { mean: 2620, deviation: 980 }
-      tools.recommend: { mean: 146, deviation: 58 }
-      mcp.tool.execute: { mean: 5900, deviation: 2800 }
-      response.compose: { mean: 810, deviation: 310 }
-      response.validation: { mean: 27, deviation: 11 }
+      request.validation: {mean: 19, deviation: 8.5}
+      payload.validation: {mean: 15, deviation: 6.2}
+      policy.validation: {mean: 31, deviation: 12.5}
+      augmentation.validation: {mean: 18, deviation: 7.5}
+      a2a.orchestrate: {mean: 19100, deviation: 5200}
+      planner: {mean: 1200, deviation: 430}
+      llm.call: {mean: 8350, deviation: 2950}
+      task.execute: {mean: 2620, deviation: 980}
+      tools.recommend: {mean: 146, deviation: 58}
+      mcp.tool.execute: {mean: 5900, deviation: 2800}
+      response.compose: {mean: 810, deviation: 310}
+      response.validation: {mean: 27, deviation: 11}
 
 latency_profile_conditions:
   - profile: extreme_incident
@@ -88,9 +89,10 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Please check CLAIM-PH-LAT-9951 and tell me if review is complete.
+          Please check claim CLAIM-PH-LAT-9951 and tell me if review is complete.
         agent_response: >
-          CLAIM-PH-LAT-9951 is still in review with the assessor assigned. We will notify you as soon as the decision posts.
+          claim CLAIM-PH-LAT-9951 is still in review with the assessor assigned. We
+          will notify you as soon as the decision posts.
         tool_chain: [claim_status]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -114,7 +116,7 @@ endusers:
               - assessor_assigned
         planner:
           system_prompt: >
-            Extreme-incident status check for CLAIM-PH-LAT-9951.
+            Extreme-incident status check for claim CLAIM-PH-LAT-9951.
           output: >
             PLAN: claim_status CLAIM-PH-LAT-9951 with concise reassurance.
         response_compose:
@@ -128,10 +130,12 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          I need to move APT-PH-9952 to tomorrow evening on CLAIM-PH-LAT-9952 — check slots and book 18:30 if
+          I need to move APT-PH-9952 to tomorrow evening on claim CLAIM-PH-LAT-9952
+          — check slots and book 18:30 if
           it’s listed.
         agent_response: >
-          Tomorrow evening has 18:30 available — APT-PH-9952 is rescheduled to that time for CLAIM-PH-LAT-9952.
+          Tomorrow evening has 18:30 available — APT-PH-9952 is rescheduled to that
+          time for claim CLAIM-PH-LAT-9952.
         tool_chain: [get_available_slots, update_appointment]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -156,7 +160,7 @@ endusers:
           get_available_slots:
             claim_id: "CLAIM-PH-LAT-9952"
             slots:
-              - { slot_id: "SLOT-2026-04-15T18:30", duration_minutes: 90 }
+              - {slot_id: "SLOT-2026-04-15T18:30", duration_minutes: 90}
             timezone: "America/Los_Angeles"
           update_appointment:
             claim_id: "CLAIM-PH-LAT-9952"
@@ -165,7 +169,8 @@ endusers:
             scheduled_at: "2026-04-15T18:30:00Z"
         planner:
           system_prompt: >
-            Extreme incident: list tomorrow evening slots then reschedule APT-PH-9952 for CLAIM-PH-LAT-9952.
+            Extreme incident: list tomorrow evening slots then reschedule APT-PH-9952
+            for claim CLAIM-PH-LAT-9952.
           output: >
             PLAN: get_available_slots tomorrow evening; update_appointment 18:30.
         response_compose:
@@ -179,9 +184,11 @@ endusers:
       - turn_index: 1
         span_plan: *latency_demo_span_plan
         vendor.enduser.request.raw: >
-          Please open upload for CLAIM-PH-LAT-9953 with receipt and two damage photos.
+          Please open upload for claim CLAIM-PH-LAT-9953 with receipt and two damage
+          photos.
         agent_response: >
-          Upload batch UPL-CLAIM-PH-LAT-9953 is open for three files. Submit when ready and we will attach them.
+          Upload batch UPL-CLAIM-PH-LAT-9953 is open for three files. Submit when
+          ready and we will attach them.
         tool_chain: [upload_documents]
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
@@ -204,7 +211,7 @@ endusers:
             status: "pending"
         planner:
           system_prompt: >
-            Extreme-incident upload initiation for CLAIM-PH-LAT-9953.
+            Extreme-incident upload initiation for claim CLAIM-PH-LAT-9953.
           output: >
             PLAN: upload_documents with expected_count 3.
         response_compose:
@@ -215,19 +222,23 @@ endusers:
     vendor.enduser.pseudo.id: "user_lat_extreme_04"
     channel: mobile_app
     turns:
-      - turn_index: 1
-        span_plan: *latency_demo_span_plan
-        vendor.enduser.request.raw: >
-          Show pickup windows for CLAIM-PH-LAT-9954 this week, earliest options first.
+      - span_plan: *latency_demo_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "Show pickup windows for claim CLAIM-PH-LAT-9954
+          this week, earliest options first.\n\nPut me on an evening pickup for claim
+          CLAIM-PH-LAT-9954 — I’m flexible."
         agent_response: >
-          Earliest pickup windows for CLAIM-PH-LAT-9954 are Tue 17:30 and Thu 18:00.
-        tool_chain: [get_available_slots]
+          Choose 17:30 or 18:00 from the list — “evening” alone isn’t enough during
+          the spike window.
+        tool_chain:
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 735
-        gen_ai.usage.output_tokens: 88
+        gen_ai.usage.input_tokens: 1340
+        gen_ai.usage.output_tokens: 155
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
+        gentoro.llm.turn.count: 2
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -236,49 +247,20 @@ endusers:
             service_type: "repair_collection"
             date_range_start: "2026-04-14"
             date_range_end: "2026-04-18"
-        gen_ai.tool.call.result:
-          get_available_slots:
-            claim_id: "CLAIM-PH-LAT-9954"
-            slots:
-              - { slot_id: "SLOT-2026-04-15T17:30", duration_minutes: 120 }
-              - { slot_id: "SLOT-2026-04-17T18:00", duration_minutes: 120 }
-            timezone: "America/Los_Angeles"
-        planner:
-          system_prompt: >
-            Extreme spike slot retrieval for CLAIM-PH-LAT-9954 with earliest-first ordering.
-          output: >
-            PLAN: get_available_slots over current week and rank earliest.
-        response_compose:
-          system_prompt: >
-            Return top options only.
-
-      - turn_index: 2
-        span_plan: *latency_demo_span_plan
-        vendor.enduser.request.raw: >
-          Put me on an evening pickup for CLAIM-PH-LAT-9954 — I’m flexible.
-        agent_response: >
-          Choose 17:30 or 18:00 from the list — “evening” alone isn’t enough during the spike window.
-        tool_chain: [update_appointment]
-        mcp_tool_retries:
-          update_appointment:
-            attempts:
-              - outcome: fail
-                error.type: invalid_arguments
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 605
-        gen_ai.usage.output_tokens: 67
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-PH-LAT-9954"
             appointment_id: "APT-PH-LAT-9954-HOLD"
             preferred_time_window: "evening"
             scheduling_time_resolution: "ambiguous_day_part"
         gen_ai.tool.call.result:
+          get_available_slots:
+            claim_id: "CLAIM-PH-LAT-9954"
+            slots:
+              - slot_id: "SLOT-2026-04-15T17:30"
+                duration_minutes: 120
+              - slot_id: "SLOT-2026-04-17T18:00"
+                duration_minutes: 120
+            timezone: "America/Los_Angeles"
           update_appointment:
             claim_id: "CLAIM-PH-LAT-9954"
             appointment_id: "APT-PH-LAT-9954-HOLD"
@@ -287,10 +269,16 @@ endusers:
             error_code: "ambiguous_scheduling_time"
             error_message: "slot_id required when only ambiguous day-part is provided"
         planner:
-          system_prompt: >
-            Extreme spike: vague evening booking fails validation for CLAIM-PH-LAT-9954.
-          output: >
-            PLAN: invalid_arguments; require explicit slot from listing.
+          system_prompt: "Extreme spike slot retrieval for claim CLAIM-PH-LAT-9954
+            with earliest-first ordering.\n\nExtreme spike: vague evening booking
+            fails validation for claim CLAIM-PH-LAT-9954."
+          output: "PLAN: get_available_slots over current week and rank earliest.\n\
+            \nPLAN: invalid_arguments; require explicit slot from listing."
         response_compose:
-          system_prompt: >
-            Name both evening options from prior turn.
+          system_prompt: "Return top options only.\n\nName both evening options from
+            prior turn."
+        mcp_tool_retries:
+          update_appointment:
+            attempts:
+              - outcome: fail
+                error.type: invalid_arguments

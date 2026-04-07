@@ -2,7 +2,7 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_appliances_oven_fan_noise_slots_multiturn.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
 # MCP: appliances — new_claim + get_available_slots, then update_appointment
 #
 # --- LLM / MAINTAINER ---
@@ -11,7 +11,8 @@
 
 name: multi_appliances_oven_fan_noise_slots_multiturn
 description: >
-  Built-in fan oven noisy: CLAIM-HA-9152 + Tue/Thu afternoon slots; customer picks Thursday.
+  Built-in fan oven noisy: claim CLAIM-HA-9152 + Tue/Thu afternoon slots; customer
+  picks Thursday.
 
 tags:
   - normal
@@ -29,18 +30,18 @@ trace_interval_deviation_ms: 52
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2120, deviation: 620 }
-      planner: { mean: 520, deviation: 165 }
-      llm.call: { mean: 655, deviation: 200 }
-      task.execute: { mean: 740, deviation: 250 }
-      tools.recommend: { mean: 54, deviation: 22 }
-      mcp.tool.execute: { mean: 245, deviation: 110 }
-      response.compose: { mean: 368, deviation: 115 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2120, deviation: 620}
+      planner: {mean: 520, deviation: 165}
+      llm.call: {mean: 655, deviation: 200}
+      task.execute: {mean: 740, deviation: 250}
+      tools.recommend: {mean: 54, deviation: 22}
+      mcp.tool.execute: {mean: 245, deviation: 110}
+      response.compose: {mean: 368, deviation: 115}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -72,37 +73,60 @@ endusers:
     channel: web
     mcp_server: appliances
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          The fan oven makes a rattling roar when the cooling fan runs. Start a Toro claim and give me afternoon engineer options.
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "The fan oven makes a rattling roar when the cooling
+          fan runs. Start a Toro claim and give me afternoon engineer options.\n\n\
+          Thursday afternoon, please."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                The fan oven makes a rattling roar when the cooling fan runs. Start a Toro claim and give me afternoon engineer options.
+              vendor.enduser.request.raw: "The fan oven makes a rattling roar when
+                the cooling fan runs. Start a Toro claim and give me afternoon engineer
+                options.\n\nThursday afternoon, please."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-HA-9152 is open for the noisy oven fan. Tuesday 13:00–16:00 or Thursday 14:00–17:00 are free — which afternoon should I hold?
+                Thursday 14:00–17:00 is scheduled on claim CLAIM-HA-9152. Confirmation
+                will follow by email.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                The fan oven makes a rattling roar when the cooling fan runs. Start a Toro claim and give me afternoon engineer options.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Oven cooling fan rattle; service needed.", "trigger_quote": "I want to file a claim — fan runs loud", "missing_info": null, "confidence": 0.92, "tool_args": {"product_type": "oven", "description": "Cooling fan runs loud and rattles after heating cycles.", "incident_date": "2026-05-02"}}, {"tool_name": "get_available_slots", "trigger_summary": "Afternoon authorized repair slots.", "trigger_quote": "technician this week", "missing_info": null, "confidence": 0.89, "tool_args": {"claim_id": "CLAIM-HA-9152", "service_type": "authorized_repair_visit", "date_range_start": "2026-05-05", "date_range_end": "2026-05-10"}}]}
+              vendor.agent.tool_selection.input.raw: "The fan oven makes a rattling
+                roar when the cooling fan runs. Start a Toro claim and give me afternoon
+                engineer options.\n\nThursday afternoon, please.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                Oven cooling fan rattle; service needed.\",\"trigger_quote\":\"I want
+                to file a claim \\u2014 fan runs loud\",\"missing_info\":null,\"confidence\"\
+                :0.92,\"tool_args\":{\"product_type\":\"oven\",\"description\":\"\
+                Cooling fan runs loud and rattles after heating cycles.\",\"incident_date\"\
+                :\"2026-05-02\"}},{\"tool_name\":\"get_available_slots\",\"trigger_summary\"\
+                :\"Afternoon authorized repair slots.\",\"trigger_quote\":\"technician
+                this week\",\"missing_info\":null,\"confidence\":0.89,\"tool_args\"\
+                :{\"claim_id\":\"CLAIM-HA-9152\",\"service_type\":\"authorized_repair_visit\"\
+                ,\"date_range_start\":\"2026-05-05\",\"date_range_end\":\"2026-05-10\"\
+                }},{\"tool_name\":\"update_appointment\",\"trigger_summary\":\"Thursday
+                afternoon oven service.\",\"trigger_quote\":\"Thursday afternoon\"\
+                ,\"missing_info\":null,\"confidence\":0.93,\"tool_args\":{\"claim_id\"\
+                :\"CLAIM-HA-9152\",\"appointment_id\":\"APT-HA-9152-HOLD\",\"slot_id\"\
+                :\"SLOT-2026-05-09T14:00\",\"preferred_time_window\":\"afternoon\"\
+                }}]}\n"
         agent_response: >
-          CLAIM-HA-9152 is open for the noisy oven fan. Tuesday 13:00–16:00 or Thursday 14:00–17:00 are free — which afternoon should I hold?
-        tool_chain: [new_claim, get_available_slots]
+          Thursday 14:00–17:00 is scheduled on claim CLAIM-HA-9152. Confirmation will
+          follow by email.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1050
-        gen_ai.usage.output_tokens: 195
+        gen_ai.usage.input_tokens: 1850
+        gen_ai.usage.output_tokens: 271
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -115,75 +139,38 @@ endusers:
             service_type: "authorized_repair_visit"
             date_range_start: "2026-05-05"
             date_range_end: "2026-05-10"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-HA-9152"
-            product_type: "oven"
-            status: "opened"
-            coverage: { type: "appliance_mechanical_breakdown", deductible: 88 }
-            notes: "Afternoon engineer windows."
-          get_available_slots:
-            claim_id: "CLAIM-HA-9152"
-            slots:
-              - { slot_id: "SLOT-2026-05-07T13:00", duration_minutes: 180 }
-              - { slot_id: "SLOT-2026-05-09T14:00", duration_minutes: 180 }
-            timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Appliances: oven fan fault intake plus afternoon availability.
-          output: >
-            PLAN: new_claim; get_available_slots Tue/Thu afternoons.
-        response_compose:
-          system_prompt: >
-            Clear; CLAIM-HA-9152; two afternoon bands.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Thursday afternoon, please."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Thursday afternoon, please."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Thursday 14:00–17:00 is scheduled on CLAIM-HA-9152. Confirmation will follow by email.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Thursday afternoon, please."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Thursday afternoon oven service.", "trigger_quote":"Thursday afternoon", "missing_info": null, "confidence": 0.93, "tool_args": {"claim_id": "CLAIM-HA-9152", "appointment_id": "APT-HA-9152-HOLD", "slot_id": "SLOT-2026-05-09T14:00", "preferred_time_window": "afternoon"}}]}
-        agent_response: >
-          Thursday 14:00–17:00 is scheduled on CLAIM-HA-9152. Confirmation will follow by email.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 800
-        gen_ai.usage.output_tokens: 76
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-HA-9152"
             appointment_id: "APT-HA-9152-HOLD"
             slot_id: "SLOT-2026-05-09T14:00"
             preferred_time_window: "afternoon"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-HA-9152"
+            product_type: "oven"
+            status: "opened"
+            coverage:
+              type: "appliance_mechanical_breakdown"
+              deductible: 88
+            notes: "Afternoon engineer windows."
+          get_available_slots:
+            claim_id: "CLAIM-HA-9152"
+            slots:
+              - slot_id: "SLOT-2026-05-07T13:00"
+                duration_minutes: 180
+              - slot_id: "SLOT-2026-05-09T14:00"
+                duration_minutes: 180
+            timezone: "Europe/London"
           update_appointment:
             claim_id: "CLAIM-HA-9152"
             appointment_id: "APT-HA-9152-01"
             status: "scheduled"
             scheduled_at: "2026-05-09T14:00:00Z"
         planner:
-          system_prompt: >
-            Customer confirms Thursday 14:00 start for CLAIM-HA-9152.
-          output: >
-            PLAN: update_appointment afternoon slot.
+          system_prompt: "Appliances: oven fan fault intake plus afternoon availability.\n\
+            \nCustomer confirms Thursday 14:00 start for claim CLAIM-HA-9152."
+          output: "PLAN: new_claim; get_available_slots Tue/Thu afternoons.\n\nPLAN:
+            update_appointment afternoon slot."
         response_compose:
-          system_prompt: >
-            Short booking closure.
+          system_prompt: "Clear; claim CLAIM-HA-9152; two afternoon bands.\n\nShort
+            booking closure."

@@ -12,7 +12,7 @@
 name: outlier_phone_cancel_claim_instead_of_reschedule
 description: >
   Paired flows for the same user wording (move repair from morning to afternoon). Outlier: assistant
-  cancels CLAIM-PH-8842 and the repair entirely. Correct counterpart: list afternoon slots then
+  cancels claim CLAIM-PH-8842 and the repair entirely. Correct counterpart: list afternoon slots then
   update_appointment to an afternoon slot while keeping the claim open.
 
 tags:
@@ -89,7 +89,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Understood, I’ve cancelled your phone CLAIM-PH-8842 and closed the repair request. You won’t have
+                Understood, I’ve cancelled your claim CLAIM-PH-8842 and closed the repair request. You won’t have
                 any technicians coming out now. If you still want help later, you can always start a new claim.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -99,7 +99,7 @@ endusers:
               vendor.agent.tool_selection.tool.plan: |
                 {"tool_plan":[{"tool_name":"cancel_claim","trigger_summary":"User finds morning slot unsuitable; model treats as withdrawal.","trigger_quote":"too early in the morning","missing_info":null,"confidence":0.79,"tool_args":{"claim_id":"CLAIM-PH-8842","reason":"customer_requested_cancellation"}}]}
         agent_response: >
-          Understood, I’ve cancelled your phone CLAIM-PH-8842 and closed the repair request. You won’t have
+          Understood, I’ve cancelled your claim CLAIM-PH-8842 and closed the repair request. You won’t have
           any technicians coming out now. If you still want help later, you can always start a new claim.
         tool_chain: [cancel_claim]
         gen_ai.request.type: completion
@@ -121,7 +121,7 @@ endusers:
             cancelled_at: "2026-03-22T11:18:00Z"
         planner:
           system_prompt: >
-            Phone MCP misroute: user asked to reschedule; planner wrongly selects cancel_claim for CLAIM-PH-8842.
+            Phone MCP misroute: user asked to reschedule; planner wrongly selects cancel_claim for claim CLAIM-PH-8842.
           output: >
             PLAN: cancel_claim CLAIM-PH-8842 — incorrect vs user intent (reschedule only).
         response_compose:
@@ -147,7 +147,7 @@ endusers:
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Wednesday afternoon has 15:30 open for CLAIM-PH-8842 — I’ve moved APT-PH-8842-01 to that slot in
+                Wednesday afternoon has 15:30 open for claim CLAIM-PH-8842 — I’ve moved APT-PH-8842-01 to that slot in
                 the app and you should get a confirmation text shortly. The claim stays open; only the visit time changed.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
@@ -155,9 +155,9 @@ endusers:
               vendor.agent.tool_selection.input.raw: |
                 The phone repair you booked is too early in the morning. Can we move it to the afternoon?
               vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Afternoon screen repair slots for CLAIM-PH-8842 on booked day.","trigger_quote":"move it to the afternoon","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-8842","service_type":"screen_repair_visit","date_range_start":"2026-03-26","date_range_end":"2026-03-26"}},{"tool_name":"update_appointment","trigger_summary":"Shift existing repair from morning to afternoon same claim.","trigger_quote":"move it to the afternoon","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"CLAIM-PH-8842","appointment_id":"APT-PH-8842-01","slot_id":"SLOT-2026-03-26T15:30","preferred_time_window":"afternoon"}}]}
+                {"tool_plan":[{"tool_name":"get_available_slots","trigger_summary":"Afternoon screen repair slots for claim CLAIM-PH-8842 on booked day.","trigger_quote":"move it to the afternoon","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-PH-8842","service_type":"screen_repair_visit","date_range_start":"2026-03-26","date_range_end":"2026-03-26"}},{"tool_name":"update_appointment","trigger_summary":"Shift existing repair from morning to afternoon same claim.","trigger_quote":"move it to the afternoon","missing_info":null,"confidence":0.95,"tool_args":{"claim_id":"CLAIM-PH-8842","appointment_id":"APT-PH-8842-01","slot_id":"SLOT-2026-03-26T15:30","preferred_time_window":"afternoon"}}]}
         agent_response: >
-          Wednesday afternoon has 15:30 open for CLAIM-PH-8842 — I’ve moved APT-PH-8842-01 to that slot in
+          Wednesday afternoon has 15:30 open for claim CLAIM-PH-8842 — I’ve moved APT-PH-8842-01 to that slot in
           the app and you should get a confirmation text shortly. The claim stays open; only the visit time changed.
         tool_chain: [get_available_slots, update_appointment]
         gen_ai.request.type: completion
@@ -192,7 +192,7 @@ endusers:
             scheduled_at: "2026-03-26T15:30:00Z"
         planner:
           system_prompt: >
-            Phone MCP; user reschedules booked repair — list afternoon slots then update_appointment; preserve CLAIM-PH-8842.
+            Phone MCP; user reschedules booked repair — list afternoon slots then update_appointment; preserve claim CLAIM-PH-8842.
           output: >
             PLAN: get_available_slots afternoon window; update_appointment 15:30; do not cancel_claim.
         response_compose:

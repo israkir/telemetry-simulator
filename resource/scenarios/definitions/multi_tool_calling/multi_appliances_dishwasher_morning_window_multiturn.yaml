@@ -2,8 +2,8 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_appliances_dishwasher_morning_window_multiturn.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
-# MCP: appliances — leaking dishwasher CLAIM-HA-8200; earliest Thursday 8:00–12:00 window
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# MCP: appliances — leaking dishwasher, claim CLAIM-HA-8200; earliest Thursday 8:00–12:00 window
 #
 # --- LLM / MAINTAINER ---
 # Checklist: resource/scenarios/conventions/scenario_authoring_checklist.txt
@@ -11,7 +11,8 @@
 
 name: multi_appliances_dishwasher_morning_window_multiturn
 description: >
-  Leaking dishwasher: CLAIM-HA-8200, earliest Thursday 8:00–12:00 technician window; customer confirms.
+  Leaking dishwasher: claim CLAIM-HA-8200, earliest Thursday 8:00–12:00 technician
+  window; customer confirms.
 
 tags:
   - normal
@@ -29,18 +30,18 @@ trace_interval_deviation_ms: 52
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2210, deviation: 690 }
-      planner: { mean: 530, deviation: 175 }
-      llm.call: { mean: 660, deviation: 215 }
-      task.execute: { mean: 760, deviation: 265 }
-      tools.recommend: { mean: 56, deviation: 23 }
-      mcp.tool.execute: { mean: 250, deviation: 115 }
-      response.compose: { mean: 375, deviation: 120 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2210, deviation: 690}
+      planner: {mean: 530, deviation: 175}
+      llm.call: {mean: 660, deviation: 215}
+      task.execute: {mean: 760, deviation: 265}
+      tools.recommend: {mean: 56, deviation: 23}
+      mcp.tool.execute: {mean: 250, deviation: 115}
+      response.compose: {mean: 375, deviation: 120}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -72,41 +73,62 @@ endusers:
     channel: app_chat
     mcp_server: appliances
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          My dishwasher is leaking all over the floor. Please open a claim and get me the earliest morning slot.
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "My dishwasher is leaking all over the floor.
+          Please open a claim and get me the earliest morning slot.\n\nYes, book Thursday
+          morning."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                My dishwasher is leaking all over the floor. Please open a claim and get me the earliest morning slot.
+              vendor.enduser.request.raw: "My dishwasher is leaking all over the floor.
+                Please open a claim and get me the earliest morning slot.\n\nYes,
+                book Thursday morning."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                That sounds frustrating — I’ve opened a claim for your leaking dishwasher. Your claim ID is
-                CLAIM-HA-8200. The earliest morning window I have is Thursday 8:00–12:00. Do you want me to book that
-                slot?
+                I’ve scheduled a technician visit for Thursday 8:00–12:00 under claim
+                CLAIM-HA-8200. You’ll receive
+                confirmation with the time window.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                My dishwasher is leaking all over the floor. Please open a claim and get me the earliest morning slot.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Dishwasher leak on floor; morning preference.", "trigger_quote": "I want to file a claim — leaking all over the floor", "missing_info": null, "confidence": 0.94, "tool_args": {"product_type": "dishwasher", "description": "Active leak onto floor.", "incident_date": "2026-03-22"}}, {"tool_name": "get_available_slots", "trigger_summary": "Earliest morning authorized repair window.", "trigger_quote": "earliest morning slot", "missing_info": null, "confidence": 0.9, "tool_args": {"claim_id": "CLAIM-HA-8200", "service_type": "authorized_repair_visit", "date_range_start": "2026-03-23", "date_range_end": "2026-03-30"}}]}
+              vendor.agent.tool_selection.input.raw: "My dishwasher is leaking all
+                over the floor. Please open a claim and get me the earliest morning
+                slot.\n\nYes, book Thursday morning.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                Dishwasher leak on floor; morning preference.\",\"trigger_quote\"\
+                :\"I want to file a claim \\u2014 leaking all over the floor\",\"\
+                missing_info\":null,\"confidence\":0.94,\"tool_args\":{\"product_type\"\
+                :\"dishwasher\",\"description\":\"Active leak onto floor.\",\"incident_date\"\
+                :\"2026-03-22\"}},{\"tool_name\":\"get_available_slots\",\"trigger_summary\"\
+                :\"Earliest morning authorized repair window.\",\"trigger_quote\"\
+                :\"earliest morning slot\",\"missing_info\":null,\"confidence\":0.9,\"\
+                tool_args\":{\"claim_id\":\"CLAIM-HA-8200\",\"service_type\":\"authorized_repair_visit\"\
+                ,\"date_range_start\":\"2026-03-23\",\"date_range_end\":\"2026-03-30\"\
+                }},{\"tool_name\":\"update_appointment\",\"trigger_summary\":\"Hold
+                Thursday 8\\u201312 morning window.\",\"trigger_quote\":\"Thursday
+                morning\",\"missing_info\":null,\"confidence\":0.93,\"tool_args\"\
+                :{\"claim_id\":\"CLAIM-HA-8200\",\"appointment_id\":\"APT-HA-8200-HOLD\"\
+                ,\"slot_id\":\"SLOT-2026-03-27T08:00\",\"preferred_time_window\":\"\
+                morning\"}}]}\n"
         agent_response: >
-          That sounds frustrating — I’ve opened a claim for your leaking dishwasher. Your claim ID is
-          CLAIM-HA-8200. The earliest morning window I have is Thursday 8:00–12:00. Do you want me to book that
-          slot?
-        tool_chain: [new_claim, get_available_slots]
+          I’ve scheduled a technician visit for Thursday 8:00–12:00 under claim CLAIM-HA-8200.
+          You’ll receive
+          confirmation with the time window.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1170
-        gen_ai.usage.output_tokens: 215
+        gen_ai.usage.input_tokens: 2040
+        gen_ai.usage.output_tokens: 305
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -119,77 +141,39 @@ endusers:
             service_type: "authorized_repair_visit"
             date_range_start: "2026-03-23"
             date_range_end: "2026-03-30"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-HA-8200"
-            product_type: "dishwasher"
-            status: "opened"
-            coverage: { type: "appliance_water_leak", deductible: 40 }
-            notes: "Morning arrival window offered Thursday."
-          get_available_slots:
-            claim_id: "CLAIM-HA-8200"
-            slots:
-              - { slot_id: "SLOT-2026-03-27T08:00", duration_minutes: 240 }
-              - { slot_id: "SLOT-2026-03-28T08:00", duration_minutes: 240 }
-            timezone: "America/Los_Angeles"
-        planner:
-          system_prompt: >
-            Appliances MCP: leak intake plus earliest morning technician windows.
-          output: >
-            PLAN: new_claim dishwasher; get_available_slots CLAIM-HA-8200 across next week mornings.
-        response_compose:
-          system_prompt: >
-            Empathy first; CLAIM-HA-8200; Thursday 8–12 window; yes/no booking ask.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Yes, book Thursday morning."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Yes, book Thursday morning."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                I’ve scheduled a technician visit for Thursday 8:00–12:00 under CLAIM-HA-8200. You’ll receive
-                confirmation with the time window.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Yes, book Thursday morning."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"update_appointment","trigger_summary":"Hold Thursday 8–12 morning window.","trigger_quote":"Thursday morning","missing_info":null,"confidence":0.93,"tool_args":{"claim_id":"CLAIM-HA-8200","appointment_id":"APT-HA-8200-HOLD","slot_id":"SLOT-2026-03-27T08:00","preferred_time_window":"morning"}}]}
-        agent_response: >
-          I’ve scheduled a technician visit for Thursday 8:00–12:00 under CLAIM-HA-8200. You’ll receive
-          confirmation with the time window.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 870
-        gen_ai.usage.output_tokens: 90
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-HA-8200"
             appointment_id: "APT-HA-8200-HOLD"
             slot_id: "SLOT-2026-03-27T08:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-HA-8200"
+            product_type: "dishwasher"
+            status: "opened"
+            coverage:
+              type: "appliance_water_leak"
+              deductible: 40
+            notes: "Morning arrival window offered Thursday."
+          get_available_slots:
+            claim_id: "CLAIM-HA-8200"
+            slots:
+              - slot_id: "SLOT-2026-03-27T08:00"
+                duration_minutes: 240
+              - slot_id: "SLOT-2026-03-28T08:00"
+                duration_minutes: 240
+            timezone: "America/Los_Angeles"
           update_appointment:
             claim_id: "CLAIM-HA-8200"
             appointment_id: "APT-HA-8200-01"
             status: "scheduled"
             scheduled_at: "2026-03-27T08:00:00Z"
         planner:
-          system_prompt: >
-            Customer confirmed Thursday morning window for CLAIM-HA-8200.
-          output: >
-            PLAN: update_appointment four-hour morning slot start 08:00.
+          system_prompt: "Appliances MCP: leak intake plus earliest morning technician
+            windows.\n\nCustomer confirmed Thursday morning window for claim CLAIM-HA-8200."
+          output: "PLAN: new_claim dishwasher; get_available_slots claim CLAIM-HA-8200
+            across next week mornings.\n\nPLAN: update_appointment four-hour morning
+            slot start 08:00."
         response_compose:
-          system_prompt: >
-            Confirm window booking and outbound confirmation.
+          system_prompt: "Empathy first; claim CLAIM-HA-8200; Thursday 8–12 window;
+            yes/no booking ask.\n\nConfirm window booking and outbound confirmation."

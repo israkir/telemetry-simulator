@@ -2,8 +2,8 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/mcp_tool_retries_exhausted_failed.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
-# Interaction model: multi-turn — confirm excess status first; customer authorizes payment;
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
+# Interaction model: single-turn — one user message; full tool chain in one orchestration
 #   pay retries through unavailable, rate limiting, and tool error (all attempts fail)
 # MCP: phone — claim_status (turn 1) → pay (turn 2; 3× fail; exponential_jitter; final error.type on parent)
 #
@@ -13,8 +13,8 @@
 
 name: mcp_tool_retries_exhausted_failed
 description: >
-  Phone glass CLAIM-PH-8820: first message confirms the £95 excess matches what the portal shows;
-  second message asks to submit payment to the card on file. The payment MCP path retries and never captures,
+  Phone glass claim CLAIM-PH-8820: one message confirms the £95 excess matches the portal,
+  then authorizes payment to the card on file. The payment MCP path retries and never captures,
   with the last error class on the parent span.
 
 tags:
@@ -33,18 +33,18 @@ trace_interval_deviation_ms: 50
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2260, deviation: 810 }
-      planner: { mean: 500, deviation: 178 }
-      llm.call: { mean: 592, deviation: 220 }
-      task.execute: { mean: 770, deviation: 300 }
-      tools.recommend: { mean: 54, deviation: 23 }
-      mcp.tool.execute: { mean: 340, deviation: 155 }
-      response.compose: { mean: 372, deviation: 132 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2260, deviation: 810}
+      planner: {mean: 500, deviation: 178}
+      llm.call: {mean: 592, deviation: 220}
+      task.execute: {mean: 770, deviation: 300}
+      tools.recommend: {mean: 54, deviation: 23}
+      mcp.tool.execute: {mean: 340, deviation: 155}
+      response.compose: {mean: 372, deviation: 132}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -76,47 +76,67 @@ endusers:
     channel: web
     mcp_server: phone
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          CLAIM-PH-8820 for the cracked glass — the portal says I owe the ninety-five pound excess.
-          Can you confirm that’s what you’re showing on your side before I pay?
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "For claim CLAIM-PH-8820 for the cracked glass
+          — the portal says I owe the ninety-five pound excess. Can you confirm that’s
+          what you’re showing on your side before I pay?\n\nThanks — I want to submit
+          payment of £95 to my card on file now."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                CLAIM-PH-8820 for the cracked glass — the portal says I owe the ninety-five pound excess.
-                Can you confirm that’s what you’re showing on your side before I pay?
+              vendor.enduser.request.raw: "For claim CLAIM-PH-8820 for the cracked
+                glass — the portal says I owe the ninety-five pound excess. Can you
+                confirm that’s what you’re showing on your side before I pay?\n\n\
+                Thanks — I want to submit payment of £95 to my card on file now."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                Yes — CLAIM-PH-8820 is waiting on the £95 glass excess, same as your portal. When you’re ready,
-                I can try the card on file or you can pay in the app.
+                I wasn’t able to finish the card charge just now — please try again
+                in a little while or pay
+                in the app when you have a moment.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                CLAIM-PH-8820 for the cracked glass — the portal says I owe the ninety-five pound excess.
-                Can you confirm that’s what you’re showing on your side before I pay?
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"claim_status","trigger_summary":"Verify claim state and excess matches portal £95.","trigger_quote":"CLAIM-PH-8820","missing_info":null,"confidence":0.92,"tool_args":{"claim_id":"CLAIM-PH-8820"}}]}
+              vendor.agent.tool_selection.input.raw: "For claim CLAIM-PH-8820 for
+                the cracked glass — the portal says I owe the ninety-five pound excess.
+                Can you confirm that’s what you’re showing on your side before I pay?\n\
+                \nThanks — I want to submit payment of £95 to my card on file now.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"claim_status\",\"trigger_summary\":\"Verify claim state and excess
+                matches portal \\u00a395.\",\"trigger_quote\":\"For claim CLAIM-PH-8820
+                for the cracked glass\",\"missing_info\":null,\"confidence\":0.92,\"\
+                tool_args\":{\"claim_id\":\"CLAIM-PH-8820\"}},{\"tool_name\":\"pay\"\
+                ,\"trigger_summary\":\"Submit payment of \\u00a395 glass excess after
+                customer authorizes.\",\"trigger_quote\":\"submit payment of ninety-five
+                pounds\",\"missing_info\":null,\"confidence\":0.9,\"tool_args\":{\"\
+                payment_target\":\"excess\",\"reference_id\":\"CLAIM-PH-8820\",\"\
+                amount\":95.0,\"currency\":\"GBP\"}}]}\n"
         agent_response: >
-          Yes — CLAIM-PH-8820 is waiting on the £95 glass excess, same as your portal. When you’re ready,
-          I can try the card on file or you can pay in the app.
-        tool_chain: [claim_status]
+          I wasn’t able to finish the card charge just now — please try again in a
+          little while or pay
+          in the app when you have a moment.
+        tool_chain:
+          - claim_status
+          - pay
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1050
-        gen_ai.usage.output_tokens: 155
+        gen_ai.usage.input_tokens: 1970
+        gen_ai.usage.output_tokens: 283
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
+        gentoro.llm.turn.count: 2
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
           claim_status:
             claim_id: "CLAIM-PH-8820"
+          pay:
+            payment_target: "excess"
+            reference_id: "CLAIM-PH-8820"
+            amount: 95.0
+            currency: "GBP"
         gen_ai.tool.call.result:
           claim_status:
             claim_id: "CLAIM-PH-8820"
@@ -126,42 +146,22 @@ endusers:
               - intake_complete
               - assessor_approved
               - excess_due
+          pay:
+            payment_id: "PAY-PH-8820-PEND"
+            reference_id: "CLAIM-PH-8820"
+            status: "not_captured"
+            amount: 95.0
+            currency: "GBP"
         planner:
-          system_prompt: >
-            Toro phone planner: confirm CLAIM-PH-8820 excess before any payment attempt.
-          output: >
-            PLAN: claim_status CLAIM-PH-8820; reassure £95 excess aligns with portal.
+          system_prompt: "Toro phone planner: confirm claim CLAIM-PH-8820 excess before
+            any payment attempt.\n\nSecond turn: customer explicitly authorizes pay;
+            retries may all fail."
+          output: "PLAN: claim_status CLAIM-PH-8820; reassure £95 excess aligns with
+            portal.\n\nPLAN: submit payment 95 GBP for claim CLAIM-PH-8820; on failure
+            suggest app retry."
         response_compose:
-          system_prompt: >
-            Calm confirmation; offer payment channel without gateway jargon.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          Thanks — I want to submit payment of £95 to my card on file now.
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: >
-                Thanks — I want to submit payment of £95 to my card on file now.
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                I wasn’t able to finish the card charge just now — please try again in a little while or pay
-                in the app when you have a moment.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: |
-                Thanks — I want to submit payment of £95 to my card on file now.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan":[{"tool_name":"pay","trigger_summary":"Submit payment of £95 glass excess after customer authorizes.","trigger_quote":"submit payment of ninety-five pounds","missing_info":null,"confidence":0.9,"tool_args":{"payment_target":"excess","reference_id":"CLAIM-PH-8820","amount":95.0,"currency":"GBP"}}]}
-        agent_response: >
-          I wasn’t able to finish the card charge just now — please try again in a little while or pay
-          in the app when you have a moment.
-        tool_chain: [pay]
+          system_prompt: "Calm confirmation; offer payment channel without gateway
+            jargon.\n\nCalm, practical wording; no payment gateway codes or tool names."
         mcp_tool_retries:
           pay:
             policy: exponential_jitter
@@ -176,32 +176,3 @@ endusers:
                 error.type: tool_error
                 gentoro.retry.reason: transient_error
                 gentoro.retry.backoff.ms: 750
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 920
-        gen_ai.usage.output_tokens: 128
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
-          pay:
-            payment_target: "excess"
-            reference_id: "CLAIM-PH-8820"
-            amount: 95.0
-            currency: "GBP"
-        gen_ai.tool.call.result:
-          pay:
-            payment_id: "PAY-PH-8820-PEND"
-            reference_id: "CLAIM-PH-8820"
-            status: "not_captured"
-            amount: 95.0
-            currency: "GBP"
-        planner:
-          system_prompt: >
-            Second turn: customer explicitly authorizes pay; retries may all fail.
-          output: >
-            PLAN: submit payment 95 GBP for CLAIM-PH-8820; on failure suggest app retry.
-        response_compose:
-          system_prompt: >
-            Calm, practical wording; no payment gateway codes or tool names.

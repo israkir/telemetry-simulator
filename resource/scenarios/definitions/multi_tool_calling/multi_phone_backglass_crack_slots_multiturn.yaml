@@ -2,7 +2,7 @@
 # SCENARIO MANIFEST
 # =============================================================================
 # File: normal/multi_tool_calling/multi_phone_backglass_crack_slots_multiturn.yaml
-# Endusers: 1 | Conversation threads: 1 | Total user turns: 2
+# Endusers: 1 | Conversation threads: 1 | Total user turns: 1
 # MCP: phone — new_claim + get_available_slots, then update_appointment
 #
 # --- LLM / MAINTAINER ---
@@ -11,7 +11,7 @@
 
 name: multi_phone_backglass_crack_slots_multiturn
 description: >
-  Rear glass cracked: CLAIM-PH-9161 + repair slots; books Friday.
+  Rear glass cracked: claim CLAIM-PH-9161 + repair slots; books Friday.
 
 tags:
   - normal
@@ -29,18 +29,18 @@ trace_interval_deviation_ms: 52
 latency_profiles:
   normal:
     span_durations_ms:
-      request.validation: { mean: 8, deviation: 3 }
-      payload.validation: { mean: 5, deviation: 2 }
-      policy.validation: { mean: 12, deviation: 5 }
-      augmentation.validation: { mean: 6, deviation: 2 }
-      a2a.orchestrate: { mean: 2000, deviation: 620 }
-      planner: { mean: 520, deviation: 165 }
-      llm.call: { mean: 655, deviation: 200 }
-      task.execute: { mean: 740, deviation: 250 }
-      tools.recommend: { mean: 54, deviation: 22 }
-      mcp.tool.execute: { mean: 245, deviation: 110 }
-      response.compose: { mean: 368, deviation: 115 }
-      response.validation: { mean: 10, deviation: 4 }
+      request.validation: {mean: 8, deviation: 3}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 12, deviation: 5}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 2000, deviation: 620}
+      planner: {mean: 520, deviation: 165}
+      llm.call: {mean: 655, deviation: 200}
+      task.execute: {mean: 740, deviation: 250}
+      tools.recommend: {mean: 54, deviation: 22}
+      mcp.tool.execute: {mean: 245, deviation: 110}
+      response.compose: {mean: 368, deviation: 115}
+      response.validation: {mean: 10, deviation: 4}
 
 default_latency_profile: normal
 
@@ -72,37 +72,59 @@ endusers:
     channel: web_chat
     mcp_server: phone
     turns:
-      - turn_index: 1
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: >
-          I cracked the back glass on my phone. Open a claim and show me repair appointments for next week.
+      - span_plan: *phone_span_plan
+        turn_index: 1
+        vendor.enduser.request.raw: "I cracked the back glass on my phone. Open a
+          claim and show me repair appointments for next week.\n\nTuesday at eleven,
+          please."
         span_events:
           - target_span_class: request.validation
             name: gentoro.enduser.request
             attributes:
-              vendor.enduser.request.raw: >
-                I cracked the back glass on my phone. Open a claim and show me repair appointments for next week.
+              vendor.enduser.request.raw: "I cracked the back glass on my phone. Open
+                a claim and show me repair appointments for next week.\n\nTuesday
+                at eleven, please."
           - target_span_class: response.validation
             name: gentoro.agent.response
             attributes:
               vendor.agent.response.raw: >
-                CLAIM-PH-9161 is created. Friday 10:30 or the following Tuesday 11:00 slots are open — want me to hold one?
+                Tuesday 11:00 is booked under claim CLAIM-PH-9161 — you’ll get shop
+                directions by SMS.
           - target_span_class: tools.recommend
             name: gentoro.agent.tool_selection
             attributes:
-              vendor.agent.tool_selection.input.raw: |
-                I cracked the back glass on my phone. Open a claim and show me repair appointments for next week.
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "new_claim", "trigger_summary": "I want to file a claim — Rear panel glass crack.", "trigger_quote": "I want to file a claim — back glass cracked", "missing_info": null, "confidence": 0.93, "tool_args": {"product_type": "phone", "description": "Rear glass cracked after drop; customer wants in-store repair.", "incident_date": "2026-05-06"}}, {"tool_name": "get_available_slots", "trigger_summary": "Repair-shop slots next week.", "trigger_quote": "book a repair", "missing_info": null, "confidence": 0.89, "tool_args": {"claim_id": "CLAIM-PH-9161", "service_type": "screen_repair_visit", "date_range_start": "2026-05-07", "date_range_end": "2026-05-13"}}]}
+              vendor.agent.tool_selection.input.raw: "I cracked the back glass on
+                my phone. Open a claim and show me repair appointments for next week.\n\
+                \nTuesday at eleven, please.\n"
+              vendor.agent.tool_selection.tool.plan: "{\"tool_plan\":[{\"tool_name\"\
+                :\"new_claim\",\"trigger_summary\":\"I want to file a claim \\u2014
+                Rear panel glass crack.\",\"trigger_quote\":\"I want to file a claim
+                \\u2014 back glass cracked\",\"missing_info\":null,\"confidence\"\
+                :0.93,\"tool_args\":{\"product_type\":\"phone\",\"description\":\"\
+                Rear glass cracked after drop; customer wants in-store repair.\",\"\
+                incident_date\":\"2026-05-06\"}},{\"tool_name\":\"get_available_slots\"\
+                ,\"trigger_summary\":\"Repair-shop slots next week.\",\"trigger_quote\"\
+                :\"book a repair\",\"missing_info\":null,\"confidence\":0.89,\"tool_args\"\
+                :{\"claim_id\":\"CLAIM-PH-9161\",\"service_type\":\"screen_repair_visit\"\
+                ,\"date_range_start\":\"2026-05-07\",\"date_range_end\":\"2026-05-13\"\
+                }},{\"tool_name\":\"update_appointment\",\"trigger_summary\":\"Tuesday
+                11:00 screen repair.\",\"trigger_quote\":\"Tuesday at eleven\",\"\
+                missing_info\":null,\"confidence\":0.94,\"tool_args\":{\"claim_id\"\
+                :\"CLAIM-PH-9161\",\"appointment_id\":\"APT-PH-9161-HOLD\",\"slot_id\"\
+                :\"SLOT-2026-05-12T11:00\",\"preferred_time_window\":\"morning\"}}]}\n"
         agent_response: >
-          CLAIM-PH-9161 is created. Friday 10:30 or the following Tuesday 11:00 slots are open — want me to hold one?
-        tool_chain: [new_claim, get_available_slots]
+          Tuesday 11:00 is booked under claim CLAIM-PH-9161 — you’ll get shop directions
+          by SMS.
+        tool_chain:
+          - new_claim
+          - get_available_slots
+          - update_appointment
         gen_ai.request.type: completion
         gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 1060
-        gen_ai.usage.output_tokens: 200
+        gen_ai.usage.input_tokens: 1910
+        gen_ai.usage.output_tokens: 274
         gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 2
+        gentoro.llm.turn.count: 3
         gentoro.llm.content.capture.enabled: true
         gentoro.llm.content.redaction.enabled: false
         gen_ai.tool.call.arguments:
@@ -115,75 +137,36 @@ endusers:
             service_type: "screen_repair_visit"
             date_range_start: "2026-05-07"
             date_range_end: "2026-05-13"
-        gen_ai.tool.call.result:
-          new_claim:
-            claim_id: "CLAIM-PH-9161"
-            product_type: "phone"
-            status: "opened"
-            coverage: { type: "phone_accidental_damage", deductible: 70 }
-            notes: "Screen repair line."
-          get_available_slots:
-            claim_id: "CLAIM-PH-9161"
-            slots:
-              - { slot_id: "SLOT-2026-05-08T10:30", duration_minutes: 90 }
-              - { slot_id: "SLOT-2026-05-12T11:00", duration_minutes: 90 }
-            timezone: "Europe/London"
-        planner:
-          system_prompt: >
-            Phone MCP: rear glass + repair slots.
-          output: >
-            PLAN: new_claim; get_available_slots screen repair.
-        response_compose:
-          system_prompt: >
-            CLAIM-PH-9161; two concise options.
-
-      - turn_index: 2
-        span_plan: *phone_span_plan
-        vendor.enduser.request.raw: "Tuesday at eleven, please."
-        span_events:
-          - target_span_class: request.validation
-            name: gentoro.enduser.request
-            attributes:
-              vendor.enduser.request.raw: "Tuesday at eleven, please."
-          - target_span_class: response.validation
-            name: gentoro.agent.response
-            attributes:
-              vendor.agent.response.raw: >
-                Tuesday 11:00 is booked under CLAIM-PH-9161 — you’ll get shop directions by SMS.
-          - target_span_class: tools.recommend
-            name: gentoro.agent.tool_selection
-            attributes:
-              vendor.agent.tool_selection.input.raw: "Tuesday at eleven, please."
-              vendor.agent.tool_selection.tool.plan: |
-                {"tool_plan": [{"tool_name": "update_appointment", "trigger_summary":"Tuesday 11:00 screen repair.", "trigger_quote":"Tuesday at eleven", "missing_info": null, "confidence": 0.94, "tool_args": {"claim_id": "CLAIM-PH-9161", "appointment_id": "APT-PH-9161-HOLD", "slot_id": "SLOT-2026-05-12T11:00", "preferred_time_window": "morning"}}]}
-        agent_response: >
-          Tuesday 11:00 is booked under CLAIM-PH-9161 — you’ll get shop directions by SMS.
-        tool_chain: [update_appointment]
-        gen_ai.request.type: completion
-        gen_ai.response.finish_reason: stop
-        gen_ai.usage.input_tokens: 850
-        gen_ai.usage.output_tokens: 74
-        gentoro.llm.streaming: false
-        gentoro.llm.turn.count: 1
-        gentoro.llm.content.capture.enabled: true
-        gentoro.llm.content.redaction.enabled: false
-        gen_ai.tool.call.arguments:
           update_appointment:
             claim_id: "CLAIM-PH-9161"
             appointment_id: "APT-PH-9161-HOLD"
             slot_id: "SLOT-2026-05-12T11:00"
             preferred_time_window: "morning"
         gen_ai.tool.call.result:
+          new_claim:
+            claim_id: "CLAIM-PH-9161"
+            product_type: "phone"
+            status: "opened"
+            coverage:
+              type: "phone_accidental_damage"
+              deductible: 70
+            notes: "Screen repair line."
+          get_available_slots:
+            claim_id: "CLAIM-PH-9161"
+            slots:
+              - slot_id: "SLOT-2026-05-08T10:30"
+                duration_minutes: 90
+              - slot_id: "SLOT-2026-05-12T11:00"
+                duration_minutes: 90
+            timezone: "Europe/London"
           update_appointment:
             claim_id: "CLAIM-PH-9161"
             appointment_id: "APT-PH-9161-01"
             status: "scheduled"
             scheduled_at: "2026-05-12T11:00:00Z"
         planner:
-          system_prompt: >
-            Customer picks Tuesday 11:00 for CLAIM-PH-9161.
-          output: >
-            PLAN: update_appointment.
+          system_prompt: "Phone MCP: rear glass + repair slots.\n\nCustomer picks
+            Tuesday 11:00 for claim CLAIM-PH-9161."
+          output: "PLAN: new_claim; get_available_slots screen repair.\n\nPLAN: update_appointment."
         response_compose:
-          system_prompt: >
-            SMS hint.
+          system_prompt: "claim CLAIM-PH-9161; two concise options.\n\nSMS hint."
