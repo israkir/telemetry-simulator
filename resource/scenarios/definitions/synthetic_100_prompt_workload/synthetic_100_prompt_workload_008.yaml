@@ -1,0 +1,147 @@
+name: synthetic_100_prompt_workload_008
+description: Single-turn synthetic workload scenario row 8.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 17.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 11, deviation: 3}
+      payload.validation: {mean: 7, deviation: 2}
+      policy.validation: {mean: 19, deviation: 5}
+      augmentation.validation: {mean: 10, deviation: 3}
+      a2a.orchestrate: {mean: 1480, deviation: 325}
+      planner: {mean: 505, deviation: 121}
+      llm.call: {mean: 423, deviation: 97}
+      task.execute: {mean: 1080, deviation: 259}
+      tools.recommend: {mean: 71, deviation: 21}
+      mcp.tool.execute: {mean: 490, deviation: 127}
+      response.compose: {mean: 364, deviation: 87}
+      response.validation: {mean: 13, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 22, deviation: 6}
+      payload.validation: {mean: 14, deviation: 3}
+      policy.validation: {mean: 38, deviation: 10}
+      augmentation.validation: {mean: 20, deviation: 5}
+      a2a.orchestrate: {mean: 3004, deviation: 811}
+      planner: {mean: 1025, deviation: 276}
+      llm.call: {mean: 858, deviation: 231}
+      task.execute: {mean: 2192, deviation: 591}
+      tools.recommend: {mean: 144, deviation: 38}
+      mcp.tool.execute: {mean: 994, deviation: 268}
+      response.compose: {mean: 738, deviation: 199}
+      response.validation: {mean: 26, deviation: 7}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [5, 6, 7]
+    start_hour: 18
+    end_hour: 23
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_008
+  vendor.enduser.pseudo.id: user_syn_008
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: "Face ID failed after a drop; passcode only. Need to file a claim for repair pickup Tuesday\u2013Thursday next week."
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: "Face ID failed after a drop; passcode only. Need to file a claim for repair pickup Tuesday\u2013Thursday next week."
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: '**CLM-1008** opened. Midweek slots pulled and **SLOT-2026-03-26T09:00** is now booked.'
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: "Face ID failed after a drop; passcode only. Need to file a claim for repair pickup Tuesday\u2013Thursday next week."
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
+    agent_response: '**CLM-1008** opened. Midweek slots pulled and **SLOT-2026-03-26T09:00** is now booked.'
+    tool_chain:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: "Face ID failed after a drop; passcode only. Need to file a claim for repair pickup Tuesday\u2013Thursday next week."
+        incident_date: '2026-03-20'
+      get_available_slots:
+        claim_id: CLM-1008
+        service_type: repair_collection
+        date_range_start: '2026-03-20'
+        date_range_end: '2026-03-31'
+      update_appointment:
+        claim_id: CLM-1008
+        appointment_id: APT-000008
+        slot_id: SLOT-2026-03-26T09:00
+        preferred_time_window: morning
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-1008
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created from workload row.
+      get_available_slots:
+        claim_id: CLM-1008
+        slots:
+        - slot_id: SLOT-2026-03-26T09:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-03-27T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+      update_appointment:
+        claim_id: CLM-1008
+        appointment_id: APT-000008
+        status: rescheduled
+        scheduled_at: '2026-03-26T09:00:00Z'
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: new_claim -> get_available_slots -> update_appointment'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

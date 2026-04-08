@@ -1,0 +1,129 @@
+name: synthetic_100_prompt_workload_089
+description: Single-turn synthetic workload scenario row 89.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 24.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 9, deviation: 2}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 15, deviation: 4}
+      augmentation.validation: {mean: 8, deviation: 2}
+      a2a.orchestrate: {mean: 1190, deviation: 261}
+      planner: {mean: 420, deviation: 100}
+      llm.call: {mean: 367, deviation: 84}
+      task.execute: {mean: 660, deviation: 158}
+      tools.recommend: {mean: 59, deviation: 17}
+      mcp.tool.execute: {mean: 330, deviation: 85}
+      response.compose: {mean: 316, deviation: 75}
+      response.validation: {mean: 11, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 15, deviation: 4}
+      payload.validation: {mean: 8, deviation: 2}
+      policy.validation: {mean: 25, deviation: 6}
+      augmentation.validation: {mean: 13, deviation: 3}
+      a2a.orchestrate: {mean: 2023, deviation: 546}
+      planner: {mean: 714, deviation: 192}
+      llm.call: {mean: 623, deviation: 168}
+      task.execute: {mean: 1122, deviation: 302}
+      tools.recommend: {mean: 100, deviation: 27}
+      mcp.tool.execute: {mean: 561, deviation: 151}
+      response.compose: {mean: 537, deviation: 145}
+      response.validation: {mean: 18, deviation: 5}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    start_hour: 7
+    end_hour: 10
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_089
+  vendor.enduser.pseudo.id: user_syn_089
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: Proceed with the appliances washer **Plus** option and complete purchase for quote **QT-500** under my account.
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: Proceed with the appliances washer **Plus** option and complete purchase for quote **QT-500** under my account.
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: All set. Your washer appliances policy was issued from **QT-500** and is active as **POL-700**.
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: Proceed with the appliances washer **Plus** option and complete purchase for quote **QT-500** under my account.
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}, {"tool_name": "buy_insurance"}]}'
+    agent_response: All set. Your washer appliances policy was issued from **QT-500** and is active as **POL-700**.
+    tool_chain:
+    - choose_insurance
+    - buy_insurance
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      choose_insurance:
+        product_category: appliances
+        coverage_tier: plus
+        region: NO-01
+      buy_insurance:
+        quote_id: QT-500
+        payment_method: card_on_file
+        holder_reference: enduser_0089
+    gen_ai.tool.call.result:
+      choose_insurance:
+        quote_id: QT-500
+        premium_monthly: 12.5
+        currency: EUR
+        valid_until: '2026-04-01'
+      buy_insurance:
+        policy_id: POL-700
+        quote_id: QT-500
+        effective_date: '2026-03-20'
+        status: active
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: choose_insurance -> buy_insurance'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

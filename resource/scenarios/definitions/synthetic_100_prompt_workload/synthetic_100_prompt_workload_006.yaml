@@ -1,0 +1,147 @@
+name: synthetic_100_prompt_workload_006
+description: Single-turn synthetic workload scenario row 6.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 17.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 11, deviation: 3}
+      payload.validation: {mean: 6, deviation: 2}
+      policy.validation: {mean: 18, deviation: 5}
+      augmentation.validation: {mean: 9, deviation: 2}
+      a2a.orchestrate: {mean: 1360, deviation: 299}
+      planner: {mean: 505, deviation: 121}
+      llm.call: {mean: 437, deviation: 100}
+      task.execute: {mean: 980, deviation: 235}
+      tools.recommend: {mean: 71, deviation: 21}
+      mcp.tool.execute: {mean: 490, deviation: 127}
+      response.compose: {mean: 364, deviation: 87}
+      response.validation: {mean: 13, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 19, deviation: 5}
+      payload.validation: {mean: 10, deviation: 2}
+      policy.validation: {mean: 31, deviation: 8}
+      augmentation.validation: {mean: 15, deviation: 4}
+      a2a.orchestrate: {mean: 2380, deviation: 642}
+      planner: {mean: 883, deviation: 238}
+      llm.call: {mean: 764, deviation: 206}
+      task.execute: {mean: 1715, deviation: 463}
+      tools.recommend: {mean: 124, deviation: 33}
+      mcp.tool.execute: {mean: 857, deviation: 231}
+      response.compose: {mean: 637, deviation: 171}
+      response.validation: {mean: 22, deviation: 6}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    start_hour: 12
+    end_hour: 16
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_006
+  vendor.enduser.pseudo.id: user_syn_006
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: "Camera won\u2019t focus after a hike; sensor looks scratched. Create a claim and book a window March 20\u201327\u2014your choice of first good afternoon slot."
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: "Camera won\u2019t focus after a hike; sensor looks scratched. Create a claim and book a window March 20\u201327\u2014your choice of first good afternoon slot."
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: '**CLM-1006** active. I offered morning/afternoon blocks and confirmed **SLOT-2026-03-21T14:00** as the afternoon option.'
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: "Camera won\u2019t focus after a hike; sensor looks scratched. Create a claim and book a window March 20\u201327\u2014your choice of first good afternoon slot."
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
+    agent_response: '**CLM-1006** active. I offered morning/afternoon blocks and confirmed **SLOT-2026-03-21T14:00** as the afternoon option.'
+    tool_chain:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: "Camera won\u2019t focus after a hike; sensor looks scratched. Create a claim and book a window March 20\u201327\u2014your choice of first good afternoon slot."
+        incident_date: '2026-03-20'
+      get_available_slots:
+        claim_id: CLM-1006
+        service_type: repair_collection
+        date_range_start: '2026-03-20'
+        date_range_end: '2026-03-31'
+      update_appointment:
+        claim_id: CLM-1006
+        appointment_id: APT-000006
+        slot_id: SLOT-2026-03-21T14:00
+        preferred_time_window: afternoon
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-1006
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created from workload row.
+      get_available_slots:
+        claim_id: CLM-1006
+        slots:
+        - slot_id: SLOT-2026-03-21T14:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-03-27T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+      update_appointment:
+        claim_id: CLM-1006
+        appointment_id: APT-000006
+        status: rescheduled
+        scheduled_at: '2026-03-21T14:00:00Z'
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: new_claim -> get_available_slots -> update_appointment'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

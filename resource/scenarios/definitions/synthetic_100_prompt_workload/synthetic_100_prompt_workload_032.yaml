@@ -1,0 +1,147 @@
+name: synthetic_100_prompt_workload_032
+description: Single-turn synthetic workload scenario row 32.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 16.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 11, deviation: 3}
+      payload.validation: {mean: 6, deviation: 2}
+      policy.validation: {mean: 18, deviation: 5}
+      augmentation.validation: {mean: 9, deviation: 2}
+      a2a.orchestrate: {mean: 1360, deviation: 299}
+      planner: {mean: 505, deviation: 121}
+      llm.call: {mean: 411, deviation: 94}
+      task.execute: {mean: 980, deviation: 235}
+      tools.recommend: {mean: 71, deviation: 21}
+      mcp.tool.execute: {mean: 490, deviation: 127}
+      response.compose: {mean: 364, deviation: 87}
+      response.validation: {mean: 13, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 20, deviation: 5}
+      payload.validation: {mean: 11, deviation: 2}
+      policy.validation: {mean: 33, deviation: 8}
+      augmentation.validation: {mean: 16, deviation: 4}
+      a2a.orchestrate: {mean: 2516, deviation: 679}
+      planner: {mean: 934, deviation: 252}
+      llm.call: {mean: 760, deviation: 205}
+      task.execute: {mean: 1813, deviation: 489}
+      tools.recommend: {mean: 131, deviation: 35}
+      mcp.tool.execute: {mean: 906, deviation: 244}
+      response.compose: {mean: 673, deviation: 181}
+      response.validation: {mean: 24, deviation: 6}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [6, 7]
+    start_hour: 10
+    end_hour: 22
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_032
+  vendor.enduser.pseudo.id: user_syn_032
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: "Puddle step\u2014earpiece hiss. Liquid claim \\+ pickup Mar 25\u201327 mornings."
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: "Puddle step\u2014earpiece hiss. Liquid claim \\+ pickup Mar 25\u201327 mornings."
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: "**CLM-1032** liquid. Morning cluster \u2192 **SLOT-2026-03-25T09:00** locked."
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: "Puddle step\u2014earpiece hiss. Liquid claim \\+ pickup Mar 25\u201327 mornings."
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
+    agent_response: "**CLM-1032** liquid. Morning cluster \u2192 **SLOT-2026-03-25T09:00** locked."
+    tool_chain:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: "Puddle step\u2014earpiece hiss. Liquid claim \\+ pickup Mar 25\u201327 mornings."
+        incident_date: '2026-03-20'
+      get_available_slots:
+        claim_id: CLM-1032
+        service_type: repair_collection
+        date_range_start: '2026-03-20'
+        date_range_end: '2026-03-31'
+      update_appointment:
+        claim_id: CLM-1032
+        appointment_id: APT-000032
+        slot_id: SLOT-2026-03-25T09:00
+        preferred_time_window: morning
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-1032
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created from workload row.
+      get_available_slots:
+        claim_id: CLM-1032
+        slots:
+        - slot_id: SLOT-2026-03-25T09:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-03-27T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+      update_appointment:
+        claim_id: CLM-1032
+        appointment_id: APT-000032
+        status: rescheduled
+        scheduled_at: '2026-03-25T09:00:00Z'
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: new_claim -> get_available_slots -> update_appointment'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

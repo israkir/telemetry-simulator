@@ -1,0 +1,119 @@
+name: synthetic_100_prompt_workload_085
+description: Single-turn synthetic workload scenario row 85.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 25.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 8, deviation: 2}
+      payload.validation: {mean: 4, deviation: 2}
+      policy.validation: {mean: 12, deviation: 3}
+      augmentation.validation: {mean: 6, deviation: 2}
+      a2a.orchestrate: {mean: 1020, deviation: 224}
+      planner: {mean: 335, deviation: 80}
+      llm.call: {mean: 300, deviation: 69}
+      task.execute: {mean: 520, deviation: 124}
+      tools.recommend: {mean: 47, deviation: 14}
+      mcp.tool.execute: {mean: 200, deviation: 52}
+      response.compose: {mean: 268, deviation: 64}
+      response.validation: {mean: 10, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 12, deviation: 3}
+      payload.validation: {mean: 6, deviation: 2}
+      policy.validation: {mean: 18, deviation: 4}
+      augmentation.validation: {mean: 9, deviation: 2}
+      a2a.orchestrate: {mean: 1530, deviation: 413}
+      planner: {mean: 502, deviation: 135}
+      llm.call: {mean: 450, deviation: 121}
+      task.execute: {mean: 780, deviation: 210}
+      tools.recommend: {mean: 70, deviation: 19}
+      mcp.tool.execute: {mean: 300, deviation: 81}
+      response.compose: {mean: 402, deviation: 108}
+      response.validation: {mean: 15, deviation: 4}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    start_hour: 7
+    end_hour: 10
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_085
+  vendor.enduser.pseudo.id: user_syn_085
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: Explain tier differences briefly, but generate just one quote for **Plus**.
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: Explain tier differences briefly, but generate just one quote for **Plus**.
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: 'Done \- I summarized tier differences and generated one quote: **QT-500** at **$12.50/month**. No purchase yet.'
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: Explain tier differences briefly, but generate just one quote for **Plus**.
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}]}'
+    agent_response: 'Done \- I summarized tier differences and generated one quote: **QT-500** at **$12.50/month**. No purchase yet.'
+    tool_chain:
+    - choose_insurance
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      choose_insurance:
+        product_category: phone
+        coverage_tier: plus
+        region: NO-01
+    gen_ai.tool.call.result:
+      choose_insurance:
+        quote_id: QT-500
+        premium_monthly: 12.5
+        currency: EUR
+        valid_until: '2026-04-01'
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: choose_insurance'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

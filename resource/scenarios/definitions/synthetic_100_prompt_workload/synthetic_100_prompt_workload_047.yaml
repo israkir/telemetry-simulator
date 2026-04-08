@@ -1,0 +1,134 @@
+name: synthetic_100_prompt_workload_047
+description: Single-turn synthetic workload scenario row 47.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: electronics
+vendor.redaction.applied: none
+workload_weight: 15.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 10, deviation: 2}
+      payload.validation: {mean: 6, deviation: 2}
+      policy.validation: {mean: 16, deviation: 4}
+      augmentation.validation: {mean: 8, deviation: 2}
+      a2a.orchestrate: {mean: 1190, deviation: 261}
+      planner: {mean: 420, deviation: 100}
+      llm.call: {mean: 370, deviation: 85}
+      task.execute: {mean: 840, deviation: 201}
+      tools.recommend: {mean: 59, deviation: 17}
+      mcp.tool.execute: {mean: 405, deviation: 105}
+      response.compose: {mean: 316, deviation: 75}
+      response.validation: {mean: 12, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 20, deviation: 5}
+      payload.validation: {mean: 12, deviation: 3}
+      policy.validation: {mean: 32, deviation: 8}
+      augmentation.validation: {mean: 16, deviation: 4}
+      a2a.orchestrate: {mean: 2380, deviation: 642}
+      planner: {mean: 840, deviation: 226}
+      llm.call: {mean: 740, deviation: 199}
+      task.execute: {mean: 1680, deviation: 453}
+      tools.recommend: {mean: 118, deviation: 31}
+      mcp.tool.execute: {mean: 810, deviation: 218}
+      response.compose: {mean: 632, deviation: 170}
+      response.validation: {mean: 24, deviation: 6}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    start_hour: 17
+    end_hour: 22
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_047
+  vendor.enduser.pseudo.id: user_syn_047
+  channel: web
+  mcp_server: electronics
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: "Soundbar clicks after phone HDMI swap\u2014actually reschedule **soundbar/TV bundle** repair **CLM-9010** on electronics."
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: "Soundbar clicks after phone HDMI swap\u2014actually reschedule **soundbar/TV bundle** repair **CLM-9010** on electronics."
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: '**Electronics** availability pulled for **CLM-9010**; **update\_appointment** completed on the slot you selected from the list.'
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: "Soundbar clicks after phone HDMI swap\u2014actually reschedule **soundbar/TV bundle** repair **CLM-9010** on electronics."
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
+    agent_response: '**Electronics** availability pulled for **CLM-9010**; **update\_appointment** completed on the slot you selected from the list.'
+    tool_chain:
+    - get_available_slots
+    - update_appointment
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      get_available_slots:
+        claim_id: CLM-9010
+        service_type: repair_collection
+        date_range_start: '2026-03-20'
+        date_range_end: '2026-03-31'
+      update_appointment:
+        claim_id: CLM-9010
+        appointment_id: APT-000047
+        slot_id: SLOT-2026-03-25T09:00
+        preferred_time_window: morning
+    gen_ai.tool.call.result:
+      get_available_slots:
+        claim_id: CLM-9010
+        slots:
+        - slot_id: SLOT-2026-03-25T09:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-03-27T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+      update_appointment:
+        claim_id: CLM-9010
+        appointment_id: APT-000047
+        status: rescheduled
+        scheduled_at: '2026-03-25T09:00:00Z'
+    planner:
+      system_prompt: Electronics MCP; execute table-defined tool chain.
+      output: 'PLAN: get_available_slots -> update_appointment'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

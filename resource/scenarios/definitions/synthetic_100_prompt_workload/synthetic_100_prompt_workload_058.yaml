@@ -1,0 +1,122 @@
+name: synthetic_100_prompt_workload_058
+description: Single-turn synthetic workload scenario row 58.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 17.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 9, deviation: 2}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 14, deviation: 4}
+      augmentation.validation: {mean: 7, deviation: 2}
+      a2a.orchestrate: {mean: 1300, deviation: 286}
+      planner: {mean: 335, deviation: 80}
+      llm.call: {mean: 309, deviation: 71}
+      task.execute: {mean: 520, deviation: 124}
+      tools.recommend: {mean: 47, deviation: 14}
+      mcp.tool.execute: {mean: 200, deviation: 52}
+      response.compose: {mean: 328, deviation: 78}
+      response.validation: {mean: 11, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 19, deviation: 5}
+      payload.validation: {mean: 10, deviation: 2}
+      policy.validation: {mean: 29, deviation: 8}
+      augmentation.validation: {mean: 14, deviation: 4}
+      a2a.orchestrate: {mean: 2769, deviation: 747}
+      planner: {mean: 713, deviation: 192}
+      llm.call: {mean: 658, deviation: 177}
+      task.execute: {mean: 1107, deviation: 299}
+      tools.recommend: {mean: 100, deviation: 27}
+      mcp.tool.execute: {mean: 426, deviation: 115}
+      response.compose: {mean: 698, deviation: 188}
+      response.validation: {mean: 23, deviation: 6}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [5, 6, 7]
+    start_hour: 18
+    end_hour: 23
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_058
+  vendor.enduser.pseudo.id: user_syn_058
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: "Kids cracked the phone\u2014**file a claim today**, parents coordinate pickup **next week** (not now)."
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: "Kids cracked the phone\u2014**file a claim today**, parents coordinate pickup **next week** (not now)."
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: '**CLM-7008** filed; intentionally **no** slot selection in this session.'
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: "Kids cracked the phone\u2014**file a claim today**, parents coordinate pickup **next week** (not now)."
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}]}'
+    agent_response: '**CLM-7008** filed; intentionally **no** slot selection in this session.'
+    tool_chain:
+    - new_claim
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: "Kids cracked the phone\u2014**file a claim today**, parents coordinate pickup **next week** (not now)."
+        incident_date: '2026-03-20'
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-7008
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created from workload row.
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: new_claim'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

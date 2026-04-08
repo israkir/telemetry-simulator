@@ -1,0 +1,120 @@
+name: synthetic_100_prompt_workload_044
+description: Single-turn synthetic workload scenario row 44.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 17.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 8, deviation: 2}
+      payload.validation: {mean: 5, deviation: 2}
+      policy.validation: {mean: 13, deviation: 3}
+      augmentation.validation: {mean: 7, deviation: 2}
+      a2a.orchestrate: {mean: 1020, deviation: 224}
+      planner: {mean: 335, deviation: 80}
+      llm.call: {mean: 311, deviation: 71}
+      task.execute: {mean: 610, deviation: 146}
+      tools.recommend: {mean: 47, deviation: 14}
+      mcp.tool.execute: {mean: 260, deviation: 67}
+      response.compose: {mean: 268, deviation: 64}
+      response.validation: {mean: 10, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 14, deviation: 3}
+      payload.validation: {mean: 9, deviation: 2}
+      policy.validation: {mean: 24, deviation: 6}
+      augmentation.validation: {mean: 12, deviation: 3}
+      a2a.orchestrate: {mean: 1887, deviation: 509}
+      planner: {mean: 619, deviation: 167}
+      llm.call: {mean: 575, deviation: 155}
+      task.execute: {mean: 1128, deviation: 304}
+      tools.recommend: {mean: 86, deviation: 23}
+      mcp.tool.execute: {mean: 481, deviation: 129}
+      response.compose: {mean: 495, deviation: 133}
+      response.validation: {mean: 18, deviation: 4}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [6, 7]
+    start_hour: 10
+    end_hour: 22
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_044
+  vendor.enduser.pseudo.id: user_syn_044
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: Move my phone repair on **CLM-5500** from morning to **SLOT-2026-03-22T14:00** (appointment **APT-000100**).
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: Move my phone repair on **CLM-5500** from morning to **SLOT-2026-03-22T14:00** (appointment **APT-000100**).
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: Appointment **APT-000100** under **CLM-5500** is moved to **SLOT-2026-03-22T14:00**; status **rescheduled**.
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: Move my phone repair on **CLM-5500** from morning to **SLOT-2026-03-22T14:00** (appointment **APT-000100**).
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "update_appointment"}]}'
+    agent_response: Appointment **APT-000100** under **CLM-5500** is moved to **SLOT-2026-03-22T14:00**; status **rescheduled**.
+    tool_chain:
+    - update_appointment
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      update_appointment:
+        claim_id: CLM-5500
+        appointment_id: APT-000100
+        slot_id: SLOT-2026-03-22T14:00
+        preferred_time_window: afternoon
+    gen_ai.tool.call.result:
+      update_appointment:
+        claim_id: CLM-5500
+        appointment_id: APT-000100
+        status: rescheduled
+        scheduled_at: '2026-03-22T14:00:00Z'
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: update_appointment'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

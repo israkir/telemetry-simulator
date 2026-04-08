@@ -1,0 +1,147 @@
+name: synthetic_100_prompt_workload_023
+description: Single-turn synthetic workload scenario row 23.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 17.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 11, deviation: 3}
+      payload.validation: {mean: 6, deviation: 2}
+      policy.validation: {mean: 18, deviation: 5}
+      augmentation.validation: {mean: 9, deviation: 2}
+      a2a.orchestrate: {mean: 1360, deviation: 299}
+      planner: {mean: 505, deviation: 121}
+      llm.call: {mean: 419, deviation: 96}
+      task.execute: {mean: 980, deviation: 235}
+      tools.recommend: {mean: 71, deviation: 21}
+      mcp.tool.execute: {mean: 490, deviation: 127}
+      response.compose: {mean: 364, deviation: 87}
+      response.validation: {mean: 13, deviation: 3}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 22, deviation: 5}
+      payload.validation: {mean: 12, deviation: 3}
+      policy.validation: {mean: 36, deviation: 9}
+      augmentation.validation: {mean: 18, deviation: 4}
+      a2a.orchestrate: {mean: 2720, deviation: 734}
+      planner: {mean: 1010, deviation: 272}
+      llm.call: {mean: 838, deviation: 226}
+      task.execute: {mean: 1960, deviation: 529}
+      tools.recommend: {mean: 142, deviation: 38}
+      mcp.tool.execute: {mean: 980, deviation: 264}
+      response.compose: {mean: 728, deviation: 196}
+      response.validation: {mean: 26, deviation: 7}
+default_latency_profile: normal
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [1, 2, 3, 4, 5]
+    start_hour: 17
+    end_hour: 22
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_023
+  vendor.enduser.pseudo.id: user_syn_023
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: "Snatched at caf\xE9 terrace. Police report filed online\u2014start claim book assessor visit Tue/Thu AM."
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: "Snatched at caf\xE9 terrace. Police report filed online\u2014start claim book assessor visit Tue/Thu AM."
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: "**CLM-1023** loss opened. Tue/Thu AM constraint \u2192 **SLOT-2026-03-25T09:00** confirmed."
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: "Snatched at caf\xE9 terrace. Police report filed online\u2014start claim book assessor visit Tue/Thu AM."
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
+    agent_response: "**CLM-1023** loss opened. Tue/Thu AM constraint \u2192 **SLOT-2026-03-25T09:00** confirmed."
+    tool_chain:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: "Snatched at caf\xE9 terrace. Police report filed online\u2014start claim book assessor visit Tue/Thu AM."
+        incident_date: '2026-03-20'
+      get_available_slots:
+        claim_id: CLM-1023
+        service_type: repair_collection
+        date_range_start: '2026-03-20'
+        date_range_end: '2026-03-31'
+      update_appointment:
+        claim_id: CLM-1023
+        appointment_id: APT-000023
+        slot_id: SLOT-2026-03-25T09:00
+        preferred_time_window: morning
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-1023
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created from workload row.
+      get_available_slots:
+        claim_id: CLM-1023
+        slots:
+        - slot_id: SLOT-2026-03-25T09:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-03-27T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+      update_appointment:
+        claim_id: CLM-1023
+        appointment_id: APT-000023
+        status: rescheduled
+        scheduled_at: '2026-03-25T09:00:00Z'
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: new_claim -> get_available_slots -> update_appointment'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.

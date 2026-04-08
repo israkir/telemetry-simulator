@@ -1,0 +1,124 @@
+name: synthetic_100_prompt_workload_050
+description: Single-turn synthetic workload scenario row 50.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 20.0
+trace_interval_ms: 200
+trace_interval_deviation_ms: 50
+latency_profiles:
+  normal:
+    span_durations_ms:
+      request.validation: {mean: 13, deviation: 3}
+      payload.validation: {mean: 8, deviation: 2}
+      policy.validation: {mean: 22, deviation: 6}
+      augmentation.validation: {mean: 11, deviation: 3}
+      a2a.orchestrate: {mean: 1930, deviation: 424}
+      planner: {mean: 475, deviation: 114}
+      llm.call: {mean: 354, deviation: 81}
+      task.execute: {mean: 840, deviation: 201}
+      tools.recommend: {mean: 67, deviation: 20}
+      mcp.tool.execute: {mean: 405, deviation: 105}
+      response.compose: {mean: 406, deviation: 97}
+      response.validation: {mean: 15, deviation: 4}
+  peak_hours:
+    span_durations_ms:
+      request.validation: {mean: 22, deviation: 6}
+      payload.validation: {mean: 13, deviation: 3}
+      policy.validation: {mean: 38, deviation: 10}
+      augmentation.validation: {mean: 19, deviation: 5}
+      a2a.orchestrate: {mean: 3338, deviation: 901}
+      planner: {mean: 821, deviation: 221}
+      llm.call: {mean: 612, deviation: 165}
+      task.execute: {mean: 1453, deviation: 392}
+      tools.recommend: {mean: 115, deviation: 31}
+      mcp.tool.execute: {mean: 700, deviation: 189}
+      response.compose: {mean: 702, deviation: 189}
+      response.validation: {mean: 25, deviation: 7}
+default_latency_profile: peak_hours
+workload_schedule:
+  peak_hours:
+    timezone: America/Los_Angeles
+    weekdays: [5, 6, 7]
+    start_hour: 18
+    end_hour: 23
+x_new_claim_span_plan: &id001
+  cp_request:
+    root: request.validation
+    children:
+    - payload.validation
+    - policy.validation
+    - augmentation.validation
+  data_plane:
+    root: a2a.orchestrate
+    children:
+    - planner
+    - task.execute
+    - llm.call
+    - tools.recommend
+    - mcp.tool.execute
+    - mcp.tool.execute.attempt
+    - response.compose
+  cp_response:
+    root: response.validation
+    children:
+    - policy.validation
+endusers:
+- id: synthetic_row_050
+  vendor.enduser.pseudo.id: user_syn_050
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    span_plan: *id001
+    vendor.enduser.request.raw: For **CLM-1104**, I need something **soon-ish** and maybe **later today**.
+    span_events:
+    - target_span_class: request.validation
+      name: gentoro.enduser.request
+      attributes:
+        vendor.enduser.request.raw: For **CLM-1104**, I need something **soon-ish** and maybe **later today**.
+    - target_span_class: response.validation
+      name: gentoro.agent.response
+      attributes:
+        vendor.agent.response.raw: Here are available slots, reply with a **slot\_id** when ready.
+    - target_span_class: tools.recommend
+      name: gentoro.agent.tool_selection
+      attributes:
+        vendor.agent.tool_selection.input.raw: For **CLM-1104**, I need something **soon-ish** and maybe **later today**.
+        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "get_available_slots"}]}'
+    agent_response: Here are available slots, reply with a **slot\_id** when ready.
+    tool_chain:
+    - get_available_slots
+    - get_available_slots
+    gen_ai.request.type: completion
+    gen_ai.response.finish_reason: stop
+    gen_ai.usage.input_tokens: 900
+    gen_ai.usage.output_tokens: 130
+    gentoro.llm.streaming: false
+    gentoro.llm.content.capture.enabled: true
+    gentoro.llm.content.redaction.enabled: false
+    gen_ai.tool.call.arguments:
+      get_available_slots:
+        claim_id: CLM-1104
+        service_type: repair_collection
+        date_range_start: '2026-03-20'
+        date_range_end: '2026-03-31'
+    gen_ai.tool.call.result:
+      get_available_slots:
+        claim_id: CLM-1104
+        slots:
+        - slot_id: SLOT-2026-03-25T09:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-03-27T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+    planner:
+      system_prompt: Phone MCP; execute table-defined tool chain.
+      output: 'PLAN: get_available_slots -> get_available_slots'
+    response_compose:
+      system_prompt: Return concise customer-facing confirmation in plain language.
