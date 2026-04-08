@@ -490,7 +490,6 @@ class ScenarioRunner:
         scenarios = self.scenario_loader.load_all()
         if tags:
             scenarios = [s for s in scenarios if s.tags and any(t in s.tags for t in tags)]
-        scenarios = [s for s in scenarios if self._scenario_is_active_now(s)]
         if not scenarios:
             return ([], {})
         self._synthetic_next_trace_start_ns = None
