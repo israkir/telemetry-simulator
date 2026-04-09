@@ -1,0 +1,61 @@
+name: synthetic_100_prompt_workload_109
+description: Single-turn synthetic workload scenario row 109.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: electronics
+vendor.redaction.applied: none
+workload_weight: 17.0
+endusers:
+- id: synthetic_row_109
+  vendor.enduser.pseudo.id: user_syn_109
+  channel: web
+  mcp_server: electronics
+  turns:
+  - turn_index: 1
+    vendor.enduser.request.raw: Display tint + **phone electronics** thermal throttling—**start claim**, then use **electronics** scheduling only (not phone tools).
+    agent_response: '**CLM-8109** created; **electronics** slot list consumed; **update_appointment** completed on selected slot.'
+    tool_chain:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: Display tint and thermal throttling.
+        incident_date: '2026-04-03'
+      get_available_slots:
+        claim_id: CLM-8109
+        service_type: repair_collection
+        date_range_start: '2026-04-04'
+        date_range_end: '2026-04-12'
+      update_appointment:
+        claim_id: CLM-8109
+        appointment_id: APT-000109
+        slot_id: SLOT-2026-04-09T14:00
+        preferred_time_window: afternoon
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-8109
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created on electronics lane.
+      get_available_slots:
+        claim_id: CLM-8109
+        slots:
+        - slot_id: SLOT-2026-04-09T14:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-04-10T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+      update_appointment:
+        claim_id: CLM-8109
+        appointment_id: APT-000109
+        status: rescheduled
+        scheduled_at: '2026-04-09T14:00:00Z'

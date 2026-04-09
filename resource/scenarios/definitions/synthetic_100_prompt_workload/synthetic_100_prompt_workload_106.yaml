@@ -1,0 +1,61 @@
+name: synthetic_100_prompt_workload_106
+description: Single-turn synthetic workload scenario row 106.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: electronics
+vendor.redaction.applied: none
+workload_weight: 17.0
+endusers:
+- id: synthetic_row_106
+  vendor.enduser.pseudo.id: user_syn_106
+  channel: web
+  mcp_server: electronics
+  turns:
+  - turn_index: 1
+    vendor.enduser.request.raw: My **phone electronics** keep glitching after the last update—**start a claim** and book repair; use whatever **electronics** slot is closest to **SLOT-2026-04-02T14:00**.
+    agent_response: '**CLM-8106** created; agent used **electronics** tools—listed slots and confirmed **SLOT-2026-04-02T14:00** (wrong department vs phone lane).'
+    tool_chain:
+    - new_claim
+    - get_available_slots
+    - update_appointment
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: Phone electronics glitch after update.
+        incident_date: '2026-04-01'
+      get_available_slots:
+        claim_id: CLM-8106
+        service_type: repair_collection
+        date_range_start: '2026-04-02'
+        date_range_end: '2026-04-09'
+      update_appointment:
+        claim_id: CLM-8106
+        appointment_id: APT-000106
+        slot_id: SLOT-2026-04-02T14:00
+        preferred_time_window: afternoon
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-8106
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created on electronics lane.
+      get_available_slots:
+        claim_id: CLM-8106
+        slots:
+        - slot_id: SLOT-2026-04-02T14:00
+          duration_minutes: 120
+        - slot_id: SLOT-2026-04-03T14:00
+          duration_minutes: 120
+        timezone: America/Los_Angeles
+      update_appointment:
+        claim_id: CLM-8106
+        appointment_id: APT-000106
+        status: rescheduled
+        scheduled_at: '2026-04-02T14:00:00Z'

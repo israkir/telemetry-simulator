@@ -1,0 +1,47 @@
+name: synthetic_100_prompt_workload_101
+description: Single-turn synthetic workload scenario row 101.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 17.0
+endusers:
+- id: synthetic_row_101
+  vendor.enduser.pseudo.id: user_syn_101
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    vendor.enduser.request.raw: Dropped my Toro phone—corner dent and loose back glass. **Open a new claim** and book **SLOT-2026-04-02T10:00** exactly; I already picked that window in the app preview.
+    agent_response: '**CLM-8101** opened for impact damage; **update_appointment** applied directly to **SLOT-2026-04-02T10:00**—no separate slot listing step.'
+    tool_chain:
+    - new_claim
+    - update_appointment
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: Dropped my Toro phone with corner dent and loose back glass.
+        incident_date: '2026-04-01'
+      update_appointment:
+        claim_id: CLM-8101
+        appointment_id: APT-000101
+        slot_id: SLOT-2026-04-02T10:00
+        preferred_time_window: morning
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-8101
+        product_type: phone
+        status: opened
+        coverage:
+          type: device_damage
+          deductible: 75
+        notes: Claim created from workload row.
+      update_appointment:
+        claim_id: CLM-8101
+        appointment_id: APT-000101
+        status: rescheduled
+        scheduled_at: '2026-04-02T10:00:00Z'

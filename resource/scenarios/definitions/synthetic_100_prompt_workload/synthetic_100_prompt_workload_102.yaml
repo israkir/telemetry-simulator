@@ -1,0 +1,47 @@
+name: synthetic_100_prompt_workload_102
+description: Single-turn synthetic workload scenario row 102.
+tags:
+- normal
+- synthetic
+- single-turn
+tenant: toro
+agent: toro-customer-assistant-001
+mcp_server: phone
+vendor.redaction.applied: none
+workload_weight: 17.0
+endusers:
+- id: synthetic_row_102
+  vendor.enduser.pseudo.id: user_syn_102
+  channel: web
+  mcp_server: phone
+  turns:
+  - turn_index: 1
+    vendor.enduser.request.raw: Theft last night—**start claim** under Toro and lock the assessor slot **SLOT-2026-04-03T14:00** from the SMS (**no need to show me other times**).
+    agent_response: '**CLM-8102** loss created; appointment set on **SLOT-2026-04-03T14:00** per your specified slot.'
+    tool_chain:
+    - new_claim
+    - update_appointment
+    gen_ai.tool.call.arguments:
+      new_claim:
+        product_type: phone
+        description: Theft reported last night under Toro.
+        incident_date: '2026-04-02'
+      update_appointment:
+        claim_id: CLM-8102
+        appointment_id: APT-000102
+        slot_id: SLOT-2026-04-03T14:00
+        preferred_time_window: afternoon
+    gen_ai.tool.call.result:
+      new_claim:
+        claim_id: CLM-8102
+        product_type: phone
+        status: opened
+        coverage:
+          type: loss
+          deductible: 75
+        notes: Claim created from workload row.
+      update_appointment:
+        claim_id: CLM-8102
+        appointment_id: APT-000102
+        status: rescheduled
+        scheduled_at: '2026-04-03T14:00:00Z'
