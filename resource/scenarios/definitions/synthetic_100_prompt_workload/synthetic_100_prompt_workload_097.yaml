@@ -1,12 +1,12 @@
 name: synthetic_100_prompt_workload_097
 description: Single-turn synthetic workload scenario row 97.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - B3
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 28.0
 trace_interval_ms: 200
@@ -51,91 +51,93 @@ x_new_claim_span_plan: &id001
   cp_request:
     root: request.validation
     children:
-    - payload.validation
-    - policy.validation
-    - augmentation.validation
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
   data_plane:
     root: a2a.orchestrate
     children:
-    - planner
-    - task.execute
-    - llm.call
-    - tools.recommend
-    - mcp.tool.execute
-    - mcp.tool.execute.attempt
-    - response.compose
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
   cp_response:
     root: response.validation
     children:
-    - policy.validation
+      - policy.validation
 endusers:
-- id: synthetic_row_097
-  vendor.enduser.pseudo.id: user_syn_097
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    span_plan: *id001
-    vendor.enduser.request.raw: Please proceed with **appliances** coverage for using **QT-300**, then pay **$50.00** on **policy renewal**.
-    span_events:
-    - target_span_class: request.validation
-      name: gentoro.enduser.request
-      attributes:
-        vendor.enduser.request.raw: Please proceed with **appliances** coverage for using **QT-300**, then pay **$50.00** on **policy renewal**.
-    - target_span_class: response.validation
-      name: gentoro.agent.response
-      attributes:
-        vendor.agent.response.raw: Done. I set up your appliances policy from quote **QT-300**, activated it as **POL-700**, and recorded the **$50.00** renewal payment successfully.
-    - target_span_class: tools.recommend
-      name: gentoro.agent.tool_selection
-      attributes:
-        vendor.agent.tool_selection.input.raw: Please proceed with **appliances** coverage for using **QT-300**, then pay **$50.00** on **policy renewal**.
-        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}, {"tool_name": "buy_insurance"}, {"tool_name": "pay"}]}'
-    agent_response: Done. I set up your appliances policy from quote **QT-300**, activated it as **POL-700**, and recorded the **$50.00** renewal payment successfully.
-    tool_chain:
-    - choose_insurance
-    - buy_insurance
-    - pay
-    gen_ai.request.type: completion
-    gen_ai.response.finish_reason: stop
-    gen_ai.usage.input_tokens: 900
-    gen_ai.usage.output_tokens: 130
-    gentoro.llm.streaming: false
-    gentoro.llm.content.capture.enabled: true
-    gentoro.llm.content.redaction.enabled: false
-    gen_ai.tool.call.arguments:
-      choose_insurance:
-        product_category: appliances
-        coverage_tier: standard
-        region: NO-01
-      buy_insurance:
-        quote_id: QT-300
-        payment_method: card_on_file
-        holder_reference: enduser_0097
-      pay:
-        payment_target: policy_renewal
-        reference_id: POL-700
-        amount: 50.0
-        currency: EUR
-    gen_ai.tool.call.result:
-      choose_insurance:
-        quote_id: QT-300
-        premium_monthly: 50.0
-        currency: EUR
-        valid_until: '2026-04-01'
-      buy_insurance:
-        policy_id: POL-700
-        quote_id: QT-300
-        effective_date: '2026-03-20'
-        status: active
-      pay:
-        payment_id: PAY-397
-        reference_id: POL-700
-        status: captured
-        amount: 50.0
-        currency: EUR
-    planner:
-      system_prompt: Phone MCP; execute table-defined tool chain.
-      output: 'PLAN: choose_insurance -> buy_insurance -> pay'
-    response_compose:
-      system_prompt: Return concise customer-facing confirmation in plain language.
+  - id: synthetic_row_097
+    vendor.enduser.pseudo.id: user_syn_097
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *id001
+        vendor.enduser.request.raw: "Appliances renewal - use QT-300 and pay the $50 on the policy."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Appliances renewal - use QT-300 and pay the $50 on the policy."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: Done. I set up your appliances policy from quote QT-300, activated it as POL-700, and recorded the $50.00 renewal payment successfully.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Appliances renewal - use QT-300 and pay the $50 on the policy."
+              vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}, {"tool_name": "buy_insurance"}, {"tool_name": "pay"}]}'
+        agent_response: Done. I set up your appliances policy from quote QT-300, activated it as POL-700, and recorded the $50.00 renewal payment successfully.
+        tool_chain:
+          - mcp_server: phone
+            tool: choose_insurance
+          - mcp_server: phone
+            tool: buy_insurance
+          - mcp_server: phone
+            tool: pay
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 130
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          choose_insurance:
+            product_category: appliances
+            coverage_tier: standard
+            region: NO-01
+          buy_insurance:
+            quote_id: QT-300
+            payment_method: card_on_file
+            holder_reference: enduser_0097
+          pay:
+            payment_target: policy_renewal
+            reference_id: POL-700
+            amount: 50.0
+            currency: EUR
+        gen_ai.tool.call.result:
+          choose_insurance:
+            quote_id: QT-300
+            premium_monthly: 50.0
+            currency: EUR
+            valid_until: '2026-04-01'
+          buy_insurance:
+            policy_id: POL-700
+            quote_id: QT-300
+            effective_date: '2026-03-20'
+            status: active
+          pay:
+            payment_id: PAY-397
+            reference_id: POL-700
+            status: captured
+            amount: 50.0
+            currency: EUR
+        planner:
+          system_prompt: Phone MCP; execute table-defined tool chain.
+          output: 'PLAN: choose_insurance -> buy_insurance -> pay'
+        response_compose:
+          system_prompt: Return concise customer-facing confirmation in plain language.

@@ -3,7 +3,7 @@ Load scenario definitions from YAML.
 
 Scenarios are stored under resource/scenarios/definitions (or --scenarios-dir).
 Each file defines name, tenant/agent/mcp_server keys, endusers with turns (optional per-enduser
-`mcp_server` override),
+`mcp_server` override; turns may use rich ``tool_chain`` entries with per-step ``mcp_server``),
 latency_profiles, and latency_profile_conditions. All processing logic
 is driven by these YAML files and semconv conventions.
 """
@@ -29,6 +29,64 @@ def _default_definitions_dir() -> Path:
 
 # Bundled sample definitions path (for tests and default CLI).
 SAMPLE_DEFINITIONS_DIR = _default_definitions_dir()
+
+
+def _parse_tool_chain_for_turn(data: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """
+    Parse ``tool_chain`` into tool names and optional per-tool MCP server keys.
+
+    Rich form (each step names the server explicitly)::
+
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: electronics
+            tool: get_available_slots
+
+    Legacy form: a list of tool name strings, optionally with parallel
+    ``tool_chain_mcp_servers: [phone, ...]``.
+    """
+    raw = data.get("tool_chain")
+    if raw is None:
+        return [], []
+    if not isinstance(raw, list):
+        return [], []
+    if not raw:
+        return [], []
+
+    if isinstance(raw[0], dict):
+        if not all(isinstance(x, dict) for x in raw):
+            raise ValueError(
+                "tool_chain must be either all mappings "
+                "(mcp_server + tool/name) or all tool name strings, not mixed."
+            )
+        tools: list[str] = []
+        servers: list[str] = []
+        for item in raw:
+            t = str(item.get("tool") or item.get("name") or "").strip()
+            if not t:
+                raise ValueError(
+                    "tool_chain mapping entries must set non-empty 'tool' or 'name'."
+                )
+            srv = str(item.get("mcp_server") or item.get("mcp") or "").strip()
+            tools.append(t)
+            servers.append(srv)
+        return tools, servers
+
+    for x in raw:
+        if isinstance(x, dict):
+            raise ValueError(
+                "tool_chain must be either all mappings "
+                "(mcp_server + tool/name) or all tool name strings, not mixed."
+            )
+    tools = [str(x).strip() for x in raw if isinstance(x, str) and str(x).strip()]
+    tcms_raw = data.get("tool_chain_mcp_servers") or []
+    servers: list[str] = []
+    if isinstance(tcms_raw, list):
+        for x in tcms_raw:
+            if isinstance(x, str) and x.strip():
+                servers.append(x.strip())
+    return tools, servers
 
 
 @dataclass
@@ -59,6 +117,10 @@ class ScenarioTurn:
     #       vendor.enduser.request.raw.redacted: "..."
     #     timestamp_ns: 123456789 (optional)
     span_events: list[dict[str, Any]] = field(default_factory=list)
+    # Optional: MCP server key per tool_chain index (from rich tool_chain YAML or
+    # legacy tool_chain_mcp_servers). When non-empty, compiler resolves each tool
+    # against that server; empty string means scenario/enduser default.
+    tool_chain_mcp_servers: list[str] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -133,12 +195,13 @@ def _parse_turn(data: dict[str, Any], turn_index: int) -> ScenarioTurn:
     )
     span_events_raw = data.get("span_events") or []
     span_events = span_events_raw if isinstance(span_events_raw, list) else []
+    tool_chain, tool_chain_mcp_servers = _parse_tool_chain_for_turn(data)
     return ScenarioTurn(
         turn_index=turn_index,
         request_raw=raw,
         request_raw_redacted=redacted,
         agent_response=data.get("agent_response", ""),
-        tool_chain=data.get("tool_chain") or [],
+        tool_chain=tool_chain,
         gen_ai_tool_call_arguments=data.get("gen_ai.tool.call.arguments") or {},
         gen_ai_tool_call_result=data.get("gen_ai.tool.call.result") or {},
         planner=data.get("planner") or {},
@@ -147,6 +210,7 @@ def _parse_turn(data: dict[str, Any], turn_index: int) -> ScenarioTurn:
         has_agent_response="agent_response" in data,
         has_tool_chain="tool_chain" in data,
         span_events=span_events,
+        tool_chain_mcp_servers=tool_chain_mcp_servers,
         extra={
             k: v
             for k, v in data.items()
@@ -159,6 +223,7 @@ def _parse_turn(data: dict[str, Any], turn_index: int) -> ScenarioTurn:
                 "request_raw_redacted",
                 "agent_response",
                 "tool_chain",
+                "tool_chain_mcp_servers",
                 "gen_ai.tool.call.arguments",
                 "gen_ai.tool.call.result",
                 "planner",

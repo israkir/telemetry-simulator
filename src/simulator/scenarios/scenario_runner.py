@@ -416,6 +416,7 @@ class ScenarioRunner:
                         config=self._config,
                         shared_session_id=shared_session_id,
                         shared_conversation_id=shared_conversation_id,
+                        default_tenant_id=default_tenant_id,
                     )
                     if self.debug_validate:
                         validate_trace_graph(graph, attr_prefix=sim_config.ATTR_PREFIX)

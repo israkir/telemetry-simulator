@@ -1,36 +1,36 @@
 name: synthetic_100_prompt_workload_113
 description: Single-turn synthetic workload scenario row 113.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C5
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_113
-  vendor.enduser.pseudo.id: user_syn_113
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: Pocket snatch—**open loss claim**; police ref is en route, **don’t book** anything until I paste it.
-    agent_response: '**CLM-8113** loss intake **opened**; appointment tools withheld pending reference.'
-    tool_chain:
-    - new_claim
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Pocket snatch theft incident pending police reference.
-        incident_date: '2026-04-03'
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8113
-        product_type: phone
-        status: opened
-        coverage:
-          type: loss
-          deductible: 75
-        notes: Claim created from workload row.
+  - id: synthetic_row_113
+    vendor.enduser.pseudo.id: user_syn_113
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: Pocket snatch - open loss claim; police ref is en route, don't book anything until I paste it.
+        agent_response: 'CLM-8113 loss intake opened; appointment tools withheld pending reference.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Pocket snatch theft incident pending police reference.
+            incident_date: '2026-04-03'
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8113
+            product_type: phone
+            status: opened
+            coverage:
+              type: loss
+              deductible: 75
+            notes: Claim created from workload row.

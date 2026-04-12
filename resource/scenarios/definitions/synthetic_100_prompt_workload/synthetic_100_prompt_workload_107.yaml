@@ -1,61 +1,63 @@
 name: synthetic_100_prompt_workload_107
 description: Single-turn synthetic workload scenario row 107.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C3
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: electronics
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_107
-  vendor.enduser.pseudo.id: user_syn_107
-  channel: web
-  mcp_server: electronics
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: The **phone’s electronics** (board/charging) feel unreliable—**file a new Toro claim** and schedule on **electronics** availability this week PM.
-    agent_response: '**CLM-8107** opened; **electronics/get_available_slots** then **electronics/update_appointment** on a returned afternoon **slot_id**.'
-    tool_chain:
-    - new_claim
-    - get_available_slots
-    - update_appointment
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Board and charging reliability issue.
-        incident_date: '2026-04-02'
-      get_available_slots:
-        claim_id: CLM-8107
-        service_type: repair_collection
-        date_range_start: '2026-04-03'
-        date_range_end: '2026-04-10'
-      update_appointment:
-        claim_id: CLM-8107
-        appointment_id: APT-000107
-        slot_id: SLOT-2026-04-04T14:00
-        preferred_time_window: afternoon
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8107
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created on electronics lane.
-      get_available_slots:
-        claim_id: CLM-8107
-        slots:
-        - slot_id: SLOT-2026-04-04T14:00
-          duration_minutes: 120
-        - slot_id: SLOT-2026-04-05T14:00
-          duration_minutes: 120
-        timezone: America/Los_Angeles
-      update_appointment:
-        claim_id: CLM-8107
-        appointment_id: APT-000107
-        status: rescheduled
-        scheduled_at: '2026-04-04T14:00:00Z'
+  - id: synthetic_row_107
+    vendor.enduser.pseudo.id: user_syn_107
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: The phone's guts - board/charging - feel unreliable after last week. Please file a new Toro claim and book an afternoon repair slot this week.
+        agent_response: "CLM-8107 opened on phone; electronics get_available_slots then update_appointment on a returned afternoon slot_id."
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: electronics
+            tool: get_available_slots
+          - mcp_server: electronics
+            tool: update_appointment
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Board and charging reliability issue.
+            incident_date: '2026-04-02'
+          get_available_slots:
+            claim_id: CLM-8107
+            service_type: repair_collection
+            date_range_start: '2026-04-03'
+            date_range_end: '2026-04-10'
+          update_appointment:
+            claim_id: CLM-8107
+            appointment_id: APT-000107
+            slot_id: SLOT-2026-04-04T14:00
+            preferred_time_window: afternoon
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8107
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Phone MCP intake before misrouted electronics scheduling.
+          get_available_slots:
+            claim_id: CLM-8107
+            slots:
+              - slot_id: SLOT-2026-04-04T14:00
+                duration_minutes: 120
+              - slot_id: SLOT-2026-04-05T14:00
+                duration_minutes: 120
+            timezone: America/Los_Angeles
+          update_appointment:
+            claim_id: CLM-8107
+            appointment_id: APT-000107
+            status: rescheduled
+            scheduled_at: '2026-04-04T14:00:00Z'

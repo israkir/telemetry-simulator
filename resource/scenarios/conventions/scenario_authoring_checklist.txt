@@ -2,6 +2,8 @@ SCENARIO AUTHORING CHECKLIST (telemetry-simulator)
 Path: resource/scenarios/definitions/**/*.yaml
 Purpose: Rules for editing scenario YAML so loads, compile_turn, and validate_trace_graph succeed.
 
+Design codes (``C1``–``C5``, ``B1``–``B3``) are defined in ``resource/scenarios/conventions/SCENARIO_DESIGN.md``. Each ``synthetic_100_prompt_workload_NNN.yaml`` must include the matching code as a ``tags`` entry (row ``NNN`` ↔ code per that doc’s “Current Scenarios” table).
+
 SECTION 1 — REQUIRED CONFIG ALIGNMENT
 - tenant: must be a key under resource/config/config.yaml tenants.
 - agent: must match an entry in agents[].id.
@@ -9,7 +11,16 @@ SECTION 1 — REQUIRED CONFIG ALIGNMENT
 - Do not put MCP server UUIDs or tool UUIDs in scenario YAML; compiler resolves from config.
 
 SECTION 2 — TOOLS AND PAYLOADS
-- tool_chain: every name must exist on that enduser's MCP server tools[].name for the resolved server.
+- tool_chain: list of tool steps. Preferred shape embeds the MCP server per step (keys under resource/config/config.yaml mcp_servers)::
+    tool_chain:
+      - mcp_server: phone
+        tool: new_claim
+      - mcp_server: electronics
+        tool: get_available_slots
+  Use ``name`` as an alias for ``tool`` if needed. Omit ``mcp_server`` (or leave empty) to use the scenario/enduser default server for that step.
+  Legacy: a plain list of tool name strings, optionally with parallel ``tool_chain_mcp_servers: [phone, ...]``.
+  ``synthetic_100_prompt_workload/*.yaml``: always use the rich shape (``mcp_server`` + ``tool``) for every step; do not use legacy string lists there. Omit scenario-level and enduser-level ``mcp_server`` there (defaults come from each step).
+- Every tool name must exist on the MCP server used for that step (see mcp_servers[].tools[].name).
 - gen_ai.tool.call.arguments and gen_ai.tool.call.result: top-level keys must be exactly the tools in tool_chain for that turn.
 - Under each tool, only field names allowed by resource/config/config.yaml mcp_tool_genai_payloads.<tool>.gen_ai.tool.call.arguments.structure and .result.structure (no extra keys).
 - If the same tool name appears twice in one tool_chain, one YAML payload block applies to both; avoid duplicate names when arguments differ per call.
@@ -30,6 +41,8 @@ SECTION 5 — FAILURE AND SHORT-CIRCUIT SCENARIOS
 
 SECTION 6 — USER-FACING TEXT
 - agent_response and vendor.agent.response.raw (and similar): write for the end user in plain language; avoid MCP, HTTP status codes, internal reason enums, and "tool call" jargon unless the scenario is explicitly internal-only.
+- Use plain prose only in user and agent-visible strings (no markdown bold, no typographic dashes or quotes); keep ASCII punctuation. Match the same wording in vendor.enduser.request.raw, mirrored span_events attributes, vendor.agent.tool_selection.input.raw, and gen_ai.tool.call.arguments descriptions when they echo the user story.
+- Appointment times in user prompts and agent-visible copy: use a readable form (e.g. ``Friday, March 27, 2026, 2:00 PM PT``). Keep ``slot_id`` values as ``SLOT-2026-…`` tokens under ``gen_ai.tool.call`` / structured payloads only.
 - Put technical detail in span attributes and events, not in customer-visible strings.
 
 SECTION 7 — VERIFICATION AFTER EDITS

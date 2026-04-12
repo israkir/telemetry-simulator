@@ -1,12 +1,12 @@
 name: synthetic_100_prompt_workload_047
 description: Single-turn synthetic workload scenario row 47.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C3
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: electronics
 vendor.redaction.applied: none
 workload_weight: 15.0
 trace_interval_ms: 200
@@ -51,84 +51,99 @@ x_new_claim_span_plan: &id001
   cp_request:
     root: request.validation
     children:
-    - payload.validation
-    - policy.validation
-    - augmentation.validation
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
   data_plane:
     root: a2a.orchestrate
     children:
-    - planner
-    - task.execute
-    - llm.call
-    - tools.recommend
-    - mcp.tool.execute
-    - mcp.tool.execute.attempt
-    - response.compose
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
   cp_response:
     root: response.validation
     children:
-    - policy.validation
+      - policy.validation
 endusers:
-- id: synthetic_row_047
-  vendor.enduser.pseudo.id: user_syn_047
-  channel: web
-  mcp_server: electronics
-  turns:
-  - turn_index: 1
-    span_plan: *id001
-    vendor.enduser.request.raw: "Soundbar clicks after phone HDMI swap\u2014actually reschedule **soundbar/TV bundle** repair **CLM-9010** on electronics."
-    span_events:
-    - target_span_class: request.validation
-      name: gentoro.enduser.request
-      attributes:
-        vendor.enduser.request.raw: "Soundbar clicks after phone HDMI swap\u2014actually reschedule **soundbar/TV bundle** repair **CLM-9010** on electronics."
-    - target_span_class: response.validation
-      name: gentoro.agent.response
-      attributes:
-        vendor.agent.response.raw: '**Electronics** availability pulled for **CLM-9010**; **update\_appointment** completed on the slot you selected from the list.'
-    - target_span_class: tools.recommend
-      name: gentoro.agent.tool_selection
-      attributes:
-        vendor.agent.tool_selection.input.raw: "Soundbar clicks after phone HDMI swap\u2014actually reschedule **soundbar/TV bundle** repair **CLM-9010** on electronics."
-        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
-    agent_response: '**Electronics** availability pulled for **CLM-9010**; **update\_appointment** completed on the slot you selected from the list.'
-    tool_chain:
-    - get_available_slots
-    - update_appointment
-    gen_ai.request.type: completion
-    gen_ai.response.finish_reason: stop
-    gen_ai.usage.input_tokens: 900
-    gen_ai.usage.output_tokens: 130
-    gentoro.llm.streaming: false
-    gentoro.llm.content.capture.enabled: true
-    gentoro.llm.content.redaction.enabled: false
-    gen_ai.tool.call.arguments:
-      get_available_slots:
-        claim_id: CLM-9010
-        service_type: repair_collection
-        date_range_start: '2026-03-20'
-        date_range_end: '2026-03-31'
-      update_appointment:
-        claim_id: CLM-9010
-        appointment_id: APT-000047
-        slot_id: SLOT-2026-03-25T09:00
-        preferred_time_window: morning
-    gen_ai.tool.call.result:
-      get_available_slots:
-        claim_id: CLM-9010
-        slots:
-        - slot_id: SLOT-2026-03-25T09:00
-          duration_minutes: 120
-        - slot_id: SLOT-2026-03-27T14:00
-          duration_minutes: 120
-        timezone: America/Los_Angeles
-      update_appointment:
-        claim_id: CLM-9010
-        appointment_id: APT-000047
-        status: rescheduled
-        scheduled_at: '2026-03-25T09:00:00Z'
-    planner:
-      system_prompt: Electronics MCP; execute table-defined tool chain.
-      output: 'PLAN: get_available_slots -> update_appointment'
-    response_compose:
-      system_prompt: Return concise customer-facing confirmation in plain language.
+  - id: synthetic_row_047
+    vendor.enduser.pseudo.id: user_syn_047
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *id001
+        vendor.enduser.request.raw: "After I moved the HDMI from my phone to the soundbar, the soundbar clicks on some inputs. I need our soundbar + TV bundle rescheduled; if your flow starts with the handset, OK - just make sure the visit is for that living-room bundle, not only the phone. Wednesday, March 25, 2026, 9:00 AM PT works if you have it."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "After I moved the HDMI from my phone to the soundbar, the soundbar clicks on some inputs. I need our soundbar + TV bundle rescheduled; if your flow starts with the handset, OK - just make sure the visit is for that living-room bundle, not only the phone. Wednesday, March 25, 2026, 9:00 AM PT works if you have it."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "CLM-9010 logged via phone intake; electronics availability pulled and update_appointment completed on Wednesday, March 25, 2026, 9:00 AM PT."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "After I moved the HDMI from my phone to the soundbar, the soundbar clicks on some inputs. I need our soundbar + TV bundle rescheduled; if your flow starts with the handset, OK - just make sure the visit is for that living-room bundle, not only the phone. Wednesday, March 25, 2026, 9:00 AM PT works if you have it."
+              vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
+        agent_response: "CLM-9010 logged via phone intake; electronics availability pulled and update_appointment completed on Wednesday, March 25, 2026, 9:00 AM PT."
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: electronics
+            tool: get_available_slots
+          - mcp_server: electronics
+            tool: update_appointment
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 130
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: HDMI moved from phone to soundbar; soundbar clicks. User rescheduling soundbar+TV bundle (CLM-9010 in system); prefers Wed Mar 25 2026 9am PT.
+            incident_date: '2026-03-20'
+          get_available_slots:
+            claim_id: CLM-9010
+            service_type: repair_collection
+            date_range_start: '2026-03-20'
+            date_range_end: '2026-03-31'
+          update_appointment:
+            claim_id: CLM-9010
+            appointment_id: APT-000047
+            slot_id: SLOT-2026-03-25T09:00
+            preferred_time_window: morning
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-9010
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Phone MCP intake before misrouted electronics scheduling.
+          get_available_slots:
+            claim_id: CLM-9010
+            slots:
+              - slot_id: SLOT-2026-03-25T09:00
+                duration_minutes: 120
+              - slot_id: SLOT-2026-03-27T14:00
+                duration_minutes: 120
+            timezone: America/Los_Angeles
+          update_appointment:
+            claim_id: CLM-9010
+            appointment_id: APT-000047
+            status: rescheduled
+            scheduled_at: '2026-03-25T09:00:00Z'
+        planner:
+          system_prompt: Phone then electronics MCP; execute table-defined tool chain.
+          output: 'PLAN: new_claim -> get_available_slots -> update_appointment'
+        response_compose:
+          system_prompt: Return concise customer-facing confirmation in plain language.

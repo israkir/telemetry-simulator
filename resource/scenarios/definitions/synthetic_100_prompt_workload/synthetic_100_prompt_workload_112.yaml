@@ -1,36 +1,36 @@
 name: synthetic_100_prompt_workload_112
 description: Single-turn synthetic workload scenario row 112.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C5
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_112
-  vendor.enduser.pseudo.id: user_syn_112
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: '**File claim**: swim bag leak, mic dead—need claim number for work IT **before** any repair booking.'
-    agent_response: '**CLM-8112** liquid claim **opened** with reference on the ticket; scheduling deferred.'
-    tool_chain:
-    - new_claim
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Swim bag leak caused microphone failure.
-        incident_date: '2026-04-03'
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8112
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created from workload row.
+  - id: synthetic_row_112
+    vendor.enduser.pseudo.id: user_syn_112
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: 'File claim: swim bag leak, mic dead - need claim number for work IT before any repair booking.'
+        agent_response: 'CLM-8112 liquid claim opened with reference on the ticket; scheduling deferred.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Swim bag leak caused microphone failure.
+            incident_date: '2026-04-03'
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8112
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Claim created from workload row.

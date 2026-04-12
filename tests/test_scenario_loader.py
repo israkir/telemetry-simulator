@@ -7,7 +7,11 @@ import pytest
 
 from simulator.config import load_config
 from simulator.scenarios import SAMPLE_DEFINITIONS_DIR, ScenarioLoader
-from simulator.scenarios.scenario_loader import EXAMPLE_SCENARIO_NAME, load_scenario_yaml
+from simulator.scenarios.scenario_loader import (
+    EXAMPLE_SCENARIO_NAME,
+    _parse_tool_chain_for_turn,
+    load_scenario_yaml,
+)
 from simulator.scenarios.tool_payload_validation import validate_scenario_tool_payloads
 
 
@@ -71,6 +75,79 @@ def test_single_tool_call_tool_payloads_validate_against_config() -> None:
     loader = ScenarioLoader()
     scenario = loader.load("single_tool_call")
     validate_scenario_tool_payloads(scenario, load_config())
+
+
+def test_parse_tool_chain_rich_mcp_per_step() -> None:
+    """Rich tool_chain maps expand to parallel tool names and mcp_server keys."""
+    data = {
+        "tool_chain": [
+            {"mcp_server": "phone", "tool": "new_claim"},
+            {"mcp_server": "electronics", "name": "get_available_slots"},
+        ],
+    }
+    tools, servers = _parse_tool_chain_for_turn(data)
+    assert tools == ["new_claim", "get_available_slots"]
+    assert servers == ["phone", "electronics"]
+
+
+def test_parse_tool_chain_legacy_parallel_servers() -> None:
+    """Legacy string tool_chain plus tool_chain_mcp_servers is preserved."""
+    data = {
+        "tool_chain": ["new_claim", "pay"],
+        "tool_chain_mcp_servers": ["phone", "phone"],
+    }
+    tools, servers = _parse_tool_chain_for_turn(data)
+    assert tools == ["new_claim", "pay"]
+    assert servers == ["phone", "phone"]
+
+
+def test_rich_tool_chain_scenario_loads(tmp_path: Path) -> None:
+    """YAML with embedded mcp_server per tool_chain step loads and validates."""
+    yml = textwrap.dedent(
+        """\
+        name: rich_chain
+        tenant: toro
+        agent: toro-customer-assistant-001
+        mcp_server: phone
+        endusers:
+          - id: u1
+            turns:
+              - turn_index: 1
+                tool_chain:
+                  - mcp_server: phone
+                    tool: new_claim
+                  - mcp_server: electronics
+                    tool: get_available_slots
+                gen_ai.tool.call.arguments:
+                  new_claim:
+                    product_type: phone
+                    description: test
+                    incident_date: '2026-01-01'
+                  get_available_slots:
+                    claim_id: CLM-1
+                    service_type: repair_collection
+                    date_range_start: '2026-01-01'
+                    date_range_end: '2026-01-31'
+                gen_ai.tool.call.result:
+                  new_claim:
+                    claim_id: CLM-1
+                    product_type: phone
+                    status: opened
+                    coverage:
+                      type: device_damage
+                      deductible: 75
+                  get_available_slots:
+                    claim_id: CLM-1
+                    slots: []
+                    timezone: America/Los_Angeles
+        """
+    )
+    path = tmp_path / "rich.yaml"
+    path.write_text(yml, encoding="utf-8")
+    scenario = load_scenario_yaml(path, tmp_path)
+    turn = scenario.endusers[0].turns[0]
+    assert turn.tool_chain == ["new_claim", "get_available_slots"]
+    assert turn.tool_chain_mcp_servers == ["phone", "electronics"]
 
 
 def test_tool_payload_validation_rejects_unknown_argument_field(tmp_path: Path) -> None:

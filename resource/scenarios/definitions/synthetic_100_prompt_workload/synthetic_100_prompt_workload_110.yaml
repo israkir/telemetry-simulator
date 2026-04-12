@@ -1,61 +1,63 @@
 name: synthetic_100_prompt_workload_110
 description: Single-turn synthetic workload scenario row 110.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C3
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: electronics
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_110
-  vendor.enduser.pseudo.id: user_syn_110
-  channel: web
-  mcp_server: electronics
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: Customer insists the fault is “**electronics inside the phone**”—**open claim** and book via **electronics** lane on the earliest slot returned.
-    agent_response: '**CLM-8110** opened; workflow followed **electronics/get_available_slots** -> **electronics/update_appointment** (misclassification).'
-    tool_chain:
-    - new_claim
-    - get_available_slots
-    - update_appointment
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Customer requested electronics lane handling.
-        incident_date: '2026-04-03'
-      get_available_slots:
-        claim_id: CLM-8110
-        service_type: repair_collection
-        date_range_start: '2026-04-04'
-        date_range_end: '2026-04-11'
-      update_appointment:
-        claim_id: CLM-8110
-        appointment_id: APT-000110
-        slot_id: SLOT-2026-04-04T09:00
-        preferred_time_window: morning
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8110
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created on electronics lane.
-      get_available_slots:
-        claim_id: CLM-8110
-        slots:
-        - slot_id: SLOT-2026-04-04T09:00
-          duration_minutes: 120
-        - slot_id: SLOT-2026-04-04T14:00
-          duration_minutes: 120
-        timezone: America/Los_Angeles
-      update_appointment:
-        claim_id: CLM-8110
-        appointment_id: APT-000110
-        status: rescheduled
-        scheduled_at: '2026-04-04T09:00:00Z'
+  - id: synthetic_row_110
+    vendor.enduser.pseudo.id: user_syn_110
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: They keep calling it a screen issue, but I'm sure it's failing electronics inside the phone. Open a claim and book your earliest diagnostic slot - I don't care which calendar it comes from.
+        agent_response: "CLM-8110 opened on phone; workflow then used electronics get_available_slots and update_appointment (misclassification)."
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: electronics
+            tool: get_available_slots
+          - mcp_server: electronics
+            tool: update_appointment
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: User disputes screen-only diagnosis; insists internal component failure; wants earliest diagnostic slot.
+            incident_date: '2026-04-03'
+          get_available_slots:
+            claim_id: CLM-8110
+            service_type: repair_collection
+            date_range_start: '2026-04-04'
+            date_range_end: '2026-04-11'
+          update_appointment:
+            claim_id: CLM-8110
+            appointment_id: APT-000110
+            slot_id: SLOT-2026-04-04T09:00
+            preferred_time_window: morning
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8110
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Phone MCP intake before misrouted electronics scheduling.
+          get_available_slots:
+            claim_id: CLM-8110
+            slots:
+              - slot_id: SLOT-2026-04-04T09:00
+                duration_minutes: 120
+              - slot_id: SLOT-2026-04-04T14:00
+                duration_minutes: 120
+            timezone: America/Los_Angeles
+          update_appointment:
+            claim_id: CLM-8110
+            appointment_id: APT-000110
+            status: rescheduled
+            scheduled_at: '2026-04-04T09:00:00Z'

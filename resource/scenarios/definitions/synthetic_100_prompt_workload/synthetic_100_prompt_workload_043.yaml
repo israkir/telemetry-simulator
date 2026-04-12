@@ -1,12 +1,12 @@
 name: synthetic_100_prompt_workload_043
 description: Single-turn synthetic workload scenario row 43.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C2
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 17.0
 trace_interval_ms: 200
@@ -51,70 +51,84 @@ x_new_claim_span_plan: &id001
   cp_request:
     root: request.validation
     children:
-    - payload.validation
-    - policy.validation
-    - augmentation.validation
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
   data_plane:
     root: a2a.orchestrate
     children:
-    - planner
-    - task.execute
-    - llm.call
-    - tools.recommend
-    - mcp.tool.execute
-    - mcp.tool.execute.attempt
-    - response.compose
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
   cp_response:
     root: response.validation
     children:
-    - policy.validation
+      - policy.validation
 endusers:
-- id: synthetic_row_043
-  vendor.enduser.pseudo.id: user_syn_043
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    span_plan: *id001
-    vendor.enduser.request.raw: "Reschedule **CLM-4821** to **SLOT-2026-03-21T14:00**\u2014that\u2019s the SMS offer."
-    span_events:
-    - target_span_class: request.validation
-      name: gentoro.enduser.request
-      attributes:
-        vendor.enduser.request.raw: "Reschedule **CLM-4821** to **SLOT-2026-03-21T14:00**\u2014that\u2019s the SMS offer."
-    - target_span_class: response.validation
-      name: gentoro.agent.response
-      attributes:
-        vendor.agent.response.raw: "Updated\u2014**CLM-4821** now shows **rescheduled** at **2026-03-21T14:00:00Z** on **SLOT-2026-03-21T14:00**."
-    - target_span_class: tools.recommend
-      name: gentoro.agent.tool_selection
-      attributes:
-        vendor.agent.tool_selection.input.raw: "Reschedule **CLM-4821** to **SLOT-2026-03-21T14:00**\u2014that\u2019s the SMS offer."
-        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "update_appointment"}]}'
-    agent_response: "Updated\u2014**CLM-4821** now shows **rescheduled** at **2026-03-21T14:00:00Z** on **SLOT-2026-03-21T14:00**."
-    tool_chain:
-    - update_appointment
-    gen_ai.request.type: completion
-    gen_ai.response.finish_reason: stop
-    gen_ai.usage.input_tokens: 900
-    gen_ai.usage.output_tokens: 130
-    gentoro.llm.streaming: false
-    gentoro.llm.content.capture.enabled: true
-    gentoro.llm.content.redaction.enabled: false
-    gen_ai.tool.call.arguments:
-      update_appointment:
-        claim_id: CLM-4821
-        appointment_id: APT-000043
-        slot_id: SLOT-2026-03-21T14:00
-        preferred_time_window: afternoon
-    gen_ai.tool.call.result:
-      update_appointment:
-        claim_id: CLM-4821
-        appointment_id: APT-000043
-        status: rescheduled
-        scheduled_at: '2026-03-21T14:00:00Z'
-    planner:
-      system_prompt: Phone MCP; execute table-defined tool chain.
-      output: 'PLAN: update_appointment'
-    response_compose:
-      system_prompt: Return concise customer-facing confirmation in plain language.
+  - id: synthetic_row_043
+    vendor.enduser.pseudo.id: user_syn_043
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *id001
+        vendor.enduser.request.raw: "Corner glass is badly cracked after a stumble - start my Toro phone claim and book Saturday, March 21, 2026, 2:00 PM PT; the SMS you sent offered that afternoon window."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Corner glass is badly cracked after a stumble - start my Toro phone claim and book Saturday, March 21, 2026, 2:00 PM PT; the SMS you sent offered that afternoon window."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: "CLM-4821 opened; pickup is set to Saturday, March 21, 2026, 2:00 PM PT - no separate slot listing step."
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Corner glass is badly cracked after a stumble - start my Toro phone claim and book Saturday, March 21, 2026, 2:00 PM PT; the SMS you sent offered that afternoon window."
+              vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "update_appointment"}]}'
+        agent_response: "CLM-4821 opened; pickup is set to Saturday, March 21, 2026, 2:00 PM PT - no separate slot listing step."
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: phone
+            tool: update_appointment
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 130
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Cracked corner glass after a stumble; user wants the SMS afternoon window booked.
+            incident_date: '2026-03-20'
+          update_appointment:
+            claim_id: CLM-4821
+            appointment_id: APT-000043
+            slot_id: SLOT-2026-03-21T14:00
+            preferred_time_window: afternoon
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-4821
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Claim created from workload row.
+          update_appointment:
+            claim_id: CLM-4821
+            appointment_id: APT-000043
+            status: rescheduled
+            scheduled_at: '2026-03-21T14:00:00Z'
+        planner:
+          system_prompt: Phone MCP; execute table-defined tool chain.
+          output: 'PLAN: new_claim -> update_appointment'
+        response_compose:
+          system_prompt: Return concise customer-facing confirmation in plain language.

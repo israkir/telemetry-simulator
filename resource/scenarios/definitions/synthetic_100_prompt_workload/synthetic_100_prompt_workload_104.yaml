@@ -1,47 +1,48 @@
 name: synthetic_100_prompt_workload_104
 description: Single-turn synthetic workload scenario row 104.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C2
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_104
-  vendor.enduser.pseudo.id: user_syn_104
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: Green line on display after a bump—**new claim** plus I want **SLOT-2026-04-05T11:00** from the carrier email—use that slot id.
-    agent_response: '**CLM-8104** recorded; **update_appointment** succeeded on **SLOT-2026-04-05T11:00** as requested.'
-    tool_chain:
-    - new_claim
-    - update_appointment
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Green line display issue after bump.
-        incident_date: '2026-04-04'
-      update_appointment:
-        claim_id: CLM-8104
-        appointment_id: APT-000104
-        slot_id: SLOT-2026-04-05T11:00
-        preferred_time_window: morning
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8104
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created from workload row.
-      update_appointment:
-        claim_id: CLM-8104
-        appointment_id: APT-000104
-        status: rescheduled
-        scheduled_at: '2026-04-05T11:00:00Z'
+  - id: synthetic_row_104
+    vendor.enduser.pseudo.id: user_syn_104
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: Green line on the display after a bump - new claim. The carrier email shows Sunday, April 5, 2026, 11:00 AM PT - book that time if your system has it.
+        agent_response: 'CLM-8104 recorded; update_appointment succeeded on Sunday, April 5, 2026, 11:00 AM PT as requested.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: phone
+            tool: update_appointment
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Green line display issue after bump.
+            incident_date: '2026-04-04'
+          update_appointment:
+            claim_id: CLM-8104
+            appointment_id: APT-000104
+            slot_id: SLOT-2026-04-05T11:00
+            preferred_time_window: morning
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8104
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Claim created from workload row.
+          update_appointment:
+            claim_id: CLM-8104
+            appointment_id: APT-000104
+            status: rescheduled
+            scheduled_at: '2026-04-05T11:00:00Z'

@@ -1,61 +1,63 @@
 name: synthetic_100_prompt_workload_108
 description: Single-turn synthetic workload scenario row 108.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C3
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: electronics
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_108
-  vendor.enduser.pseudo.id: user_syn_108
-  channel: web
-  mcp_server: electronics
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: Speaker amp on my handset crackles—user said “**electronics** repair” in the notes. **Open claim** and pick first **electronics** slot after Tuesday.
-    agent_response: '**CLM-8108** logged; routed through **electronics** service path and appointment updated from that inventory.'
-    tool_chain:
-    - new_claim
-    - get_available_slots
-    - update_appointment
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Handset speaker amplifier crackling.
-        incident_date: '2026-04-02'
-      get_available_slots:
-        claim_id: CLM-8108
-        service_type: repair_collection
-        date_range_start: '2026-04-03'
-        date_range_end: '2026-04-11'
-      update_appointment:
-        claim_id: CLM-8108
-        appointment_id: APT-000108
-        slot_id: SLOT-2026-04-08T09:00
-        preferred_time_window: morning
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8108
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created on electronics lane.
-      get_available_slots:
-        claim_id: CLM-8108
-        slots:
-        - slot_id: SLOT-2026-04-08T09:00
-          duration_minutes: 120
-        - slot_id: SLOT-2026-04-08T14:00
-          duration_minutes: 120
-        timezone: America/Los_Angeles
-      update_appointment:
-        claim_id: CLM-8108
-        appointment_id: APT-000108
-        status: rescheduled
-        scheduled_at: '2026-04-08T09:00:00Z'
+  - id: synthetic_row_108
+    vendor.enduser.pseudo.id: user_syn_108
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: My handset speaker amp crackles. The store ticket says "electronics repair" in the notes - open my claim and give me the first opening after Tuesday you can.
+        agent_response: 'CLM-8108 logged; routed through electronics service path and appointment updated from that inventory.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: electronics
+            tool: get_available_slots
+          - mcp_server: electronics
+            tool: update_appointment
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Handset speaker amplifier crackling.
+            incident_date: '2026-04-02'
+          get_available_slots:
+            claim_id: CLM-8108
+            service_type: repair_collection
+            date_range_start: '2026-04-03'
+            date_range_end: '2026-04-11'
+          update_appointment:
+            claim_id: CLM-8108
+            appointment_id: APT-000108
+            slot_id: SLOT-2026-04-08T09:00
+            preferred_time_window: morning
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8108
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Phone MCP intake before misrouted electronics scheduling.
+          get_available_slots:
+            claim_id: CLM-8108
+            slots:
+              - slot_id: SLOT-2026-04-08T09:00
+                duration_minutes: 120
+              - slot_id: SLOT-2026-04-08T14:00
+                duration_minutes: 120
+            timezone: America/Los_Angeles
+          update_appointment:
+            claim_id: CLM-8108
+            appointment_id: APT-000108
+            status: rescheduled
+            scheduled_at: '2026-04-08T09:00:00Z'

@@ -1,12 +1,12 @@
 name: synthetic_100_prompt_workload_029
 description: Single-turn synthetic workload scenario row 29.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C1
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 16.0
 trace_interval_ms: 200
@@ -51,97 +51,99 @@ x_new_claim_span_plan: &id001
   cp_request:
     root: request.validation
     children:
-    - payload.validation
-    - policy.validation
-    - augmentation.validation
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
   data_plane:
     root: a2a.orchestrate
     children:
-    - planner
-    - task.execute
-    - llm.call
-    - tools.recommend
-    - mcp.tool.execute
-    - mcp.tool.execute.attempt
-    - response.compose
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
   cp_response:
     root: response.validation
     children:
-    - policy.validation
+      - policy.validation
 endusers:
-- id: synthetic_row_029
-  vendor.enduser.pseudo.id: user_syn_029
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    span_plan: *id001
-    vendor.enduser.request.raw: "Theft\u2014Find My last ping yesterday. File a new claim \\+ earliest assessor slot respecting Norwegian holidays."
-    span_events:
-    - target_span_class: request.validation
-      name: gentoro.enduser.request
-      attributes:
-        vendor.enduser.request.raw: "Theft\u2014Find My last ping yesterday. File a new claim \\+ earliest assessor slot respecting Norwegian holidays."
-    - target_span_class: response.validation
-      name: gentoro.agent.response
-      attributes:
-        vendor.agent.response.raw: '**CLM-1029** loss opened; earliest compliant assessor slot **SLOT-2026-03-25T09:00** booked.'
-    - target_span_class: tools.recommend
-      name: gentoro.agent.tool_selection
-      attributes:
-        vendor.agent.tool_selection.input.raw: "Theft\u2014Find My last ping yesterday. File a new claim \\+ earliest assessor slot respecting Norwegian holidays."
-        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
-    agent_response: '**CLM-1029** loss opened; earliest compliant assessor slot **SLOT-2026-03-25T09:00** booked.'
-    tool_chain:
-    - new_claim
-    - get_available_slots
-    - update_appointment
-    gen_ai.request.type: completion
-    gen_ai.response.finish_reason: stop
-    gen_ai.usage.input_tokens: 900
-    gen_ai.usage.output_tokens: 130
-    gentoro.llm.streaming: false
-    gentoro.llm.content.capture.enabled: true
-    gentoro.llm.content.redaction.enabled: false
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: "Theft\u2014Find My last ping yesterday. File a new claim \\+ earliest assessor slot respecting Norwegian holidays."
-        incident_date: '2026-03-20'
-      get_available_slots:
-        claim_id: CLM-1029
-        service_type: repair_collection
-        date_range_start: '2026-03-20'
-        date_range_end: '2026-03-31'
-      update_appointment:
-        claim_id: CLM-1029
-        appointment_id: APT-000029
-        slot_id: SLOT-2026-03-25T09:00
-        preferred_time_window: morning
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-1029
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created from workload row.
-      get_available_slots:
-        claim_id: CLM-1029
-        slots:
-        - slot_id: SLOT-2026-03-25T09:00
-          duration_minutes: 120
-        - slot_id: SLOT-2026-03-27T14:00
-          duration_minutes: 120
-        timezone: America/Los_Angeles
-      update_appointment:
-        claim_id: CLM-1029
-        appointment_id: APT-000029
-        status: rescheduled
-        scheduled_at: '2026-03-25T09:00:00Z'
-    planner:
-      system_prompt: Phone MCP; execute table-defined tool chain.
-      output: 'PLAN: new_claim -> get_available_slots -> update_appointment'
-    response_compose:
-      system_prompt: Return concise customer-facing confirmation in plain language.
+  - id: synthetic_row_029
+    vendor.enduser.pseudo.id: user_syn_029
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *id001
+        vendor.enduser.request.raw: "Theft - Find My last ping yesterday. File a new claim + earliest assessor slot respecting Norwegian holidays."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "Theft - Find My last ping yesterday. File a new claim + earliest assessor slot respecting Norwegian holidays."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: 'CLM-1029 loss opened; earliest compliant assessor slot Wednesday, March 25, 2026, 9:00 AM PT booked.'
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "Theft - Find My last ping yesterday. File a new claim + earliest assessor slot respecting Norwegian holidays."
+              vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}, {"tool_name": "get_available_slots"}, {"tool_name": "update_appointment"}]}'
+        agent_response: 'CLM-1029 loss opened; earliest compliant assessor slot Wednesday, March 25, 2026, 9:00 AM PT booked.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: phone
+            tool: get_available_slots
+          - mcp_server: phone
+            tool: update_appointment
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 130
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: "Theft - Find My last ping yesterday. File a new claim + earliest assessor slot respecting Norwegian holidays."
+            incident_date: '2026-03-20'
+          get_available_slots:
+            claim_id: CLM-1029
+            service_type: repair_collection
+            date_range_start: '2026-03-20'
+            date_range_end: '2026-03-31'
+          update_appointment:
+            claim_id: CLM-1029
+            appointment_id: APT-000029
+            slot_id: SLOT-2026-03-25T09:00
+            preferred_time_window: morning
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-1029
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Claim created from workload row.
+          get_available_slots:
+            claim_id: CLM-1029
+            slots:
+              - slot_id: SLOT-2026-03-25T09:00
+                duration_minutes: 120
+              - slot_id: SLOT-2026-03-27T14:00
+                duration_minutes: 120
+            timezone: America/Los_Angeles
+          update_appointment:
+            claim_id: CLM-1029
+            appointment_id: APT-000029
+            status: rescheduled
+            scheduled_at: '2026-03-25T09:00:00Z'
+        planner:
+          system_prompt: Phone MCP; execute table-defined tool chain.
+          output: 'PLAN: new_claim -> get_available_slots -> update_appointment'
+        response_compose:
+          system_prompt: Return concise customer-facing confirmation in plain language.

@@ -1,47 +1,48 @@
 name: synthetic_100_prompt_workload_105
 description: Single-turn synthetic workload scenario row 105.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C2
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_105
-  vendor.enduser.pseudo.id: user_syn_105
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: Battery bulging—**open claim** and schedule only **SLOT-2026-04-07T15:00** (safety case; don’t offer alternatives).
-    agent_response: '**CLM-8105** opened as battery risk; booking locked to **SLOT-2026-04-07T15:00** per instruction.'
-    tool_chain:
-    - new_claim
-    - update_appointment
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Battery bulging and heat risk.
-        incident_date: '2026-04-06'
-      update_appointment:
-        claim_id: CLM-8105
-        appointment_id: APT-000105
-        slot_id: SLOT-2026-04-07T15:00
-        preferred_time_window: afternoon
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8105
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created from workload row.
-      update_appointment:
-        claim_id: CLM-8105
-        appointment_id: APT-000105
-        status: rescheduled
-        scheduled_at: '2026-04-07T15:00:00Z'
+  - id: synthetic_row_105
+    vendor.enduser.pseudo.id: user_syn_105
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: Battery is bulging - open a claim and schedule Tuesday, April 7, 2026, 3:00 PM PT only; safety said not to offer alternatives.
+        agent_response: 'CLM-8105 opened as battery risk; booking locked to Tuesday, April 7, 2026, 3:00 PM PT per instruction.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+          - mcp_server: phone
+            tool: update_appointment
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Battery bulging and heat risk.
+            incident_date: '2026-04-06'
+          update_appointment:
+            claim_id: CLM-8105
+            appointment_id: APT-000105
+            slot_id: SLOT-2026-04-07T15:00
+            preferred_time_window: afternoon
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8105
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Claim created from workload row.
+          update_appointment:
+            claim_id: CLM-8105
+            appointment_id: APT-000105
+            status: rescheduled
+            scheduled_at: '2026-04-07T15:00:00Z'

@@ -1,12 +1,12 @@
 name: synthetic_100_prompt_workload_054
 description: Single-turn synthetic workload scenario row 54.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C5
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 17.0
 trace_interval_ms: 200
@@ -51,72 +51,72 @@ x_new_claim_span_plan: &id001
   cp_request:
     root: request.validation
     children:
-    - payload.validation
-    - policy.validation
-    - augmentation.validation
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
   data_plane:
     root: a2a.orchestrate
     children:
-    - planner
-    - task.execute
-    - llm.call
-    - tools.recommend
-    - mcp.tool.execute
-    - mcp.tool.execute.attempt
-    - response.compose
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
   cp_response:
     root: response.validation
     children:
-    - policy.validation
+      - policy.validation
 endusers:
-- id: synthetic_row_054
-  vendor.enduser.pseudo.id: user_syn_054
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    span_plan: *id001
-    vendor.enduser.request.raw: "**File a claim**: bent frame from treadmill fall; I\u2019ll book later online."
-    span_events:
-    - target_span_class: request.validation
-      name: gentoro.enduser.request
-      attributes:
-        vendor.enduser.request.raw: "**File a claim**: bent frame from treadmill fall; I\u2019ll book later online."
-    - target_span_class: response.validation
-      name: gentoro.agent.response
-      attributes:
-        vendor.agent.response.raw: '**CLM-7004** recorded as impact/frame; appointment tools not invoked per your instruction.'
-    - target_span_class: tools.recommend
-      name: gentoro.agent.tool_selection
-      attributes:
-        vendor.agent.tool_selection.input.raw: "**File a claim**: bent frame from treadmill fall; I\u2019ll book later online."
-        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}]}'
-    agent_response: '**CLM-7004** recorded as impact/frame; appointment tools not invoked per your instruction.'
-    tool_chain:
-    - new_claim
-    gen_ai.request.type: completion
-    gen_ai.response.finish_reason: stop
-    gen_ai.usage.input_tokens: 900
-    gen_ai.usage.output_tokens: 130
-    gentoro.llm.streaming: false
-    gentoro.llm.content.capture.enabled: true
-    gentoro.llm.content.redaction.enabled: false
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: "**File a claim**: bent frame from treadmill fall; I\u2019ll book later online."
-        incident_date: '2026-03-20'
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-7004
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created from workload row.
-    planner:
-      system_prompt: Phone MCP; execute table-defined tool chain.
-      output: 'PLAN: new_claim'
-    response_compose:
-      system_prompt: Return concise customer-facing confirmation in plain language.
+  - id: synthetic_row_054
+    vendor.enduser.pseudo.id: user_syn_054
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *id001
+        vendor.enduser.request.raw: "File a claim: bent frame from treadmill fall; I'll book later online."
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: "File a claim: bent frame from treadmill fall; I'll book later online."
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: 'CLM-7004 recorded as impact/frame; appointment tools not invoked per your instruction.'
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: "File a claim: bent frame from treadmill fall; I'll book later online."
+              vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "new_claim"}]}'
+        agent_response: 'CLM-7004 recorded as impact/frame; appointment tools not invoked per your instruction.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 130
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: "File a claim: bent frame from treadmill fall; I'll book later online."
+            incident_date: '2026-03-20'
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-7004
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Claim created from workload row.
+        planner:
+          system_prompt: Phone MCP; execute table-defined tool chain.
+          output: 'PLAN: new_claim'
+        response_compose:
+          system_prompt: Return concise customer-facing confirmation in plain language.

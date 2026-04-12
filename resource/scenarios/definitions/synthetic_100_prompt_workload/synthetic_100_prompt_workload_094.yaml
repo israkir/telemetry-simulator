@@ -1,12 +1,12 @@
 name: synthetic_100_prompt_workload_094
 description: Single-turn synthetic workload scenario row 94.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - B2
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 24.0
 trace_interval_ms: 200
@@ -51,79 +51,80 @@ x_new_claim_span_plan: &id001
   cp_request:
     root: request.validation
     children:
-    - payload.validation
-    - policy.validation
-    - augmentation.validation
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
   data_plane:
     root: a2a.orchestrate
     children:
-    - planner
-    - task.execute
-    - llm.call
-    - tools.recommend
-    - mcp.tool.execute
-    - mcp.tool.execute.attempt
-    - response.compose
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
   cp_response:
     root: response.validation
     children:
-    - policy.validation
+      - policy.validation
 endusers:
-- id: synthetic_row_094
-  vendor.enduser.pseudo.id: user_syn_094
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    span_plan: *id001
-    vendor.enduser.request.raw: Please replace my old phone policy by purchasing quote **QT-630**, then charge **$27.40** today.
-    span_events:
-    - target_span_class: request.validation
-      name: gentoro.enduser.request
-      attributes:
-        vendor.enduser.request.raw: Please replace my old phone policy by purchasing quote **QT-630**, then charge **$27.40** today.
-    - target_span_class: response.validation
-      name: gentoro.agent.response
-      attributes:
-        vendor.agent.response.raw: Completed. Your replacement phone policy is now issued as **POL-700** and is active. The additional payment charge was not processed in this flow.
-    - target_span_class: tools.recommend
-      name: gentoro.agent.tool_selection
-      attributes:
-        vendor.agent.tool_selection.input.raw: Please replace my old phone policy by purchasing quote **QT-630**, then charge **$27.40** today.
-        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}, {"tool_name": "buy_insurance"}]}'
-    agent_response: Completed. Your replacement phone policy is now issued as **POL-700** and is active. The additional payment charge was not processed in this flow.
-    tool_chain:
-    - choose_insurance
-    - buy_insurance
-    gen_ai.request.type: completion
-    gen_ai.response.finish_reason: stop
-    gen_ai.usage.input_tokens: 900
-    gen_ai.usage.output_tokens: 130
-    gentoro.llm.streaming: false
-    gentoro.llm.content.capture.enabled: true
-    gentoro.llm.content.redaction.enabled: false
-    gen_ai.tool.call.arguments:
-      choose_insurance:
-        product_category: phone
-        coverage_tier: standard
-        region: NO-01
-      buy_insurance:
-        quote_id: QT-630
-        payment_method: card_on_file
-        holder_reference: enduser_0094
-    gen_ai.tool.call.result:
-      choose_insurance:
-        quote_id: QT-630
-        premium_monthly: 27.4
-        currency: EUR
-        valid_until: '2026-04-01'
-      buy_insurance:
-        policy_id: POL-700
-        quote_id: QT-630
-        effective_date: '2026-03-20'
-        status: active
-    planner:
-      system_prompt: Phone MCP; execute table-defined tool chain.
-      output: 'PLAN: choose_insurance -> buy_insurance'
-    response_compose:
-      system_prompt: Return concise customer-facing confirmation in plain language.
+  - id: synthetic_row_094
+    vendor.enduser.pseudo.id: user_syn_094
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *id001
+        vendor.enduser.request.raw: Please replace my old phone policy by purchasing quote QT-630, then charge $27.40 today.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: Please replace my old phone policy by purchasing quote QT-630, then charge $27.40 today.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: Completed. Your replacement phone policy is now issued as POL-700 and is active. The additional payment charge was not processed in this flow.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: Please replace my old phone policy by purchasing quote QT-630, then charge $27.40 today.
+              vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}, {"tool_name": "buy_insurance"}]}'
+        agent_response: Completed. Your replacement phone policy is now issued as POL-700 and is active. The additional payment charge was not processed in this flow.
+        tool_chain:
+          - mcp_server: phone
+            tool: choose_insurance
+          - mcp_server: phone
+            tool: buy_insurance
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 130
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          choose_insurance:
+            product_category: phone
+            coverage_tier: standard
+            region: NO-01
+          buy_insurance:
+            quote_id: QT-630
+            payment_method: card_on_file
+            holder_reference: enduser_0094
+        gen_ai.tool.call.result:
+          choose_insurance:
+            quote_id: QT-630
+            premium_monthly: 27.4
+            currency: EUR
+            valid_until: '2026-04-01'
+          buy_insurance:
+            policy_id: POL-700
+            quote_id: QT-630
+            effective_date: '2026-03-20'
+            status: active
+        planner:
+          system_prompt: Phone MCP; execute table-defined tool chain.
+          output: 'PLAN: choose_insurance -> buy_insurance'
+        response_compose:
+          system_prompt: Return concise customer-facing confirmation in plain language.

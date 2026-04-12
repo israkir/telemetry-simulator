@@ -1,36 +1,36 @@
 name: synthetic_100_prompt_workload_111
 description: Single-turn synthetic workload scenario row 111.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - C5
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 17.0
 endusers:
-- id: synthetic_row_111
-  vendor.enduser.pseudo.id: user_syn_111
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    vendor.enduser.request.raw: Rear glass shattered on stairs—**start a claim**; I’ll call the hotline tomorrow for pickup dates.
-    agent_response: '**CLM-8111** opened (**impact**); no scheduling tools run—follow-up call noted.'
-    tool_chain:
-    - new_claim
-    gen_ai.tool.call.arguments:
-      new_claim:
-        product_type: phone
-        description: Rear glass shattered after a fall on stairs.
-        incident_date: '2026-04-03'
-    gen_ai.tool.call.result:
-      new_claim:
-        claim_id: CLM-8111
-        product_type: phone
-        status: opened
-        coverage:
-          type: device_damage
-          deductible: 75
-        notes: Claim created from workload row.
+  - id: synthetic_row_111
+    vendor.enduser.pseudo.id: user_syn_111
+    channel: web
+    turns:
+      - turn_index: 1
+        vendor.enduser.request.raw: Rear glass shattered on stairs - start a claim; I'll call the hotline tomorrow for pickup dates.
+        agent_response: 'CLM-8111 opened (impact); no scheduling tools run - follow-up call noted.'
+        tool_chain:
+          - mcp_server: phone
+            tool: new_claim
+        gen_ai.tool.call.arguments:
+          new_claim:
+            product_type: phone
+            description: Rear glass shattered after a fall on stairs.
+            incident_date: '2026-04-03'
+        gen_ai.tool.call.result:
+          new_claim:
+            claim_id: CLM-8111
+            product_type: phone
+            status: opened
+            coverage:
+              type: device_damage
+              deductible: 75
+            notes: Claim created from workload row.

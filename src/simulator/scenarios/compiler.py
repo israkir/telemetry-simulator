@@ -11,9 +11,9 @@ import json
 from typing import Any
 
 from .. import config as sim_config
-from ..config import load_config
+from ..config import get_default_tenant_id, load_config
 from ..generators.trace_generator import SpanEventSpec, SpanSpec, TraceSpec
-from .config_resolver import ResolvedContext
+from .config_resolver import ResolvedContext, resolve_context
 from .id_generator import generate_ids_for_turn
 from .ir import CompiledTurnSpec, EnduserSpec, TraceGraphSpec, TurnSpec
 from .latency import LatencyModel
@@ -21,6 +21,38 @@ from .scenario_loader import Scenario
 
 # gentoro-enterprise analytics (GentoroSpanDerivedStorageMapper.SPANCLASS_AUGMENTATION_VALIDATION)
 CP_AUGMENTATION_VALIDATION_CLASS = "augmentation.validation"
+
+
+def _per_tool_resolved_contexts(
+    scenario: Scenario,
+    enduser: EnduserSpec,
+    turn: TurnSpec,
+    config: dict[str, Any],
+    default_tenant_id: str | None,
+) -> list[ResolvedContext] | None:
+    """Resolve MCP context per tool when the turn has per-step server keys (rich ``tool_chain`` or legacy ``tool_chain_mcp_servers``)."""
+    keys = getattr(turn, "tool_chain_mcp_servers", None) or []
+    chain = turn.tool_chain or []
+    if not keys or not chain:
+        return None
+    dtid = default_tenant_id if default_tenant_id else get_default_tenant_id(config)
+    fallback = (enduser.mcp_server_key or scenario.context.mcp_server_key or "phone").strip() or "phone"
+    out: list[ResolvedContext] = []
+    for i in range(len(chain)):
+        k = keys[i] if i < len(keys) else fallback
+        k = str(k).strip() if k else fallback
+        if not k:
+            k = fallback
+        out.append(
+            resolve_context(
+                config,
+                tenant_key=scenario.context.tenant_key,
+                agent_id=scenario.context.agent_id,
+                mcp_server_key=k,
+                default_tenant_id=dtid,
+            )
+        )
+    return out
 
 
 def _cp_request_shared_attrs(prefix: str, compiled: CompiledTurnSpec) -> dict[str, Any]:
@@ -782,6 +814,7 @@ def _build_data_plane_trace(
     span_events: list[dict[str, Any]] | None = None,
     allowed_children: set[str] | None = None,
     config: dict[str, Any] | None = None,
+    tool_contexts: list[ResolvedContext] | None = None,
 ) -> TraceSpec:
     """Build data-plane A2A orchestration trace from scenario turn (semconv)."""
     spans: list[SpanSpec] = []
@@ -1001,12 +1034,13 @@ def _build_data_plane_trace(
         task_rec_idx = len(spans) - 1
         if allowed is None or "tools.recommend" in allowed:
             chain = list(turn.tool_chain or [])
+            rec_ctx = tool_contexts[0] if tool_contexts else ctx
             rec_attrs: dict[str, Any] = {
                 _prefix_attr("vendor.span.class", prefix): "tools.recommend",
                 _prefix_attr("vendor.step.outcome", prefix): "success",
-                _prefix_attr("vendor.mcp.tools.available.count", prefix): len(ctx.tools_by_name),
+                _prefix_attr("vendor.mcp.tools.available.count", prefix): len(rec_ctx.tools_by_name),
                 _prefix_attr("vendor.mcp.tools.selected.count", prefix): min(
-                    len(chain), len(ctx.tools_by_name)
+                    len(chain), len(rec_ctx.tools_by_name)
                 ),
             }
             if chain:
@@ -1048,7 +1082,12 @@ def _build_data_plane_trace(
             task_exec_idx = len(spans) - 1
 
             if allowed is None or "mcp.tool.execute" in allowed:
-                tool_uuid = ctx.get_tool_uuid(tool_name) or ""
+                tctx = (
+                    tool_contexts[task_i]
+                    if tool_contexts is not None and task_i < len(tool_contexts)
+                    else ctx
+                )
+                tool_uuid = tctx.get_tool_uuid(tool_name) or ""
                 tool_call_id = (
                     compiled.mcp_tool_call_ids[task_i]
                     if task_i < len(compiled.mcp_tool_call_ids)
@@ -1076,7 +1115,7 @@ def _build_data_plane_trace(
                         attributes={
                             _prefix_attr("vendor.span.class", prefix): "mcp.tool.execute",
                             _prefix_attr("vendor.step.outcome", prefix): parent_step,
-                            _prefix_attr("vendor.mcp.server.uuid", prefix): ctx.mcp_server_uuid,
+                            _prefix_attr("vendor.mcp.server.uuid", prefix): tctx.mcp_server_uuid,
                             _prefix_attr("vendor.mcp.tool.uuid", prefix): tool_uuid,
                             "gen_ai.tool.name": tool_name,
                             # semconv: logical tool call id is gen_ai.tool.call.id (OTEL GenAI).
@@ -1105,6 +1144,9 @@ def _build_data_plane_trace(
                             row=row,
                             args_json=args_json,
                             res_json=res_json,
+                        )
+                        attempt_attrs[_prefix_attr("vendor.mcp.server.uuid", prefix)] = (
+                            tctx.mcp_server_uuid
                         )
                         final_attempt_attrs = attempt_attrs
                         spans.append(
@@ -1153,6 +1195,7 @@ def compile_turn(
     config: dict[str, Any] | None = None,
     shared_session_id: str | None = None,
     shared_conversation_id: str | None = None,
+    default_tenant_id: str | None = None,
 ) -> TraceGraphSpec:
     """
     Compile one scenario turn into a TraceGraphSpec (three TraceSpecs + CompiledTurnSpec).
@@ -1221,6 +1264,10 @@ def compile_turn(
         else bool(getattr(turn, "has_agent_response", True))
     )
 
+    tool_contexts = _per_tool_resolved_contexts(
+        scenario, enduser, turn, config, default_tenant_id
+    )
+
     dp = (
         _build_data_plane_trace(
             prefix,
@@ -1231,6 +1278,7 @@ def compile_turn(
             span_events=turn.span_events,
             allowed_children=_segment_allowed_children(turn.span_plan, "data_plane"),
             config=config,
+            tool_contexts=tool_contexts,
         )
         if emit_data_plane
         else TraceSpec(spans=[])

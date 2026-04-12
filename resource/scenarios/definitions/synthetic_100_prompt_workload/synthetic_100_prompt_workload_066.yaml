@@ -1,12 +1,12 @@
 name: synthetic_100_prompt_workload_066
 description: Single-turn synthetic workload scenario row 66.
 tags:
-- normal
-- synthetic
-- single-turn
+  - normal
+  - synthetic
+  - single-turn
+  - B1
 tenant: toro
 agent: toro-customer-assistant-001
-mcp_server: phone
 vendor.redaction.applied: none
 workload_weight: 25.0
 trace_interval_ms: 200
@@ -51,69 +51,69 @@ x_new_claim_span_plan: &id001
   cp_request:
     root: request.validation
     children:
-    - payload.validation
-    - policy.validation
-    - augmentation.validation
+      - payload.validation
+      - policy.validation
+      - augmentation.validation
   data_plane:
     root: a2a.orchestrate
     children:
-    - planner
-    - task.execute
-    - llm.call
-    - tools.recommend
-    - mcp.tool.execute
-    - mcp.tool.execute.attempt
-    - response.compose
+      - planner
+      - task.execute
+      - llm.call
+      - tools.recommend
+      - mcp.tool.execute
+      - mcp.tool.execute.attempt
+      - response.compose
   cp_response:
     root: response.validation
     children:
-    - policy.validation
+      - policy.validation
 endusers:
-- id: synthetic_row_066
-  vendor.enduser.pseudo.id: user_syn_066
-  channel: web
-  mcp_server: phone
-  turns:
-  - turn_index: 1
-    span_plan: *id001
-    vendor.enduser.request.raw: Please include a short explanation of what the tier covers, but quote only today.
-    span_events:
-    - target_span_class: request.validation
-      name: gentoro.enduser.request
-      attributes:
+  - id: synthetic_row_066
+    vendor.enduser.pseudo.id: user_syn_066
+    channel: web
+    turns:
+      - turn_index: 1
+        span_plan: *id001
         vendor.enduser.request.raw: Please include a short explanation of what the tier covers, but quote only today.
-    - target_span_class: response.validation
-      name: gentoro.agent.response
-      attributes:
-        vendor.agent.response.raw: Shared the quote details and a quick coverage summary. Quote is **QT-500** at **$12.50/month**.
-    - target_span_class: tools.recommend
-      name: gentoro.agent.tool_selection
-      attributes:
-        vendor.agent.tool_selection.input.raw: Please include a short explanation of what the tier covers, but quote only today.
-        vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}]}'
-    agent_response: Shared the quote details and a quick coverage summary. Quote is **QT-500** at **$12.50/month**.
-    tool_chain:
-    - choose_insurance
-    gen_ai.request.type: completion
-    gen_ai.response.finish_reason: stop
-    gen_ai.usage.input_tokens: 900
-    gen_ai.usage.output_tokens: 130
-    gentoro.llm.streaming: false
-    gentoro.llm.content.capture.enabled: true
-    gentoro.llm.content.redaction.enabled: false
-    gen_ai.tool.call.arguments:
-      choose_insurance:
-        product_category: phone
-        coverage_tier: standard
-        region: NO-01
-    gen_ai.tool.call.result:
-      choose_insurance:
-        quote_id: QT-500
-        premium_monthly: 12.5
-        currency: EUR
-        valid_until: '2026-04-01'
-    planner:
-      system_prompt: Phone MCP; execute table-defined tool chain.
-      output: 'PLAN: choose_insurance'
-    response_compose:
-      system_prompt: Return concise customer-facing confirmation in plain language.
+        span_events:
+          - target_span_class: request.validation
+            name: gentoro.enduser.request
+            attributes:
+              vendor.enduser.request.raw: Please include a short explanation of what the tier covers, but quote only today.
+          - target_span_class: response.validation
+            name: gentoro.agent.response
+            attributes:
+              vendor.agent.response.raw: Shared the quote details and a quick coverage summary. Quote is QT-500 at $12.50/month.
+          - target_span_class: tools.recommend
+            name: gentoro.agent.tool_selection
+            attributes:
+              vendor.agent.tool_selection.input.raw: Please include a short explanation of what the tier covers, but quote only today.
+              vendor.agent.tool_selection.tool.plan: '{"tool_plan": [{"tool_name": "choose_insurance"}]}'
+        agent_response: Shared the quote details and a quick coverage summary. Quote is QT-500 at $12.50/month.
+        tool_chain:
+          - mcp_server: phone
+            tool: choose_insurance
+        gen_ai.request.type: completion
+        gen_ai.response.finish_reason: stop
+        gen_ai.usage.input_tokens: 900
+        gen_ai.usage.output_tokens: 130
+        gentoro.llm.streaming: false
+        gentoro.llm.content.capture.enabled: true
+        gentoro.llm.content.redaction.enabled: false
+        gen_ai.tool.call.arguments:
+          choose_insurance:
+            product_category: phone
+            coverage_tier: standard
+            region: NO-01
+        gen_ai.tool.call.result:
+          choose_insurance:
+            quote_id: QT-500
+            premium_monthly: 12.5
+            currency: EUR
+            valid_until: '2026-04-01'
+        planner:
+          system_prompt: Phone MCP; execute table-defined tool chain.
+          output: 'PLAN: choose_insurance'
+        response_compose:
+          system_prompt: Return concise customer-facing confirmation in plain language.
