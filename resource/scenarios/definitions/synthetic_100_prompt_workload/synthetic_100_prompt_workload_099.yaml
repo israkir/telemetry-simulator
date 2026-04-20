@@ -8,7 +8,7 @@ tags:
 tenant: toro
 agent: toro-customer-assistant-001
 vendor.redaction.applied: none
-workload_weight: 27.0
+workload_weight: 2.75
 trace_interval_ms: 200
 trace_interval_deviation_ms: 50
 latency_profiles:

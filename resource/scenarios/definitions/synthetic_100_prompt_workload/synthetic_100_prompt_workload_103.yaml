@@ -8,7 +8,7 @@ tags:
 tenant: toro
 agent: toro-customer-assistant-001
 vendor.redaction.applied: none
-workload_weight: 17.0
+workload_weight: 0.625
 endusers:
   - id: synthetic_row_103
     vendor.enduser.pseudo.id: user_syn_103
